@@ -1,5 +1,8 @@
 # baenggipyo (뱅기표)
 
+네이버 항공권·스카이스캐너에서 지금 살 수 있는 항공권과 날짜별 최저가를 조회하는 LLM 에이전트용 CLI.
+Korean flight search CLI for LLM agents: search bookable fares, daily lowest prices and destinations on Naver Flights and Skyscanner.
+
 > **뱅기표**: 비행기표를 편하게 부르는 말.
 
 네이버 항공권·스카이스캐너에서 **지금 살 수 있는 항공권**을 조회하는 CLI. Claude, ChatGPT 같은 LLM 에이전트가 항공권을 찾을 때 셸로 호출하는 도구로 쓰려고 만들었다.
@@ -195,3 +198,7 @@ GitHub 주소로 설치했다면 uv·pipx 의 `upgrade` 는 그 주소에서 그
 - [공통 개발 규약](https://github.com/Rukkakka/baenggipyo/blob/main/AGENTS.md) · [개발 환경](https://github.com/Rukkakka/baenggipyo/blob/main/references/development.md) · [버전·릴리스](https://github.com/Rukkakka/baenggipyo/blob/main/references/release.md)
 - [네이버 개발 가이드](https://github.com/Rukkakka/baenggipyo/blob/main/references/providers/naver.md)
 - [스카이스캐너 개발 가이드](https://github.com/Rukkakka/baenggipyo/blob/main/references/providers/skyscanner.md)
+
+## 라이선스
+
+[MIT](https://github.com/Rukkakka/baenggipyo/blob/main/LICENSE)
