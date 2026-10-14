@@ -9,3 +9,4 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 
 - 첫 릴리스: 네이버 항공권·스카이스캐너에서 지금 살 수 있는 항공권·날짜별 최저가·목적지를 조회하는 CLI 와 `baenggipyo guide`
 - `baenggipyo --version` — 설치한 버전과 커밋을 출력
+- PyPI 에서 설치할 수 있다: `uv tool install baenggipyo`, `pipx install baenggipyo`, `pip install baenggipyo`, 설치 없이 `uvx baenggipyo`. `baenggipyo==0.1.0` 처럼 버전도 고를 수 있다 (#3)
