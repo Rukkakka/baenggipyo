@@ -53,9 +53,9 @@ baenggipyo 프로세스가 하나의 상태 파일을 공유**한다. LLM 이 �
 - 상태 파일: `<state_dir>/ratelimit/<source>.json`. `state_dir` 은
   `BAENGGIPYO_STATE_DIR` > `$XDG_CACHE_HOME/baenggipyo` > `~/.cache/baenggipyo`. 환경 변수의 `~` 는 펼치고, 그래도 절대 경로가 아니면 무시한다.
   상대 경로는 프로세스마다 작업 디렉터리 기준으로 풀려 상태 파일을 공유하지 못한다 (XDG 명세도 상대 경로를 무시한다).
-- `RateLimiter.reserve()` 가 `flock` 잠금 안에서 다음 슬롯을 예약하고, 실제 대기(`sleep`)는
+- `RateLimiter.reserve()` 가 `flock`(Windows 는 `msvcrt.locking`) 잠금 안에서 다음 슬롯을 예약하고, 실제 대기(`sleep`)는
   잠금 밖에서 한다. 대기 중에 다른 프로세스가 쿨다운을 걸 수 있어 깨어난 뒤 쿨다운을 한 번 더 보고, 걸려 있으면 요청을 보내지 않는다.
-  Windows 는 `fcntl` 이 없어 잠금 없이 동작한다. 또 Windows 는 다른 프로세스가 열고 있는 파일을 바꿔 넣거나 바뀌는 중인 파일을 열면 잠깐
+  Windows 는 `fcntl` 이 없어 `msvcrt.locking` 으로 같은 잠금을 건다. 또 Windows 는 다른 프로세스가 열고 있는 파일을 바꿔 넣거나 바뀌는 중인 파일을 열면 잠깐
   `PermissionError` 가 나므로, 상태 파일 읽기와 `replace` 는 몇 번 다시 해 본다. 읽기에서 바로 빈 상태로 보면 걸린 쿨다운을 놓치고 그 빈 상태를 다시 써서 지운다.
 - `RateLimiter.reserve_ahead()` 는 다음 요청의 슬롯을 지금 예약해 두고, 그 요청의 요청 전 훅은 새로 예약하지 않고 그 슬롯을 쓴다 (미리 잡은 뒤로
   다른 프로세스가 건 쿨다운은 다시 본다). 앞 응답을 놓기 전에 다음 요청의 자리를 확보할 때 쓴다 (스카이스캐너 검색 폴링).
