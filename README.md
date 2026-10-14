@@ -30,7 +30,7 @@ macOS·Linux·Windows 에서 쓸 수 있다. 운영체제마다 명령이 다른
 ### 1. 준비물
 
 - **Python 3.11 이상** — 아래 A(uv)로 설치하면 없어도 된다. uv 가 알아서 받아 쓴다
-- **git** — GitHub 저장소에서 바로 설치하므로 필요하다
+- **git** — PyPI 로 설치하면 필요 없다. 아직 릴리스하지 않은 최신 수정을 GitHub 에서 받을 때만 쓴다
 - 로그인·API 키는 필요 없다
 
 | 운영체제 | Python 버전 확인 | Python 설치 | git 설치 |
@@ -63,11 +63,11 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 그다음은 모든 운영체제에서 같다.
 
 ```bash
-uv tool install git+https://github.com/Rukkakka/baenggipyo
+uv tool install baenggipyo
 uv tool update-shell     # ~/.local/bin 을 PATH 에 추가 (처음 한 번). 새 터미널을 연다
 ```
 
-uv 는 Python 3.11 이 없으면 알아서 받아 쓴다.
+uv 는 Python 3.11 이 없으면 알아서 받아 쓴다. 설치하지 않고 한 번 써 보려면 `uvx baenggipyo --help` 처럼 `uvx` 로 부른다.
 
 **B. pipx**
 
@@ -90,8 +90,8 @@ py -m pipx ensurepath
 그다음은 모든 운영체제에서 같다.
 
 ```bash
-pipx install git+https://github.com/Rukkakka/baenggipyo
-# 기본 Python 이 3.11 미만이면: pipx install --python python3.11 git+https://github.com/Rukkakka/baenggipyo
+pipx install baenggipyo
+# 기본 Python 이 3.11 미만이면: pipx install --python python3.11 baenggipyo
 ```
 
 **C. pip + 가상환경**
@@ -99,7 +99,7 @@ pipx install git+https://github.com/Rukkakka/baenggipyo
 ```bash
 # macOS·Linux
 python3 -m venv ~/.venvs/baenggipyo        # python3 가 3.11 미만이면 python3.11 처럼 버전을 붙인다
-~/.venvs/baenggipyo/bin/pip install git+https://github.com/Rukkakka/baenggipyo
+~/.venvs/baenggipyo/bin/pip install baenggipyo
 
 # 매번 경로를 치지 않으려면 PATH 에 링크
 mkdir -p ~/.local/bin && ln -s ~/.venvs/baenggipyo/bin/baenggipyo ~/.local/bin/baenggipyo
@@ -108,7 +108,7 @@ mkdir -p ~/.local/bin && ln -s ~/.venvs/baenggipyo/bin/baenggipyo ~/.local/bin/b
 ```powershell
 # Windows (PowerShell) — bin 대신 Scripts 폴더를 쓴다
 py -m venv $HOME\.venvs\baenggipyo
-& "$HOME\.venvs\baenggipyo\Scripts\pip.exe" install git+https://github.com/Rukkakka/baenggipyo
+& "$HOME\.venvs\baenggipyo\Scripts\pip.exe" install baenggipyo
 
 & "$HOME\.venvs\baenggipyo\Scripts\baenggipyo.exe" --help    # 실행할 때도 전체 경로로 부른다
 ```
@@ -119,7 +119,9 @@ Windows 는 링크를 만들려면 관리자 권한이 필요하다. `baenggipyo
 
 **저장소를 이미 받아 두었다면** URL 대신 경로를 넘긴다: `uv tool install .` / `pipx install .` / `pip install .`
 
-**특정 버전을 설치하려면** 주소 끝에 태그를 붙인다: `uv tool install git+https://github.com/Rukkakka/baenggipyo@v0.1.0`. uv·pipx 는 태그로 설치하면 `upgrade` 해도 그 버전에 머무니, 최신으로 돌아가려면 태그 없이 다시 설치한다. 버전마다 바뀐 점은 [변경 기록](CHANGELOG.md)에 있다.
+**특정 버전을 설치하려면** 버전을 붙인다: `uv tool install baenggipyo==0.1.0` (pipx·pip 도 `baenggipyo==0.1.0`). 버전을 붙여 설치하면 `upgrade` 해도 그 버전에 머무니, 최신으로 돌아가려면 버전 없이 다시 설치한다 (이미 설치돼 있다고 하면 `--force` 를 붙인다).
+
+**아직 릴리스하지 않은 최신 수정을 받으려면** PyPI 대신 GitHub 주소로 설치한다: `uv tool install git+https://github.com/Rukkakka/baenggipyo` (pipx·pip 도 같은 주소). 이렇게 설치하면 `upgrade` 할 때 `main` 의 최신 커밋을 받고, `baenggipyo --version` 이 설치한 커밋을 함께 보여 준다. 버전마다 바뀐 점은 [변경 기록](https://github.com/Rukkakka/baenggipyo/blob/main/CHANGELOG.md)에 있다.
 
 ### 3. 설치 확인
 
@@ -127,7 +129,7 @@ Windows 는 링크를 만들려면 관리자 권한이 필요하다. `baenggipyo
 
 ```bash
 baenggipyo --help             # 명령 목록이 나오면 성공
-baenggipyo --version          # 설치한 버전과 커밋 (텍스트)
+baenggipyo --version          # 설치한 버전, GitHub 주소로 설치했으면 커밋도 (텍스트)
 baenggipyo limits             # 요청 제한 상태 JSON. 네트워크 요청은 보내지 않는다
 baenggipyo guide              # LLM 에이전트용 사용 가이드 (텍스트)
 baenggipyo naver search airports 오사카   # 실제 조회 한 번
@@ -159,8 +161,10 @@ macOS·Linux 는 따로 할 것이 없다. Windows 는 UTF-8 출력 설정을 �
 |---|---|---|
 | uv | `uv tool upgrade baenggipyo` | `uv tool uninstall baenggipyo` |
 | pipx | `pipx upgrade baenggipyo` | `pipx uninstall baenggipyo` |
-| pip (macOS·Linux) | `~/.venvs/baenggipyo/bin/pip install -U --force-reinstall git+https://github.com/Rukkakka/baenggipyo` | `rm -rf ~/.venvs/baenggipyo ~/.local/bin/baenggipyo` |
-| pip (Windows) | `& "$HOME\.venvs\baenggipyo\Scripts\pip.exe" install -U --force-reinstall git+https://github.com/Rukkakka/baenggipyo` | `Remove-Item -Recurse -Force $HOME\.venvs\baenggipyo` |
+| pip (macOS·Linux) | `~/.venvs/baenggipyo/bin/pip install -U baenggipyo` | `rm -rf ~/.venvs/baenggipyo ~/.local/bin/baenggipyo` |
+| pip (Windows) | `& "$HOME\.venvs\baenggipyo\Scripts\pip.exe" install -U baenggipyo` | `Remove-Item -Recurse -Force $HOME\.venvs\baenggipyo` |
+
+GitHub 주소로 설치했다면 uv·pipx 의 `upgrade` 는 그 주소에서 그대로 받고, pip 은 `pip install -U --force-reinstall git+https://github.com/Rukkakka/baenggipyo` 로 받는다.
 
 요청 제한 상태 파일과 네이버 판매처 이름표(하루 동안 두고 다시 쓴다)는 삭제해도 남으니 완전히 지우려면 그 디렉터리도 삭제한다. `BAENGGIPYO_STATE_DIR` 로 위치를 바꿨다면 그 디렉터리다 (절대 경로일 때만 쓴다).
 
@@ -172,7 +176,7 @@ macOS·Linux 는 따로 할 것이 없다. Windows 는 UTF-8 출력 설정을 �
 
 ## LLM 에이전트에 연결하기
 
-에이전트에게는 사용 문서 전체 대신 [LLM 사용 가이드](docs/llm.md) 하나만 먼저 읽게 한다. 명령 고르는 법, 출력 읽는 법, 에러 대응을 짧게 모아 두었고 나머지는 필요한 절만 찾아 읽게 링크했다. 설치본에 들어 있어 `baenggipyo guide` 로 바로 출력된다 (설치한 버전과 내용이 맞고 네트워크도 쓰지 않는다). 에이전트 지침 파일(`CLAUDE.md`, `AGENTS.md` 등)에 이렇게 적어 두면 된다.
+에이전트에게는 사용 문서 전체 대신 [LLM 사용 가이드](https://github.com/Rukkakka/baenggipyo/blob/main/docs/llm.md) 하나만 먼저 읽게 한다. 명령 고르는 법, 출력 읽는 법, 에러 대응을 짧게 모아 두었고 나머지는 필요한 절만 찾아 읽게 링크했다. 설치본에 들어 있어 `baenggipyo guide` 로 바로 출력된다 (설치한 버전과 내용이 맞고 네트워크도 쓰지 않는다). 에이전트 지침 파일(`CLAUDE.md`, `AGENTS.md` 등)에 이렇게 적어 두면 된다.
 
 ```text
 항공권을 찾을 때는 baenggipyo CLI 를 쓴다. 처음 쓰기 전에 `baenggipyo guide` 를 실행해 읽고 그 규칙을 따른다.
@@ -180,14 +184,14 @@ macOS·Linux 는 따로 할 것이 없다. Windows 는 UTF-8 출력 설정을 �
 
 ## 사용 문서
 
-- [LLM 사용 가이드](docs/llm.md): 에이전트용 요약. 처음 읽을 문서
-- [공통 사용 규칙](docs/common.md): JSON 출력, 금액·시각·누락값, 오류 대응, 요청 제한과 `limits`
-- [네이버 항공권 CLI 사용법](docs/naver.md)
-- [스카이스캐너 CLI 사용법](docs/skyscanner.md)
-- [변경 기록](CHANGELOG.md): 버전별로 바뀐 점
+- [LLM 사용 가이드](https://github.com/Rukkakka/baenggipyo/blob/main/docs/llm.md): 에이전트용 요약. 처음 읽을 문서
+- [공통 사용 규칙](https://github.com/Rukkakka/baenggipyo/blob/main/docs/common.md): JSON 출력, 금액·시각·누락값, 오류 대응, 요청 제한과 `limits`
+- [네이버 항공권 CLI 사용법](https://github.com/Rukkakka/baenggipyo/blob/main/docs/naver.md)
+- [스카이스캐너 CLI 사용법](https://github.com/Rukkakka/baenggipyo/blob/main/docs/skyscanner.md)
+- [변경 기록](https://github.com/Rukkakka/baenggipyo/blob/main/CHANGELOG.md): 버전별로 바뀐 점
 
 ## 개발 문서
 
-- [공통 개발 규약](AGENTS.md) · [개발 환경](references/development.md) · [버전·릴리스](references/release.md)
-- [네이버 개발 가이드](references/providers/naver.md)
-- [스카이스캐너 개발 가이드](references/providers/skyscanner.md)
+- [공통 개발 규약](https://github.com/Rukkakka/baenggipyo/blob/main/AGENTS.md) · [개발 환경](https://github.com/Rukkakka/baenggipyo/blob/main/references/development.md) · [버전·릴리스](https://github.com/Rukkakka/baenggipyo/blob/main/references/release.md)
+- [네이버 개발 가이드](https://github.com/Rukkakka/baenggipyo/blob/main/references/providers/naver.md)
+- [스카이스캐너 개발 가이드](https://github.com/Rukkakka/baenggipyo/blob/main/references/providers/skyscanner.md)
