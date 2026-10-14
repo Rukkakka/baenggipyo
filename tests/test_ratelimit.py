@@ -18,12 +18,14 @@ def limiter(**policy: object) -> RateLimiter:
     return RateLimiter('test', RateLimitPolicy(**policy))
 
 
-def test_min_interval_spaces_reservations() -> None:
+def test_min_interval_spaces_reservations(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 시계를 고정한다. 실제 시계로 재면 느린 러너(windows-latest)에서 예약 사이에 흐른 시간만큼 어긋난다
+    monkeypatch.setattr(time, 'time', lambda: 1000.0)
     first, second = limiter(min_interval=1.0), limiter(min_interval=1.0)
     # 다른 인스턴스(= 다른 프로세스)라도 같은 상태 파일을 공유한다
-    assert first.reserve() == pytest.approx(0, abs=0.05)
-    assert second.reserve() == pytest.approx(1.0, abs=0.05)
-    assert first.reserve() == pytest.approx(2.0, abs=0.05)
+    assert first.reserve() == 0
+    assert second.reserve() == 1.0
+    assert first.reserve() == 2.0
 
 
 def test_per_minute_budget_refuses_long_waits() -> None:
