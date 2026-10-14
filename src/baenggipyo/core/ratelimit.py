@@ -2,6 +2,7 @@ import asyncio
 import json
 import math
 import os
+import sys
 import time
 from collections.abc import (
     Awaitable,
@@ -24,6 +25,7 @@ from pydantic import (
 from baenggipyo.core.errors import BaenggipyoError
 
 from typing import (
+    IO,
     Annotated,
     Any,
     TypeGuard,
@@ -31,10 +33,10 @@ from typing import (
 )
 
 
-try:
+if sys.platform == 'win32':
+    import msvcrt
+else:
     import fcntl
-except ImportError:  # Windows: 잠금 없이 동작한다 (동시 실행 시 간격이 어긋날 수 있음)
-    fcntl = None  # type: ignore[assignment]
 
 
 T = TypeVar('T')
@@ -169,8 +171,7 @@ def _retry_sharing(action: Callable[[], T]) -> T:
 def write_json_atomic(path: Path, data: object) -> None:
     """상태 디렉터리의 JSON 파일을 임시 파일에 쓴 뒤 `replace` 로 바꿔 넣는다. 읽는 쪽은 잠그지 않아도 늘 온전한 한 벌을 읽는다.
 
-    임시 파일 이름에 프로세스 ID 를 넣어, 잠금 없이 쓰는 곳(판매처 이름표, `fcntl` 이 없는 Windows 의 요청 제한)에서 두 프로세스가 같은 임시
-    파일을 덮어쓰지 않게 한다. 쓰다 실패하면 임시 파일을 지우고 `OSError` 를 그대로 올린다.
+    임시 파일 이름에 프로세스 ID 를 넣어, 잠금 없이 쓰는 곳(판매처 이름표)에서 두 프로세스가 같은 임시 파일을 덮어쓰지 않게 한다. 쓰다 실패하면 임시 파일을 지우고 `OSError` 를 그대로 올린다.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_name(f'{path.name}.{os.getpid()}.tmp')
@@ -181,11 +182,30 @@ def write_json_atomic(path: Path, data: object) -> None:
         temp.unlink(missing_ok=True)
 
 
+def _lock_file(file: IO[str]) -> None:
+    """상태 파일 잠금을 잡는다. 다른 프로세스가 잡고 있으면 풀릴 때까지 기다린다."""
+    if sys.platform == 'win32':
+        # Windows 에는 fcntl 이 없다. 잠금 파일 첫 바이트를 잠그고, 실패하면 1초 간격으로 10번 다시 시도한 뒤 OSError 를 낸다.
+        # 잠금은 슬롯을 예약하는 짧은 순간만 잡으므로 그 안에 풀린다
+        file.seek(0)
+        msvcrt.locking(file.fileno(), msvcrt.LK_LOCK, 1)
+    else:
+        fcntl.flock(file, fcntl.LOCK_EX)
+
+
+def _unlock_file(file: IO[str]) -> None:
+    if sys.platform == 'win32':
+        file.seek(0)
+        msvcrt.locking(file.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        fcntl.flock(file, fcntl.LOCK_UN)
+
+
 class RateLimiter:
     """파일 기반 요청 제한기. 프로세스가 달라도 같은 소스는 같은 파일을 공유한다.
 
     상태 파일(`<state_dir>/ratelimit/<source>.json`)에 최근 요청 슬롯과 쿨다운
-    종료 시각을 기록하고, 읽고 쓰는 동안 `flock` 으로 잠근다. 잠금은 슬롯을
+    종료 시각을 기록하고, 읽고 쓰는 동안 `flock`(Windows 는 `msvcrt.locking`)으로 잠근다. 잠금은 슬롯을
     예약하는 짧은 순간만 잡고, 실제 대기는 잠금 밖에서 한다. 대기가 끝나면
     쿨다운을 한 번 더 확인한다.
 
@@ -257,15 +277,13 @@ class RateLimiter:
         path = self.path
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path.with_suffix('.lock'), 'a+') as lock:
-            if fcntl is not None:
-                fcntl.flock(lock, fcntl.LOCK_EX)
+            _lock_file(lock)
             try:
                 state = self._read_state()
                 yield state
                 write_json_atomic(path, state)
             finally:
-                if fcntl is not None:
-                    fcntl.flock(lock, fcntl.LOCK_UN)
+                _unlock_file(lock)
 
     def _check_cooldown(self) -> None:
         """쿨다운 중이면 `RateLimitedError` 를 낸다 (읽기만 한다)."""

@@ -1,3 +1,4 @@
+import multiprocessing
 import time
 from pathlib import Path
 
@@ -26,6 +27,25 @@ def test_min_interval_spaces_reservations(monkeypatch: pytest.MonkeyPatch) -> No
     assert first.reserve() == 0
     assert second.reserve() == 1.0
     assert first.reserve() == 2.0
+
+
+def _reserve_many(count: int) -> None:
+    worker = RateLimiter('test', RateLimitPolicy(min_interval=0))
+    for _ in range(count):
+        worker.reserve()
+
+
+def test_concurrent_processes_keep_every_reservation() -> None:
+    # 여러 baenggipyo 프로세스가 동시에 예약해도 상태 파일을 잠가 예약이 사라지지 않는다.
+    # Windows 는 fcntl 이 없어 msvcrt 로 잠근다 (잠그지 않던 때는 동시 실행에서 서로의 예약을 덮어썼다)
+    context = multiprocessing.get_context('spawn')
+    workers = [context.Process(target=_reserve_many, args=(30,)) for _ in range(3)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(60)
+    assert [worker.exitcode for worker in workers] == [0, 0, 0]
+    assert limiter().status()['requests_last_minute'] == 90
 
 
 def test_per_minute_budget_refuses_long_waits() -> None:
