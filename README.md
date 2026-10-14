@@ -7,6 +7,10 @@ Korean flight search CLI for LLM agents: search bookable fares, daily lowest pri
 
 네이버 항공권·스카이스캐너에서 **지금 살 수 있는 항공권**을 조회하는 CLI. Claude, ChatGPT 같은 LLM 에이전트가 항공권을 찾을 때 셸로 호출하는 도구로 쓰려고 만들었다.
 
+![Claude Code 가 baenggipyo guide 를 읽고 네이버 항공권에서 인천→오사카 편도 최저가 3편을 조회해 표로 정리하는 터미널 데모](https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/docs/demo/claude.gif)
+
+Claude Code 에 "11월 20일 인천에서 오사카 가는 편도 항공권 중 제일 싼 거 3개 찾아줘" 라고 시킨 실제 화면이다. Claude 가 `baenggipyo guide` 를 읽고 명령을 골라 조회한 뒤 결과를 표로 정리한다. **운임은 녹화한 날 네이버 항공권을 실제로 조회한 값이라 지금과 다르다** ([데모 영상](https://github.com/Rukkakka/baenggipyo#데모-영상)). 에이전트에 연결하는 방법은 [LLM 에이전트에 연결하기](https://github.com/Rukkakka/baenggipyo#llm-에이전트에-연결하기)에 있다.
+
 > 두 소스 모두 국제선·국내선을 찾는다 (네이버 국내선은 편도·왕복만). 스카이스캐너는 봇 차단이 있어 몇 시간씩 막힐 수 있다. 막히면 30분(거듭되면 최대 4시간) 동안 쓰지 않으니 그동안 네이버를 쓴다.
 
 > 비공식 API 를 쓴다. 스펙이 예고 없이 바뀔 수 있고, 자동수집은 각 서비스 약관과 상충할 소지가 있으니 개인 조회 용도로만 쓴다.
@@ -29,6 +33,10 @@ LLM 에게 항공권을 찾아 달라고 하면 엉뚱한 걸 찾아올 때가 �
 ## 설치
 
 macOS·Linux·Windows 에서 쓸 수 있다. 운영체제마다 명령이 다른 곳은 나눠 적었다. Windows 명령은 PowerShell 기준이고 (명령 프롬프트 cmd 는 아님), WSL 안에서 쓴다면 Linux 를 따른다.
+
+![uv 로 baenggipyo 를 설치하고 네이버 항공권에서 인천→간사이 편도 최저가 3편을 직접 조회하는 터미널 데모](https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/docs/demo/demo.gif)
+
+uv 로 설치하고 직접 조회해 본 장면이다. 설치는 실제 PyPI 설치 화면이고, 조회 결과도 녹화한 날 네이버 항공권의 실제 운임이다 ([데모 영상](https://github.com/Rukkakka/baenggipyo#데모-영상)).
 
 ### 1. 준비물
 
@@ -184,6 +192,14 @@ GitHub 주소로 설치했다면 uv·pipx 의 `upgrade` 는 그 주소에서 그
 ```text
 항공권을 찾을 때는 baenggipyo CLI 를 쓴다. 처음 쓰기 전에 `baenggipyo guide` 를 실행해 읽고 그 규칙을 따른다.
 ```
+
+[맨 위 영상](https://github.com/Rukkakka/baenggipyo#baenggipyo-뱅기표)이 이 한 줄을 적어 둔 폴더에서 Claude Code 에 항공권을 찾게 한 장면이다. 지침 파일의 두 번째 줄("스카이스캐너는 쓰지 않고 네이버 항공권만 쓴다")은 데모용이다.
+
+## 데모 영상
+
+두 영상의 운임은 모두 2026-10-14 에 네이버 항공권을 실제로 조회한 결과다. 항공권 가격은 계속 바뀌므로 지금 같은 조건으로 조회하면 다른 값이 나온다. 스카이스캐너는 봇 차단이 있어 데모에서 부르지 않았다.
+
+설치 장면은 실제 PyPI 설치 화면이고, 화면에 들어가도록 `jq` 로 항공사·출발 시각·총액만 뽑았다 ([녹화 대본](https://github.com/Rukkakka/baenggipyo/blob/main/docs/demo/demo.tape)). Claude 의 답은 실제 Claude Code 가 쓴 것이고 ([녹화 대본](https://github.com/Rukkakka/baenggipyo/blob/main/docs/demo/claude.tape)), 배너의 요금제 글자는 녹화한 계정 정보라 가렸다.
 
 ## 사용 문서
 
