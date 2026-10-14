@@ -198,3 +198,7 @@ GitHub 주소로 설치했다면 uv·pipx 의 `upgrade` 는 그 주소에서 그
 - [공통 개발 규약](https://github.com/Rukkakka/baenggipyo/blob/main/AGENTS.md) · [개발 환경](https://github.com/Rukkakka/baenggipyo/blob/main/references/development.md) · [버전·릴리스](https://github.com/Rukkakka/baenggipyo/blob/main/references/release.md)
 - [네이버 개발 가이드](https://github.com/Rukkakka/baenggipyo/blob/main/references/providers/naver.md)
 - [스카이스캐너 개발 가이드](https://github.com/Rukkakka/baenggipyo/blob/main/references/providers/skyscanner.md)
+
+## 라이선스
+
+[MIT](https://github.com/Rukkakka/baenggipyo/blob/main/LICENSE)
