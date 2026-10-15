@@ -16,7 +16,7 @@ README 데모 GIF 는 `docs/demo/`, 그 녹화 도구(VHS 대본·후처리 스�
 | `cli/` | Typer 명령 (`limits`, `guide`, `naver`/`skyscanner` 하위 명령), JSON·에러 출력 (`output.py`), 공용 옵션 별칭 (`options.py`) |
 | `core/http.py` | `BaseHTTPClient` — httpx 클라이언트 수명주기, 재시도 술어, `raise_for_status` |
 | `core/ratelimit.py` | 프로세스 간 공유 요청 제한 (`RateLimiter`, `RateLimitedError`), 상태 디렉터리(`state_dir`)와 그 안의 JSON 쓰기(`write_json_atomic`) |
-| `core/flight.py` | 항공권 검색 조건 베이스(`FlightConditions`), 공통 출력 모델(`Airport`, `SearchLeg`, `Segment`, `Journey`, `Itinerary`, `Offer`, `CalendarDay`, `Destination`)과 해당 없는 키 빼기(`FlightModel`), 날짜·시각 변환, 구간 공항 해석 묶기(`resolve_route`)·후보 고르기(`pick_place`), `notice` 문구 |
+| `core/flight.py` | 항공권 검색 조건 베이스(`FlightConditions`), 공통 출력 모델(`Airport`, `SearchLeg`, `Segment`, `Journey`, `Itinerary`, `Offer`, `CalendarDay`, `Destination`)과 해당 없는 키·요약(`--brief`)에서 뺄 키 빼기(`FlightModel`), 판매처 운임 묶음 펴기(`shown_offers`), 날짜·시각 변환, 구간 공항 해석 묶기(`resolve_route`)·후보 고르기(`pick_place`), `notice` 문구 |
 | `core/errors.py` | `BaenggipyoError` 계열 — CLI 가 `{"error": {...}}` 로 내보내는 에러. 다시 찾은 검색에 없는 항공권의 에러 고르기(`fare_missing_error`: 매진 또는 검색 미완료) |
 | `core/schema.py` | `RequestModel` (`extra='forbid'`) / `ResponseModel` (`extra='allow'`), 응답 값으로 만드는 요청 모델 구간(`built_from_response`) |
 | `core/korean.py` | 한글 이름 뒤 조사 고르기 (`particle`, `quoted`). [코드 형식 §1](references/code-style.md#1-언어) 규칙용이라 지금 호출부가 없어도 지우지 않는다 |
