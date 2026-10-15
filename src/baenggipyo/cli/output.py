@@ -31,11 +31,16 @@ from baenggipyo.core.schema import is_request_validation_error
 
 from typing import (
     Any,
+    Literal,
     TypeVar,
 )
 
 
 ChoiceT = TypeVar('ChoiceT', bound=str)
+
+# 도움말 모양 (최상위 Typer 의 rich_markup_mode, 하위 명령도 따른다). 터미널이면 Rich 상자로, 파이프(LLM 에이전트)면 Click 평문으로 쓴다.
+# 파이프의 Rich 상자는 80칸 안에 테두리·여백을 넣느라 같은 도움말이 두 배 넘게 길고, 좁은 칸에서 설명을 … 로 자른다 (2026-10-15 실측)
+HELP_MARKUP_MODE: Literal['rich'] | None = 'rich' if sys.stdout.isatty() else None
 
 DATE_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 MONTH_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^\d{4}-\d{2}$')
