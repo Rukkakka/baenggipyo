@@ -1,7 +1,7 @@
 """Claude 데모 GIF 에서 Claude Code 배너의 요금제 글자(`· Claude Pro`)를 배경색으로 덮는다.
 
 Claude Code 배너는 모델 옆에 요금제를 늘 보여 주고 끄는 설정이 없다. `claude.tape` 로 녹화한 뒤
-`python3 docs/demo/hide_plan.py docs/demo/claude.gif` 로 덮는다. ffmpeg 가 필요하다.
+`python3 scripts/demo/hide_plan.py docs/demo/claude.gif` 로 덮는다. ffmpeg 가 필요하다.
 
 배너는 답이 화면을 채우는 순간 한 번에 사라지므로 로고(분홍)가 제자리에 보이는 장면만 덮는다.
 글자 자리는 1200x880·D2Coding 17 에서 'Opus 5.5 with medium effort · Claude Pro' 를 잰 값이다. 모델·생각 깊이

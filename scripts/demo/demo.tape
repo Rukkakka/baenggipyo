@@ -1,5 +1,5 @@
 # README 데모 녹화 대본 (VHS, https://github.com/charmbracelet/vhs).
-# 저장소 루트에서 `vhs docs/demo/demo.tape` 로 다시 찍는다. uv·jq 가 필요하다.
+# 저장소 루트에서 `vhs scripts/demo/demo.tape` 로 다시 찍는다. uv·jq 가 필요하다.
 #
 # 설치 장면은 PyPI 에서 진짜로 설치한다 (임시 폴더에 설치해 쓰던 baenggipyo 는 건드리지 않는다).
 # 조회 장면도 네이버 항공권을 실제로 조회한다. 결과는 녹화한 날의 실제 운임이라 다시 찍으면 달라지고, 출발일(--depart)은

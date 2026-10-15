@@ -1,5 +1,5 @@
 # README 'LLM 에이전트에 연결하기' 데모 녹화 대본 (VHS, https://github.com/charmbracelet/vhs).
-# 저장소 루트에서 `vhs docs/demo/claude.tape` 로 다시 찍고, `python3 docs/demo/hide_plan.py docs/demo/claude.gif` 로
+# 저장소 루트에서 `vhs scripts/demo/claude.tape` 로 다시 찍고, `python3 scripts/demo/hide_plan.py docs/demo/claude.gif` 로
 # 배너의 요금제 글자(녹화한 계정의 요금제)를 덮는다. uv·Claude Code(`claude`, 로그인)·ffmpeg 가 필요하다.
 #
 # 실제 Claude Code 에 "11월 20일 인천에서 오사카 가는 편도 항공권 중 제일 싼 거 3개 찾아줘" 라고 시킨다. 작업 폴더
@@ -37,7 +37,7 @@ Type `unset VIRTUAL_ENV; path=(${path:#*/.venv/bin})` Enter
 # Claude Code 안에서 vhs 를 돌리면 그 세션의 환경 변수(CLAUDE_CODE_CHILD_SESSION 등)가 넘어와, 녹화하는 claude 가 하위 세션 경고를
 # 띄운다. 숨긴 준비에서 지운다
 Type `unset -m 'CLAUDE*'; unset AI_AGENT` Enter
-Type `export DEMO="$PWD/docs/demo" T="$(mktemp -d)" W=/tmp/baenggipyo-demo` Enter
+Type `export DEMO="$PWD/scripts/demo" T="$(mktemp -d)" W=/tmp/baenggipyo-demo` Enter
 Type `export UV_TOOL_DIR="$T/tools" UV_TOOL_BIN_DIR="$T/bin" UV_CACHE_DIR="$T/cache" PATH="$T/bin:$PATH" PROMPT='$ '` Enter
 Type "hash -r" Enter
 Type `uv tool install -q baenggipyo` Enter

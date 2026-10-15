@@ -2,8 +2,9 @@
 
 네이버 항공권·스카이스캐너에서 **지금 살 수 있는 항공권**을 조회하는 CLI (`baenggipyo`). 구조와 규약은 [jibsa](https://github.com/Rukkakka/jibsa)를 따른다.
 LLM 에이전트가 셸로 호출하는 도구라, 출력 형식과 에러 형식이 곧 API 다.
-모든 코드는 `src/baenggipyo/` 아래에 있다.
+패키지 코드는 모두 `src/baenggipyo/` 아래에 있다.
 개발 문서(구현 규약·소스별 개발 가이드)는 `references/`, 사용자 문서(CLI 사용법)는 `docs/`에 있다.
+README 데모 GIF 는 `docs/demo/`, 그 녹화 도구(VHS 대본·후처리 스크립트)는 `scripts/demo/` 에 있다.
 
 **지금 상태: 두 소스 모두 구현.** 네이버·스카이스캐너 모두 `search airports`·`search flights`·`flight`·`calendar`·`explore` 가 실제 API 로
 동작한다. 스카이스캐너는 봇 차단이 있어 검증 요청도 아껴 쓴다 ([개발 가이드](references/providers/skyscanner.md#봇-차단)).
