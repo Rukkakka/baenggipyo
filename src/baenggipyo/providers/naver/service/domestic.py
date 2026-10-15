@@ -136,6 +136,10 @@ class NaverDomesticItinerary(NaverItinerary):
         Field(description='남은 좌석')
     ] = None
 
+    def brief_omitted_fields(self) -> frozenset[str]:
+        # 방향은 legs[].direction 에 있다
+        return super().brief_omitted_fields() | {'direction'}
+
 
 class NaverDomesticLegResult(BaseModel):
     """방향 하나(가는 편 또는 오는 편)의 편 목록."""

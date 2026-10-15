@@ -15,6 +15,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializationInfo,
     SerializerFunctionWrapHandler,
     ValidationInfo,
     field_validator,
@@ -58,6 +59,8 @@ IATA_CODE_PATTERN: re.Pattern[str] = re.compile(r'^[A-Za-z]{3}$')
 MAX_CANDIDATES: int = 5
 # 항공권 ID 가 승객 수를 유형별 한 자리 숫자로 담아 조건 모델은 유형별 9명까지 받는다. 소스 요청 모델의 상한·CLI 합계 상한과는 뜻이 달라 따로 둔다
 MAX_PASSENGERS_PER_TYPE: int = 9
+# 요약 출력(`--brief`)을 출력 모델에 알리는 직렬화 context 키 (`FlightModel.brief_omitted_fields`)
+BRIEF_CONTEXT_KEY: str = 'brief'
 
 COMPACT_DATE_PATTERN: re.Pattern[str] = re.compile(r'^(\d{4})(\d{2})(\d{2})$')
 COMPACT_DATETIME_PATTERN: re.Pattern[str] = re.compile(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$')
@@ -154,7 +157,11 @@ class FlightConditions(RequestModel):
 
 
 class FlightModel(BaseModel):
-    """출력 모델 공통 베이스. 해당 없는 필드(`not_applicable_fields`)는 출력에서 키째 뺀다."""
+    """출력 모델 공통 베이스. 해당 없는 필드(`not_applicable_fields`)는 출력에서 키째 뺀다.
+
+    요약(`--brief`, 직렬화 context 의 `BRIEF_CONTEXT_KEY`)이면 `brief_omitted_fields` 도 뺀다. 모양은 그대로라 요약을 읽는 쪽도
+    같은 경로로 읽는다.
+    """
 
     model_config = ConfigDict(
         extra='forbid',
@@ -164,10 +171,17 @@ class FlightModel(BaseModel):
         """이 값에 원래 없는 필드. 서브클래스가 넓힌다."""
         return frozenset()
 
+    def brief_omitted_fields(self) -> frozenset[str]:
+        """요약에서 빼는 필드 (같은 결과의 다른 곳에 있거나 고르는 데 필요 없는 값). 서브클래스가 넓힌다."""
+        return frozenset()
+
     @model_serializer(mode='wrap')
-    def drop_not_applicable(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+    def drop_fields(self, handler: SerializerFunctionWrapHandler, info: SerializationInfo) -> dict[str, Any]:
         data: dict[str, Any] = handler(self)
-        for field in self.not_applicable_fields():
+        omitted = self.not_applicable_fields()
+        if info.context and info.context.get(BRIEF_CONTEXT_KEY):
+            omitted = omitted | self.brief_omitted_fields()
+        for field in omitted:
             data.pop(field, None)
         return data
 
@@ -394,6 +408,13 @@ class Segment(FlightModel):
         codeshare = self.operating_airline_code is not None and self.operating_airline_code != self.airline_code
         return frozenset() if codeshare else frozenset({'operating_airline_code', 'operating_airline'})
 
+    def brief_omitted_fields(self) -> frozenset[str]:
+        # 편명·항공사(코드셰어면 운항 항공사)만 남긴다. 코드는 편명 앞에 있고, 공항·시각은 여정과 경유 공항에 있다 (직항이면 여정과 똑같다)
+        return frozenset({
+            'airline_code', 'operating_airline_code', 'departure_airport', 'arrival_airport',
+            'departure_at', 'arrival_at', 'duration_minutes', 'aircraft',
+        })
+
 
 class Journey(FlightModel):
     """한 방향 여정 (편도 하나, 왕복의 가는 편·오는 편, 다구간의 한 구간)."""
@@ -479,6 +500,10 @@ class Itinerary(FlightModel):
         bool | None,
         Field(description='대표 운임에 위탁 수하물이 포함되는지 (모르면 null)')
     ] = None
+
+    def brief_omitted_fields(self) -> frozenset[str]:
+        # 소스·여정 종류·좌석 등급은 결과의 search 에 있고, 항공권 링크는 flight <id> 나 search.url 로 연다
+        return frozenset({'source', 'url', 'trip_type', 'cabin'})
 
 
 class Offer(FlightModel):

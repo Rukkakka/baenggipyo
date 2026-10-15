@@ -32,3 +32,7 @@ SortOption = Annotated[str, typer.Option('--sort', help='정렬: 가격, 출발�
 AirportQueryArgument = Annotated[str, typer.Argument(help='공항·도시 이름 또는 코드 (예: 도쿄, 나리타, OSA)')]
 AirportLimitOption = Annotated[int, typer.Option('--limit', min=1, max=20, help='후보 수')]
 FlightIdArgument = Annotated[str, typer.Argument(metavar='ID', help='search flights 결과의 id')]
+BriefOption = Annotated[
+    bool,
+    typer.Option('--brief', help='요약: 항공권마다 고르는 데 필요한 값만 (구간별 공항·시각·기종, 항공권 url 등을 뺀다. 결과 모양은 같다)'),
+]

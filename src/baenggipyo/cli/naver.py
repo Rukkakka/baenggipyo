@@ -7,6 +7,7 @@ from baenggipyo.cli.options import (
     AirlineOption,
     AirportLimitOption,
     AirportQueryArgument,
+    BriefOption,
     CabinOption,
     ChildrenOption,
     DepartOption,
@@ -127,6 +128,7 @@ def search_flights_command(
         int,
         typer.Option('--limit', min=1, max=MAX_LIMIT, help='돌려줄 항공권 수')
     ] = DEFAULT_LIMIT,
+    brief: BriefOption = False,
     pretty: PrettyOption = None,
 ) -> None:
     """편도·왕복·다구간 항공권 (요청: 공항 해석 입력마다 1회 + 판매처 이름 1회 + 검색 1~2회. 국제선 10~20초, 국내선 수 초).
@@ -144,10 +146,10 @@ def search_flights_command(
         legs = resolve_legs(client, raw_legs)
         if route_kind(legs) == 'domestic':
             domestic = search_domestic_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
-            emit(domestic, pretty, notice=True, notes=domestic.notes)
+            emit(domestic, pretty, notice=True, notes=domestic.notes, brief=brief)
             return
         result = search_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
-        emit(result, pretty, notice=True, notes=result.notes)
+        emit(result, pretty, notice=True, notes=result.notes, brief=brief)
 
 
 @app.command('flight')
