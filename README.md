@@ -193,13 +193,13 @@ GitHub 주소로 설치했다면 uv·pipx 의 `upgrade` 는 그 주소에서 그
 항공권을 찾을 때는 baenggipyo CLI 를 쓴다. 처음 쓰기 전에 `baenggipyo guide` 를 실행해 읽고 그 규칙을 따른다.
 ```
 
-[맨 위 영상](https://github.com/Rukkakka/baenggipyo#baenggipyo-뱅기표)이 이 한 줄을 적어 둔 폴더에서 Claude Code 에 항공권을 찾게 한 장면이다. 지침 파일의 두 번째 줄("스카이스캐너는 쓰지 않고 네이버 항공권만 쓴다")은 데모용이다.
+[맨 위 영상](https://github.com/Rukkakka/baenggipyo#baenggipyo-뱅기표)이 이 한 줄을 적어 둔 폴더에서 Claude Code 에 항공권을 찾게 한 장면이다. 지침 파일의 두 번째 줄("(README 데모) 스카이스캐너는 쓰지 않고 네이버 항공권만 쓴다.")은 데모용이다.
 
 ## 데모 영상
 
 두 영상의 운임은 모두 2026-10-14 에 네이버 항공권을 실제로 조회한 결과다. 항공권 가격은 계속 바뀌므로 지금 같은 조건으로 조회하면 다른 값이 나온다. 스카이스캐너는 봇 차단이 있어 데모에서 부르지 않았다.
 
-설치 장면은 실제 PyPI 설치 화면이고, 화면에 들어가도록 `jq` 로 항공사·출발 시각·총액만 뽑았다 ([녹화 대본](https://github.com/Rukkakka/baenggipyo/blob/main/docs/demo/demo.tape)). Claude 의 답은 실제 Claude Code 가 쓴 것이고 ([녹화 대본](https://github.com/Rukkakka/baenggipyo/blob/main/docs/demo/claude.tape)), 배너의 요금제 글자는 녹화한 계정 정보라 가렸다.
+설치 장면은 실제 PyPI 설치 화면이고, 화면에 들어가도록 `jq` 로 항공사·출발 시각·총액만 뽑았다 ([녹화 대본](https://github.com/Rukkakka/baenggipyo/blob/main/scripts/demo/demo.tape)). Claude 의 답은 실제 Claude Code 가 쓴 것이고 ([녹화 대본](https://github.com/Rukkakka/baenggipyo/blob/main/scripts/demo/claude.tape)), 배너의 요금제 글자는 녹화한 계정 정보라 가렸다. Claude Code 는 auto mode 로 녹화했다 (화면 아래 `auto mode on`). 다른 권한 모드에서는 Claude 가 명령을 실행하기 전에 승인을 물을 수 있다.
 
 ## 사용 문서
 
