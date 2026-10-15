@@ -17,6 +17,7 @@ from baenggipyo.cli.options import (
     InfantsOption,
     LegOption,
     MonthOption,
+    OfferUrlsOption,
     OriginArgument,
     PrettyOption,
     ReturnOption,
@@ -133,6 +134,7 @@ def flight_command(
         int,
         typer.Option('--limit', min=1, max=MAX_OFFER_LIMIT, help='판매처 운임 수 (싼 순. 판매처 여러 곳의 조합은 줄이 여럿이어도 운임 하나로 센다)')
     ] = DEFAULT_OFFER_LIMIT,
+    offer_urls: OfferUrlsOption = None,
     pretty: PrettyOption = None,
 ) -> None:
     """항공권 하나의 판매처별 가격과 예약 링크. 같은 조건으로 다시 검색해 찾는다 (검색 1회 + 폴링).
@@ -140,7 +142,7 @@ def flight_command(
     예: baenggipyo skyscanner flight <search flights 결과의 id>
     """
     with handle_errors(SOURCE), SkyscannerClient() as client:
-        detail, notes = get_flight(client, flight_id, offer_limit=limit)
+        detail, notes = get_flight(client, flight_id, offer_limit=limit, url_limit=offer_urls)
         emit(detail, pretty, notice=True, notes=notes)
 
 

@@ -16,6 +16,7 @@ from baenggipyo.cli.options import (
     InfantsOption,
     LegOption,
     MonthOption,
+    OfferUrlsOption,
     OriginArgument,
     PrettyOption,
     ReturnOption,
@@ -162,6 +163,7 @@ def flight_command(
         int,
         typer.Option('--limit', min=1, max=MAX_OFFER_LIMIT, help='판매처 운임 수 (모든 결제수단 운임이 먼저 온다)')
     ] = DEFAULT_OFFER_LIMIT,
+    offer_urls: OfferUrlsOption = None,
     pretty: PrettyOption = None,
 ) -> None:
     """항공권의 판매처별 가격과 예약 링크 (요청 2~3회. 검색 뒤 15분이 지났으면 같은 조건으로 다시 검색한다).
@@ -179,10 +181,10 @@ def flight_command(
         raise typer.BadParameter('국내선은 가는 편·오는 편 id 를 두 개까지 줍니다', param_hint='ID')
     with handle_errors(SOURCE), NaverClient() as client:
         if all(domestic):
-            booking, booking_notes = get_domestic_flights(client, flight_ids, offer_limit=limit)
+            booking, booking_notes = get_domestic_flights(client, flight_ids, offer_limit=limit, url_limit=offer_urls)
             emit(booking, pretty, notice=True, notes=booking_notes)
             return
-        detail, notes = get_flight(client, flight_ids[0], offer_limit=limit)
+        detail, notes = get_flight(client, flight_ids[0], offer_limit=limit, url_limit=offer_urls)
         emit(detail, pretty, notice=True, notes=notes)
 
 

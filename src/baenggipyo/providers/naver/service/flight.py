@@ -20,6 +20,7 @@ from baenggipyo.core.flight import (
     Segment,
     compact_datetime,
     seconds_to_minutes,
+    shown_offers,
 )
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.naver.api.client import NaverClient
@@ -441,8 +442,16 @@ def _cached_search(
     )
 
 
-def get_flight(client: NaverClient, value: str, *, offer_limit: int = DEFAULT_OFFER_LIMIT) -> tuple[NaverItineraryDetail, list[str]]:
+def get_flight(
+    client: NaverClient,
+    value: str,
+    *,
+    offer_limit: int = DEFAULT_OFFER_LIMIT,
+    url_limit: int | None = None,
+) -> tuple[NaverItineraryDetail, list[str]]:
     """항공권 하나의 판매처별 가격과 예약 링크 (검색 캐시 조회 1회 + 판매처 1회. 캐시가 만료됐으면 검색 1회 더).
+
+    `url_limit` 을 주면 앞의 그만큼 운임에만 예약 링크를 붙인다 (`shown_offers`).
 
     Returns:
         tuple[NaverItineraryDetail, list[str]]: 항공권과 판매처 목록, 결과에 붙일 안내.
@@ -508,7 +517,7 @@ def get_flight(client: NaverClient, value: str, *, offer_limit: int = DEFAULT_OF
         **price_fields,
         'offer_count': len(sellers),
         'cheapest_seller': sellers.get(general.partner_code) if general else None,
-        'offers': offers[:offer_limit],
+        'offers': shown_offers([[offer] for offer in offers], offer_limit, url_limit),
     })
     return detail, notes
 

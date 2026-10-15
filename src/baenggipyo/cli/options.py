@@ -36,3 +36,11 @@ BriefOption = Annotated[
     bool,
     typer.Option('--brief', help='요약: 항공권마다 고르는 데 필요한 값만 (구간별 공항·시각·기종, 항공권 url 등을 뺀다. 결과 모양은 같다)'),
 ]
+OfferUrlsOption = Annotated[
+    int | None,
+    typer.Option(
+        '--offer-urls',
+        min=0,
+        help='예약 링크를 붙일 판매처 운임 수. 앞에서부터 세고 뒤 운임은 url 키가 없다 (기본: 모두, 0 이면 링크 없이)',
+    ),
+]

@@ -20,6 +20,7 @@ from baenggipyo.core.flight import (
     SearchLeg,
     SearchSummary,
     Segment,
+    shown_offers,
 )
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.skyscanner.api.client import SkyscannerClient
@@ -451,8 +452,16 @@ def _offers(
     return [rows for _, _, rows in groups]
 
 
-def get_flight(client: SkyscannerClient, value: str, *, offer_limit: int = DEFAULT_OFFER_LIMIT) -> tuple[SkyscannerItineraryDetail, list[str]]:
+def get_flight(
+    client: SkyscannerClient,
+    value: str,
+    *,
+    offer_limit: int = DEFAULT_OFFER_LIMIT,
+    url_limit: int | None = None,
+) -> tuple[SkyscannerItineraryDetail, list[str]]:
     """항공권 하나의 판매처별 가격과 예약 링크. 같은 조건으로 다시 검색해 찾는다 (검색 1회 + 폴링).
+
+    `url_limit` 을 주면 앞의 그만큼 운임에만 예약 링크를 붙인다 (`shown_offers`).
 
     Raises:
         FareUnavailableError: 검색이 끝났는데 그 항공권이 없을 때 (매진·운항 변경).
@@ -472,7 +481,7 @@ def get_flight(client: SkyscannerClient, value: str, *, offer_limit: int = DEFAU
         raise fare_missing_error('skyscanner', value, cut_short=not completed, reason='NOT_IN_RESULTS', alternative='naver')
     agents = {agent.id: agent for agent in response.itineraries.agents} if response.itineraries else {}
     fares = _offers(result, agents, conditions)
-    shown = [row for rows in fares[:offer_limit] for row in rows]
+    shown = shown_offers(fares, offer_limit, url_limit)
     notes = ['가격은 방금 다시 검색한 값입니다']
     if not completed:
         notes.append(f'{stopped_early(limited)}, 판매처가 더 있을 수 있습니다')

@@ -38,6 +38,7 @@ from typing import (
 
 PlaceT = TypeVar('PlaceT')
 CandidateT = TypeVar('CandidateT')
+OfferT = TypeVar('OfferT', bound='Offer')
 
 KST: timezone = timezone(timedelta(hours=9), 'KST')
 
@@ -535,8 +536,29 @@ class Offer(FlightModel):
     ] = None
     url: Annotated[
         str | None,
-        Field(description='이 판매처의 예약 페이지로 가는 링크')
+        Field(description='이 판매처의 예약 페이지로 가는 링크. --offer-urls 로 뺀 운임은 키가 없다')
     ] = None
+    url_omitted: Annotated[
+        bool,
+        Field(exclude=True, description='--offer-urls 로 예약 링크를 뺀 운임인지 (출력하지 않음)')
+    ] = False
+
+    def not_applicable_fields(self) -> frozenset[str]:
+        # 링크를 모르는 것(null)과 달리 빼 달라고 한 것이라 키째 뺀다
+        return frozenset({'url'}) if self.url_omitted else frozenset()
+
+
+def shown_offers(fares: list[list[OfferT]], limit: int, url_limit: int | None = None) -> list[OfferT]:
+    """판매처 운임 묶음을 앞에서 `limit` 개만 `offers` 줄로 편다. `url_limit` 을 주면 그 뒤 운임은 예약 링크 키를 뺀다.
+
+    판매처 여러 곳에서 따로 예약하는 조합은 운임 하나가 여러 줄이다. 개수와 링크를 모두 묶음으로 세어 한 조합의 줄을 가르지 않는다
+    (링크가 일부 줄에만 남으면 나머지 구간을 어디서 사는지 모른다).
+    """
+    return [
+        row if url_limit is None or index < url_limit else row.model_copy(update={'url_omitted': True})
+        for index, rows in enumerate(fares[:limit])
+        for row in rows
+    ]
 
 
 class CalendarDay(FlightModel):

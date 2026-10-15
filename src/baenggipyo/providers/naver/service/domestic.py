@@ -24,6 +24,7 @@ from baenggipyo.core.flight import (
     Segment,
     TripType,
     compact_datetime,
+    shown_offers,
 )
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.naver.api.client import NaverClient
@@ -636,11 +637,17 @@ def _offer(ota: NaverOtaModel, fare_name: str, per_adult: int | None, *, total_k
     )
 
 
-def get_domestic_flights(client: NaverClient, values: list[str], *, offer_limit: int = DEFAULT_OFFER_LIMIT) -> tuple[NaverDomesticBooking, list[str]]:
+def get_domestic_flights(
+    client: NaverClient,
+    values: list[str],
+    *,
+    offer_limit: int = DEFAULT_OFFER_LIMIT,
+    url_limit: int | None = None,
+) -> tuple[NaverDomesticBooking, list[str]]:
     """고른 국내선 편(편도 1개 또는 가는 편 + 오는 편)의 판매처별 가격과 예약 링크.
 
     편마다 캐시 조회 1회(만료됐으면 검색 1회 더) + 판매처 조회 1회. 판매처마다 고른 편 전부를 파는 운임을 묶고(사이트와 같다),
-    왕복에서 두 편의 최저가 판매처가 다르면 그 조합도 넘긴다.
+    왕복에서 두 편의 최저가 판매처가 다르면 그 조합도 넘긴다. `url_limit` 을 주면 앞의 그만큼 운임에만 예약 링크를 붙인다 (`shown_offers`).
 
     Raises:
         BaenggipyoError: ID 가 서로 다른 검색이거나, 같은 방향을 두 번 줬거나, 왕복 검색의 편을 하나만 줬을 때 (`INVALID_ARGUMENT`).
@@ -749,6 +756,6 @@ def get_domestic_flights(client: NaverClient, values: list[str], *, offer_limit:
         flights=itineraries,
         total_price_krw=None if any(total is None for total in totals) else sum(total or 0 for total in totals),
         offer_count=len(fares),
-        offers=[row for rows in fares[:offer_limit] for row in rows],
+        offers=shown_offers(fares, offer_limit, url_limit),
     )
     return booking, notes
