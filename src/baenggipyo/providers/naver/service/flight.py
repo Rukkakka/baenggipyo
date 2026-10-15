@@ -185,7 +185,8 @@ def _journey(itinerary: NaverItineraryModel, airlines: dict[str, str]) -> Journe
             departure_at=compact_datetime(segment.departure.local_date_time),
             arrival_at=compact_datetime(segment.arrival.local_date_time),
             duration_minutes=seconds_to_minutes(segment.flight_duration),
-            aircraft=segment.aircraft_code,
+            # 기종을 모르면 빈 문자열로 준다 (2026-10-15 ICN→KIX 10편 중 5편). 모름은 null 로 낸다
+            aircraft=segment.aircraft_code or None,
         )
         for segment in itinerary.segments
     ]
