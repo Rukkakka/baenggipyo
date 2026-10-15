@@ -15,6 +15,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializationInfo,
     SerializerFunctionWrapHandler,
     ValidationInfo,
     field_validator,
@@ -37,6 +38,7 @@ from typing import (
 
 PlaceT = TypeVar('PlaceT')
 CandidateT = TypeVar('CandidateT')
+OfferT = TypeVar('OfferT', bound='Offer')
 
 KST: timezone = timezone(timedelta(hours=9), 'KST')
 
@@ -58,6 +60,8 @@ IATA_CODE_PATTERN: re.Pattern[str] = re.compile(r'^[A-Za-z]{3}$')
 MAX_CANDIDATES: int = 5
 # 항공권 ID 가 승객 수를 유형별 한 자리 숫자로 담아 조건 모델은 유형별 9명까지 받는다. 소스 요청 모델의 상한·CLI 합계 상한과는 뜻이 달라 따로 둔다
 MAX_PASSENGERS_PER_TYPE: int = 9
+# 요약 출력(`--brief`)을 출력 모델에 알리는 직렬화 context 키 (`FlightModel.brief_omitted_fields`)
+BRIEF_CONTEXT_KEY: str = 'brief'
 
 COMPACT_DATE_PATTERN: re.Pattern[str] = re.compile(r'^(\d{4})(\d{2})(\d{2})$')
 COMPACT_DATETIME_PATTERN: re.Pattern[str] = re.compile(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$')
@@ -154,7 +158,11 @@ class FlightConditions(RequestModel):
 
 
 class FlightModel(BaseModel):
-    """출력 모델 공통 베이스. 해당 없는 필드(`not_applicable_fields`)는 출력에서 키째 뺀다."""
+    """출력 모델 공통 베이스. 해당 없는 필드(`not_applicable_fields`)는 출력에서 키째 뺀다.
+
+    요약(`--brief`, 직렬화 context 의 `BRIEF_CONTEXT_KEY`)이면 `brief_omitted_fields` 도 뺀다. 모양은 그대로라 요약을 읽는 쪽도
+    같은 경로로 읽는다.
+    """
 
     model_config = ConfigDict(
         extra='forbid',
@@ -164,10 +172,17 @@ class FlightModel(BaseModel):
         """이 값에 원래 없는 필드. 서브클래스가 넓힌다."""
         return frozenset()
 
+    def brief_omitted_fields(self) -> frozenset[str]:
+        """요약에서 빼는 필드 (같은 결과의 다른 곳에 있거나 고르는 데 필요 없는 값). 서브클래스가 넓힌다."""
+        return frozenset()
+
     @model_serializer(mode='wrap')
-    def drop_not_applicable(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+    def drop_fields(self, handler: SerializerFunctionWrapHandler, info: SerializationInfo) -> dict[str, Any]:
         data: dict[str, Any] = handler(self)
-        for field in self.not_applicable_fields():
+        omitted = self.not_applicable_fields()
+        if info.context and info.context.get(BRIEF_CONTEXT_KEY):
+            omitted = omitted | self.brief_omitted_fields()
+        for field in omitted:
             data.pop(field, None)
         return data
 
@@ -394,6 +409,13 @@ class Segment(FlightModel):
         codeshare = self.operating_airline_code is not None and self.operating_airline_code != self.airline_code
         return frozenset() if codeshare else frozenset({'operating_airline_code', 'operating_airline'})
 
+    def brief_omitted_fields(self) -> frozenset[str]:
+        # 편명·항공사(코드셰어면 운항 항공사)만 남긴다. 코드는 편명 앞에 있고, 공항·시각은 여정과 경유 공항에 있다 (직항이면 여정과 똑같다)
+        return frozenset({
+            'airline_code', 'operating_airline_code', 'departure_airport', 'arrival_airport',
+            'departure_at', 'arrival_at', 'duration_minutes', 'aircraft',
+        })
+
 
 class Journey(FlightModel):
     """한 방향 여정 (편도 하나, 왕복의 가는 편·오는 편, 다구간의 한 구간)."""
@@ -480,6 +502,10 @@ class Itinerary(FlightModel):
         Field(description='대표 운임에 위탁 수하물이 포함되는지 (모르면 null)')
     ] = None
 
+    def brief_omitted_fields(self) -> frozenset[str]:
+        # 소스·여정 종류·좌석 등급은 결과의 search 에 있고, 항공권 링크는 flight <id> 나 search.url 로 연다
+        return frozenset({'source', 'url', 'trip_type', 'cabin'})
+
 
 class Offer(FlightModel):
     """판매처 하나의 가격 (`flight` 의 `offers[]`)."""
@@ -510,8 +536,29 @@ class Offer(FlightModel):
     ] = None
     url: Annotated[
         str | None,
-        Field(description='이 판매처의 예약 페이지로 가는 링크')
+        Field(description='이 판매처의 예약 페이지로 가는 링크. --offer-urls 로 뺀 운임은 키가 없다')
     ] = None
+    url_omitted: Annotated[
+        bool,
+        Field(exclude=True, description='--offer-urls 로 예약 링크를 뺀 운임인지 (출력하지 않음)')
+    ] = False
+
+    def not_applicable_fields(self) -> frozenset[str]:
+        # 링크를 모르는 것(null)과 달리 빼 달라고 한 것이라 키째 뺀다
+        return frozenset({'url'}) if self.url_omitted else frozenset()
+
+
+def shown_offers(fares: list[list[OfferT]], limit: int, url_limit: int | None = None) -> list[OfferT]:
+    """판매처 운임 묶음을 앞에서 `limit` 개만 `offers` 줄로 편다. `url_limit` 을 주면 그 뒤 운임은 예약 링크 키를 뺀다.
+
+    판매처 여러 곳에서 따로 예약하는 조합은 운임 하나가 여러 줄이다. 개수와 링크를 모두 묶음으로 세어 한 조합의 줄을 가르지 않는다
+    (링크가 일부 줄에만 남으면 나머지 구간을 어디서 사는지 모른다).
+    """
+    return [
+        row if url_limit is None or index < url_limit else row.model_copy(update={'url_omitted': True})
+        for index, rows in enumerate(fares[:limit])
+        for row in rows
+    ]
 
 
 class CalendarDay(FlightModel):

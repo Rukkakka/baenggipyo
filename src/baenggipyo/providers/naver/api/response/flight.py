@@ -144,7 +144,7 @@ class NaverSegmentModel(ResponseModel):
     ] = Field(default=None, alias='flightDuration')
     aircraft_code: Annotated[
         str | None,
-        Field(description='기종 (예: Airbus A321)')
+        Field(description='기종. 이름(Airbus A321)과 IATA 기종 코드(738)가 섞여 오고, 모르면 빈 문자열')
     ] = Field(default=None, alias='aircraftCode')
 
 

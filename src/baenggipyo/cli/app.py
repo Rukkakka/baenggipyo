@@ -19,6 +19,7 @@ from baenggipyo.cli import (
 )
 from baenggipyo.cli.options import PrettyOption
 from baenggipyo.cli.output import (
+    HELP_MARKUP_MODE,
     emit,
     emit_error,
     handle_errors,
@@ -51,6 +52,7 @@ app = typer.Typer(
     ),
     no_args_is_help=True,
     pretty_exceptions_enable=False,
+    rich_markup_mode=HELP_MARKUP_MODE,
 )
 app.add_typer(naver.app, name='naver')
 app.add_typer(skyscanner.app, name='skyscanner')

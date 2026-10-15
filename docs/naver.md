@@ -66,6 +66,7 @@ baenggipyo naver search airports 오사카
 | | `--airline` | 항공사 IATA 코드만 (`KE,OZ`). 반복하거나 쉼표 |
 | 결과 | `--sort` | `가격`(기본)·`출발시각`·`소요시간` |
 | | `--limit` | 돌려줄 항공권 수 (1~50, 기본 10) |
+| | `--brief` | 고르는 데 필요한 키만 ([응답 줄이기](common.md#응답-줄이기)) |
 
 조건(직항·좌석·항공사)과 정렬은 네이버 서버가 건다.
 
@@ -85,6 +86,7 @@ baenggipyo naver search airports 오사카
 - `total_price_krw` 는 승객 유형별 1인 운임 × 인원의 합이다.
 - `--sort 가격` 은 네이버 순서(카드 할인을 포함한 최저가 기준)라 대표 가격 순서와 조금 다를 수 있다. 그러면 `notes` 로 알린다.
 - `cheapest_seller` 는 네이버가 이름을 알려 주지 않는 판매처면 `null` 이다.
+- `aircraft`(기종)는 네이버가 준 그대로라 이름(`Airbus A321`)과 IATA 기종 코드(`738`)가 섞여 온다. 모르면 `null` 이다.
 - `--limit` 만큼 받았으면 더 있을 수 있다고 `notes` 로 알린다. 늘리면 응답이 커지고 느려진다.
 - 판매처가 60초 안에 다 응답하지 않으면 받은 데까지 돌려주고 `notes` 로 알린다.
 
@@ -120,6 +122,7 @@ baenggipyo naver flight <가는 편 id> <오는 편 id>
 | --- | --- |
 | `<id>…` | `search flights` 결과의 `id`. 국제선은 하나, 국내선은 편도 검색의 편 하나 또는 왕복 검색의 가는 편·오는 편 둘 (왕복 검색의 편 하나만 주면 `INVALID_ARGUMENT`) |
 | `--limit` | 판매처 운임 수 (1~100, 기본 10) |
+| `--offer-urls` | 예약 링크를 붙일 앞쪽 판매처 운임 수 (0 이상, 기본 모두. [응답 줄이기](common.md#응답-줄이기)) |
 
 반환: 항공권 필드(대표 가격·카드 할인 포함) + `offers[]` — `seller`, `seller_type`(`항공사`·`여행사`), `total_price_krw`, `price_per_adult_krw`,
 `fare_name`(예: `성인/모든 결제수단`, `성인/현대카드`), `payment_condition`(결제수단 조건이 있을 때만), `baggage_included`, `url`(네이버를 거쳐 판매처

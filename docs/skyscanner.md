@@ -45,7 +45,7 @@
 ## 2. `search flights` — 항공권 찾기
 
 옵션은 [네이버 `search flights`](naver.md#2-search-flights--항공권-찾기)와 같다 (`--depart`·`--return`·`--leg`, 승객, `--cabin`, `--direct`,
-`--airline`, `--sort`, `--limit` 1~50·기본 10). 다른 점:
+`--airline`, `--sort`, `--limit` 1~50·기본 10, `--brief`). 다른 점:
 
 - **가격은 모든 승객 합계**(`total_price_krw`)다. 1인 요금을 주지 않아 `price_per_adult_krw` 는 성인 1명만 찾을 때만 값이 있고(합계와 같다) 그 밖에는
   `null` 이다.
@@ -75,6 +75,7 @@ baenggipyo skyscanner search flights ICN NRT --depart 2026-11-20 --direct --airl
 | --- | --- |
 | `<id>` | `search flights` 결과의 `id` |
 | `--limit` | 판매처 운임 수 (1~100, 기본 10) |
+| `--offer-urls` | 예약 링크를 붙일 앞쪽 판매처 운임 수 (0 이상, 기본 모두. [응답 줄이기](common.md#응답-줄이기)). 링크를 뺀 판매처는 맨 위 `url`(검색 결과 페이지)에서 고른다 |
 
 반환: 항공권 필드 + `offers[]` — `seller`, `seller_type`(`항공사`·`여행사`), `total_price_krw`, `price_per_adult_krw`, `fare_name`(판매처 여러 곳에서 따로
 예약하는 조합일 때만), `url`(스카이스캐너를 거쳐 판매처로 가는 예약 링크).

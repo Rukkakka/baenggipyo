@@ -15,6 +15,8 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 - 로그(`--verbose`)는 `logging` 으로 stderr 에 나간다. 기본 레벨은 ERROR.
 - JSON 은 터미널이면 들여쓰기, 파이프면 한 줄. `--pretty/--compact` 로 강제한다.
   `ensure_ascii=False` 로 한글을 그대로 쓴다.
+- `--help` 도 같은 기준이다. 터미널이면 Rich 상자로, 파이프면 Click 평문으로 쓴다 (`cli/output.py` 의 `HELP_MARKUP_MODE` 를 최상위 Typer 의
+  `rich_markup_mode` 로 넘긴다). 파이프의 Rich 상자는 80칸 안에 테두리·여백을 넣느라 같은 도움말이 두 배 넘게 길고 설명을 `…` 로 잘랐다 (2026-10-15).
 
 ## 에러
 
@@ -73,6 +75,20 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 
 - service 에서 "모름"과 "없음"을 섞지 않는다. 수하물 정보가 없으면 `baggage_included=None` 이지 `False` 가 아니다.
 - 키를 빼는 필드는 출력 모델의 `not_applicable_fields()` + `@model_serializer` 로 뺀다 (jibsa `Listing` 과 같은 방식).
+- 예외: `flight --offer-urls N` 으로 링크를 뺀 판매처 운임의 `url` 도 키를 뺀다 (`Offer.url_omitted`). 모르는 것이 아니라 빼 달라고 한 것이라 `null` 로
+  두지 않는다.
+
+### 요약 (`--brief`)
+
+`search flights --brief` 는 모양을 바꾸지 않고 키만 뺀다. 그래서 요약을 읽는 쪽도 전체 출력과 같은 경로(`journeys[].segments[].flight_number`)로 읽는다.
+`emit(..., brief=True)` 가 직렬화 context 에 `BRIEF_CONTEXT_KEY` 를 넣으면, 각 출력 모델이 `brief_omitted_fields()` 의 필드를 뺀다. 빼는 것은 같은
+결과의 다른 곳에 있는 값과 항공권을 고르는 데 필요 없는 값뿐이다. 값이 없을 때의 규칙(`null`·`[]`)은 요약에서도 그대로다.
+
+| 모델 | 요약에서 빼는 필드 | 대신 볼 곳 |
+| --- | --- | --- |
+| `Itinerary` | `source`, `url`, `trip_type`, `cabin` | 결과의 `search`(`search.url`), 항공권 링크는 `flight <id>` |
+| `Segment` | `airline_code`, `operating_airline_code`, 공항·시각, `duration_minutes`, `aircraft` | 편명 앞 코드, 여정 공항·시각과 `stopover_airports` (직항이면 여정과 똑같다) |
+| `NaverDomesticItinerary` | 위에 더해 `direction` | `legs[].direction` |
 
 ### 금액·시각·코드
 
@@ -98,7 +114,7 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 | `Segment` | (여정 안) | `airline_code`, `airline`, `flight_number`, `operating_airline_code`, `operating_airline`, `departure_airport`, `arrival_airport`, `departure_at`, `arrival_at`, `duration_minutes`, `aircraft` | 공동운항이 아니면 `operating_*` |
 | `Journey` | (항공권 안) | `departure_airport`, `arrival_airport`, `departure_at`, `arrival_at`, `duration_minutes`(경유 대기 포함), `stops`, `stopover_airports`, `segments` | — |
 | `Itinerary` | `search flights` | `source`, `id`, `url`, `trip_type`, `cabin`, `journeys`, `total_price_krw`, `price_per_adult_krw`, `offer_count`, `cheapest_seller`, `baggage_included` | — |
-| `Offer` | `flight` 의 `offers[]` | `seller`, `seller_type`, `total_price_krw`, `price_per_adult_krw`, `fare_name`, `baggage_included`, `url` | — |
+| `Offer` | `flight` 의 `offers[]` | `seller`, `seller_type`, `total_price_krw`, `price_per_adult_krw`, `fare_name`, `baggage_included`, `url` | `--offer-urls` 로 링크를 뺀 운임의 `url` |
 | `CalendarDay` | `calendar` 의 `days[]` | `date`, `return_date`, `min_price_krw`, `direct` | 편도의 `return_date` |
 | `Destination` | `explore` 의 `destinations[]` | `code`, `city`, `country`, `country_code`, `min_price_krw`, `direct`, `departure_date`, `return_date` | 편도의 `return_date` |
 

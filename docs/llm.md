@@ -39,6 +39,14 @@
 목적지 고르기 explore ─▶ calendar / search flights
 ```
 
+## 응답 줄이기
+
+결과 JSON 은 그대로 대화에 쌓인다. 필요한 만큼만 받는다 ([자세히](https://github.com/Rukkakka/baenggipyo/blob/main/docs/common.md#응답-줄이기)).
+
+- 후보를 고를 때는 `search flights --brief` 와 보여 줄 만큼의 `--limit` 을 쓴다. 모양은 같고 구간별 공항·시각·기종, 항공권 `url` 처럼 고르는 데 필요 없는 키만 빠진다. 경유 대기 시간·기종이 필요하면 `--brief` 없이 부른다.
+- 날짜를 정하지 않았으면 여러 날을 `search flights` 하지 말고 `calendar` 로 싼 날을 먼저 고른다.
+- `flight <id>` 의 판매처 예약 링크는 하나가 수백 자다. 최저가 판매처 링크만 필요하면 `--offer-urls 1`, 가격만 비교하려면 `--offer-urls 0` 을 쓴다. 링크를 뺀 운임은 `url` 키가 없으니 그 판매처는 맨 위 `url`(원 사이트)에서 고르게 안내한다.
+
 ## 소스마다 다른 점
 
 - `calendar`·`explore` 가격은 두 소스 모두 실시간이 아니라 최근 검색에서 모은 추정가다. 고른 뒤 `search flights` 로 실제 가격을 확인한다.

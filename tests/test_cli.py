@@ -10,7 +10,11 @@ from baenggipyo.cli.output import (
     handle_errors,
 )
 from baenggipyo.core.errors import BaenggipyoError
-from baenggipyo.core.flight import NOTICE
+from baenggipyo.core.flight import (
+    NOTICE,
+    Offer,
+    shown_offers,
+)
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.naver.api.request.common import NaverBookingItineraryModel
 
@@ -131,3 +135,22 @@ def test_notes_sit_under_notice_and_vanish_when_empty(capsys: pytest.CaptureFixt
     assert list(payload) == ['notice', 'notes', 'returned'] and payload['notice'] == NOTICE
     emit({'returned': 0}, pretty=False, notice=True, notes=[])
     assert list(json.loads(capsys.readouterr().out)) == ['notice', 'returned']
+
+
+# --- 출력 줄이기 ---
+
+def test_offer_urls_count_fares_and_never_split_a_combination() -> None:
+    # 따로 예약하는 조합(판매처마다 한 줄)은 두 편의 최저가 판매처가 다를 때만 와서 실제 조회로 재현하기 어렵다.
+    # 링크가 한 줄에만 남으면 나머지 구간을 어디서 사는지 모른다. 뺀 링크는 모름(null)이 아니라 키가 없다
+    fares = [
+        [Offer(seller='한 곳', url='https://example.com/a')],
+        [Offer(seller='가는 편', url='https://example.com/b1'), Offer(seller='오는 편', url='https://example.com/b2')],
+        [Offer(seller='다른 곳', url='https://example.com/c')],
+    ]
+
+    def has_url(url_limit: int | None) -> list[bool]:
+        return ['url' in row.model_dump(mode='json') for row in shown_offers(fares, 3, url_limit)]
+
+    assert has_url(None) == [True, True, True, True]
+    assert has_url(2) == [True, True, True, False]
+    assert has_url(1) == [True, False, False, False]

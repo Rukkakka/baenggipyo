@@ -24,6 +24,7 @@ from typer._click.globals import get_current_context
 
 from baenggipyo.core.errors import BaenggipyoError
 from baenggipyo.core.flight import (
+    BRIEF_CONTEXT_KEY,
     KST,
     NOTICE,
 )
@@ -31,11 +32,16 @@ from baenggipyo.core.schema import is_request_validation_error
 
 from typing import (
     Any,
+    Literal,
     TypeVar,
 )
 
 
 ChoiceT = TypeVar('ChoiceT', bound=str)
+
+# 도움말 모양 (최상위 Typer 의 rich_markup_mode, 하위 명령도 따른다). 터미널이면 Rich 상자로, 파이프(LLM 에이전트)면 Click 평문으로 쓴다.
+# 파이프의 Rich 상자는 80칸 안에 테두리·여백을 넣느라 같은 도움말이 두 배 넘게 길고, 좁은 칸에서 설명을 … 로 자른다 (2026-10-15 실측)
+HELP_MARKUP_MODE: Literal['rich'] | None = 'rich' if sys.stdout.isatty() else None
 
 DATE_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 MONTH_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^\d{4}-\d{2}$')
@@ -61,6 +67,7 @@ def emit(
     pretty: bool | None = None,
     notice: bool = False,
     notes: list[str] | None = None,
+    brief: bool = False,
 ) -> None:
     """결과를 JSON 으로 stdout 에 쓴다.
 
@@ -68,12 +75,13 @@ def emit(
 
     `notice` 가 True 면 맨 앞에 "가격은 조회 시점 기준, 예약은 원 사이트에서" 안내를 붙인다.
     항공권·가격을 내보내는 명령은 모두 켠다. `notes` 가 있으면 그 바로 아래에 붙이고,
-    없으면 키를 뺀다 (모호한 공항 안내, 일부만 돌려준 안내 등).
+    없으면 키를 뺀다 (모호한 공항 안내, 일부만 돌려준 안내 등). `brief` 면 출력 모델이 요약에서 빼는 필드도 뺀다 (`--brief`).
     """
+    context = {BRIEF_CONTEXT_KEY: True} if brief else None
     if isinstance(data, BaseModel):
-        payload: Any = data.model_dump(mode='json')
+        payload: Any = data.model_dump(mode='json', context=context)
     elif isinstance(data, list):
-        payload = [item.model_dump(mode='json') for item in data]
+        payload = [item.model_dump(mode='json', context=context) for item in data]
     else:
         payload = data
     if not isinstance(payload, dict) and (notice or notes):

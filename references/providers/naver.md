@@ -74,7 +74,8 @@
     한국어 이름), `airportsCodeMap`, `fareTypesCodeMap`(운임 종류 코드 → 이름·분류), `lowestFare`, `priceRange`.
   - `itineraries[]`: 한 방향 여정 하나. `itineraryId`(예 `20261115ICNNRTZE0605`, 경유는 `+` 로 이음), `sequence`(1 = 가는 편, 2 = 오는 편),
     `duration`(초), `segments[]` — `departure`·`arrival`(`airportCode`, 현지 시각 `dateTime` `YYYYMMDDHHmm`), `marketingCarrier`·
-    `operatingCarrier`(`airlineCode`, `flightNumber`), `flightDuration`·`groundDuration`(초), `aircraftCode`.
+    `operatingCarrier`(`airlineCode`, `flightNumber`), `flightDuration`·`groundDuration`(초), `aircraftCode`(기종. 이름 `Airbus A321` 과 IATA 기종
+    코드 `738` 이 섞여 오고, 모르면 빈 문자열이라 `null` 로 바꾼다. 2026-10-15 ICN→KIX 10편 중 5편이 빈 문자열).
   - `fareMappings[]`: 항공권 하나(여정 조합)의 운임 목록. `itineraryIds` 는 여정 ID 를 `-` 로 이은 것이다 (왕복 예
     `20261115ICNNRTET0672-20261120NRTICNET0673`). 이 값을 항공권 ID 로 쓴다. `fares[]` 는 판매처 × 운임 종류마다 하나:
     `partnerCode`(판매처), `fareType`, `adult`·`child`·`infant` 의 `totalFare`·`tax`·`qCharge`, `baggageFeeType`(`FREE`·`CHARGE`·`UNKNOWN`),

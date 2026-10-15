@@ -7,6 +7,7 @@ from baenggipyo.cli.options import (
     AirlineOption,
     AirportLimitOption,
     AirportQueryArgument,
+    BriefOption,
     CabinOption,
     ChildrenOption,
     DepartOption,
@@ -15,6 +16,7 @@ from baenggipyo.cli.options import (
     InfantsOption,
     LegOption,
     MonthOption,
+    OfferUrlsOption,
     OriginArgument,
     PrettyOption,
     ReturnOption,
@@ -127,6 +129,7 @@ def search_flights_command(
         int,
         typer.Option('--limit', min=1, max=MAX_LIMIT, help='돌려줄 항공권 수')
     ] = DEFAULT_LIMIT,
+    brief: BriefOption = False,
     pretty: PrettyOption = None,
 ) -> None:
     """편도·왕복·다구간 항공권 (요청: 공항 해석 입력마다 1회 + 판매처 이름 1회 + 검색 1~2회. 국제선 10~20초, 국내선 수 초).
@@ -144,10 +147,10 @@ def search_flights_command(
         legs = resolve_legs(client, raw_legs)
         if route_kind(legs) == 'domestic':
             domestic = search_domestic_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
-            emit(domestic, pretty, notice=True, notes=domestic.notes)
+            emit(domestic, pretty, notice=True, notes=domestic.notes, brief=brief)
             return
         result = search_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
-        emit(result, pretty, notice=True, notes=result.notes)
+        emit(result, pretty, notice=True, notes=result.notes, brief=brief)
 
 
 @app.command('flight')
@@ -160,6 +163,7 @@ def flight_command(
         int,
         typer.Option('--limit', min=1, max=MAX_OFFER_LIMIT, help='판매처 운임 수 (모든 결제수단 운임이 먼저 온다)')
     ] = DEFAULT_OFFER_LIMIT,
+    offer_urls: OfferUrlsOption = None,
     pretty: PrettyOption = None,
 ) -> None:
     """항공권의 판매처별 가격과 예약 링크 (요청 2~3회. 검색 뒤 15분이 지났으면 같은 조건으로 다시 검색한다).
@@ -177,10 +181,10 @@ def flight_command(
         raise typer.BadParameter('국내선은 가는 편·오는 편 id 를 두 개까지 줍니다', param_hint='ID')
     with handle_errors(SOURCE), NaverClient() as client:
         if all(domestic):
-            booking, booking_notes = get_domestic_flights(client, flight_ids, offer_limit=limit)
+            booking, booking_notes = get_domestic_flights(client, flight_ids, offer_limit=limit, url_limit=offer_urls)
             emit(booking, pretty, notice=True, notes=booking_notes)
             return
-        detail, notes = get_flight(client, flight_ids[0], offer_limit=limit)
+        detail, notes = get_flight(client, flight_ids[0], offer_limit=limit, url_limit=offer_urls)
         emit(detail, pretty, notice=True, notes=notes)
 
 
