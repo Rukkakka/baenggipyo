@@ -410,11 +410,14 @@ class Segment(FlightModel):
         return frozenset() if codeshare else frozenset({'operating_airline_code', 'operating_airline'})
 
     def brief_omitted_fields(self) -> frozenset[str]:
-        # 편명·항공사(코드셰어면 운항 항공사)만 남긴다. 코드는 편명 앞에 있고, 공항·시각은 여정과 경유 공항에 있다 (직항이면 여정과 똑같다)
-        return frozenset({
-            'airline_code', 'operating_airline_code', 'departure_airport', 'arrival_airport',
-            'departure_at', 'arrival_at', 'duration_minutes', 'aircraft',
-        })
+        # 편명·항공사(코드셰어면 운항 항공사)만 남긴다. 코드는 편명 앞에 있고, 공항·시각은 여정과 경유 공항에 있다 (직항이면 여정과 똑같다).
+        # 편명을 모르면 판매 항공사 코드를, 운항 항공사 이름을 모르면 운항 항공사 코드를 남긴다 (빼면 요약에서 그 항공사를 알 수 없다)
+        omitted = {'departure_airport', 'arrival_airport', 'departure_at', 'arrival_at', 'duration_minutes', 'aircraft'}
+        if self.flight_number is not None:
+            omitted.add('airline_code')
+        if self.operating_airline is not None:
+            omitted.add('operating_airline_code')
+        return frozenset(omitted)
 
 
 class Journey(FlightModel):
