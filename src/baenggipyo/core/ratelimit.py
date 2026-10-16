@@ -292,11 +292,11 @@ class RateLimiter:
         if blocked_until > now:
             raise RateLimitedError(self.source, blocked_until - now, 'cooldown')
 
-    def _next_slot(self, state: dict[str, Any], now: float) -> tuple[list[float], float]:
+    def _next_slot(self, state: dict[str, Any], now: float, max_wait: float | None = None) -> tuple[list[float], float]:
         """다음 요청을 보낼 시각과 최근 슬롯(`_live_slots`)을 돌려준다. 상태를 바꾸지 않는다.
 
         Raises:
-            RateLimitedError: 쿨다운 중이거나, 슬롯까지 `max_wait` 보다 오래 기다려야 할 때.
+            RateLimitedError: 쿨다운 중이거나, 슬롯까지 `max_wait`(정책 값과 인자 중 짧은 쪽)보다 오래 기다려야 할 때.
         """
         blocked_until = state['blocked_until']
         if blocked_until > now:
@@ -314,12 +314,15 @@ class RateLimiter:
         hour_slot = recent[-hourly] + HOUR_SECONDS if hourly is not None and len(recent) >= hourly else 0.0
 
         delay = max(slot, hour_slot) - now
-        if delay > self.policy.max_wait:
+        if delay > (self.policy.max_wait if max_wait is None else min(max_wait, self.policy.max_wait)):
             raise RateLimitedError(self.source, delay, 'budget', '시간당' if hour_slot > slot else '분당')
         return recent, max(slot, hour_slot)
 
-    def reserve(self) -> float:
+    def reserve(self, max_wait: float | None = None) -> float:
         """다음 요청 슬롯을 예약하고 그때까지 기다릴 초를 돌려준다.
+
+        Args:
+            max_wait: 정책의 `max_wait` 보다 짧게 기다릴 때 그 초. None 이면 정책 값.
 
         Raises:
             RateLimitedError: 쿨다운 중이거나, 슬롯까지 `max_wait` 보다 오래
@@ -329,22 +332,25 @@ class RateLimiter:
             return 0.0
         with self._locked_state() as state:
             now = time.time()
-            recent, slot = self._next_slot(state, now)
+            recent, slot = self._next_slot(state, now, max_wait)
             recent.append(slot)
             state['recent'] = recent
             return slot - now
 
-    def reserve_ahead(self) -> None:
+    def reserve_ahead(self, within: float | None = None) -> None:
         """다음 요청의 슬롯을 지금 예약해 둔다. 그 요청의 `acquire` 는 새로 예약하지 않고 이 슬롯까지 기다린다.
 
         앞 응답을 놓기 전에 다음 요청의 자리를 잡아 둘 때 쓴다 (스카이스캐너 검색 폴링). 놓은 뒤에 예약하다 거절되면 받은 결과를 잃는다.
-        예약한 슬롯은 같은 인스턴스의 다음 요청 하나가 쓴다.
+        예약한 슬롯은 같은 인스턴스의 다음 요청 하나가 쓴다. 그 요청이 재시도하면 재시도는 새로 예약한다.
+
+        Args:
+            within: 슬롯이 이 초보다 멀면 예약하지 않는다 (폴링 시간 상한까지 남은 시간). None 이면 `max_wait`.
 
         Raises:
-            RateLimitedError: 지금 `reserve` 가 거절될 때. 이때는 아무것도 예약하지 않는다.
+            RateLimitedError: 지금 `reserve` 가 거절되거나 슬롯이 `within` 초보다 멀 때. 이때는 아무것도 예약하지 않는다.
         """
         if self.policy.enabled:
-            self._ahead = time.time() + self.reserve()
+            self._ahead = time.time() + self.reserve(within)
 
     def _take_slot(self) -> tuple[float, bool]:
         """이번 요청이 기다릴 초와, `reserve_ahead` 로 미리 잡아 둔 슬롯을 썼는지. 잡아 둔 슬롯이 없으면 새로 예약한다."""
