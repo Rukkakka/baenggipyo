@@ -106,6 +106,22 @@ naver_retry = retry(
 """조회 전용 공통 재시도: 실패하면 1초 뒤 한 번만 더 보낸다 (모두 2번), 5xx·timeout·transport 오류만. 검색 한 번이 판매처 20곳을 부르므로 한 번만 더 한다."""
 
 
+def _search_event(event: str | None) -> dict[str, object]:
+    """SSE 마지막 이벤트 본문을 JSON 으로. 이벤트가 없거나 검색 결과 이벤트가 아니면 `ValueError` (`PARSE_ERROR`).
+
+    검색 결과 이벤트는 새 검색·캐시 조회·만료된 캐시 조회 모두 `status` 나 `isExpired` 를 준다 (2026-10-17 실측: 국제선 새 검색·캐시 조회·
+    없는 version 의 만료 응답, 국내선 검색). 둘 다 없는 이벤트(에러 본문 등)를 모든 필드가 선택인 응답 모델로 검증하면 결과 0건인 정상 검색이 된다.
+    """
+    if event is None:
+        raise ValueError('네이버 항공권 검색 응답에 이벤트가 없습니다')
+    loaded = json.loads(event)
+    if not isinstance(loaded, dict) or not {'status', 'isExpired'} & loaded.keys():
+        # 값에는 추적 ID 같은 것이 섞일 수 있어 키 이름만 싣는다
+        shape = f"키: {', '.join(sorted(map(str, loaded))[:10])}" if isinstance(loaded, dict) else f'JSON {type(loaded).__name__}'
+        raise ValueError(f'네이버 항공권 검색 응답의 마지막 이벤트가 검색 결과가 아닙니다 ({shape})')
+    return loaded
+
+
 class NaverClient(BaseHTTPClient):
     """네이버 항공권 (flight.naver.com) 비공식 API 클라이언트.
 
@@ -213,12 +229,12 @@ class NaverClient(BaseHTTPClient):
     def _stream_last_event(self, endpoint: str, payload: BaseModel, stream_seconds: float) -> dict[str, object]:
         """SSE 를 끝까지(또는 스트림이 열린 뒤 `stream_seconds` 까지) 읽어 마지막 이벤트를 JSON 으로 돌려준다.
 
-        이벤트가 없는 응답은 `BaenggipyoError` 가 아니라 `ValueError` 로 던진다. client 는 응답 검증만 하고 에러 코드를 정하지
+        이벤트가 없거나 검색 결과가 아닌 응답은 `BaenggipyoError` 가 아니라 `ValueError` 로 던진다. client 는 응답 검증만 하고 에러 코드를 정하지
         않으며(service 가 정한다), 형식이 어긋난 응답은 `handle_errors` 가 `ValueError` 를 `PARSE_ERROR`(차단 페이지·구조 변경 힌트)로
         낸다 (output-contract.md '에러'). JSON 이 아닌 응답의 `JSONDecodeError` 와 같은 경로다.
 
         Raises:
-            ValueError: 이벤트가 하나도 없을 때 (`PARSE_ERROR`).
+            ValueError: 이벤트가 하나도 없거나 마지막 이벤트가 검색 결과가 아닐 때 (`PARSE_ERROR`, `_search_event`).
         """
         with self._client.stream(
             'POST',
@@ -232,10 +248,7 @@ class NaverClient(BaseHTTPClient):
             # 요청 제한 훅의 슬롯 대기(최대 max_wait)가 스트림 시간을 깎지 않게 스트림이 열린 뒤부터 잰다
             deadline = time.monotonic() + stream_seconds
             event = last_event(response.iter_lines(), deadline)
-        if event is None:
-            raise ValueError('네이버 항공권 검색 응답에 이벤트가 없습니다')
-        loaded: dict[str, object] = json.loads(event)
-        return loaded
+        return _search_event(event)
 
     async def _astream_last_event(self, endpoint: str, payload: BaseModel, stream_seconds: float) -> dict[str, object]:
         """Async variant of `_stream_last_event`."""
@@ -250,10 +263,7 @@ class NaverClient(BaseHTTPClient):
                 raise_for_status(response=response)
             deadline = time.monotonic() + stream_seconds
             event = await alast_event(response.aiter_lines(), deadline)
-        if event is None:
-            raise ValueError('네이버 항공권 검색 응답에 이벤트가 없습니다')
-        loaded: dict[str, object] = json.loads(event)
-        return loaded
+        return _search_event(event)
 
     @naver_retry
     def run_request_flight_international_search_flights(
@@ -279,7 +289,7 @@ class NaverClient(BaseHTTPClient):
             NaverFlightInternationalSearchFlightsResponseModel: 마지막 이벤트 (여정·운임·진행 상태·코드표).
 
         Raises:
-            ValueError: 이벤트가 하나도 없을 때 (`PARSE_ERROR`).
+            ValueError: 이벤트가 하나도 없거나 마지막 이벤트가 검색 결과가 아닐 때 (`PARSE_ERROR`).
         """
         event = self._stream_last_event(self.flight_international_search_flights_endpoint, payload, stream_seconds)
         return NaverFlightInternationalSearchFlightsResponseModel.model_validate(event)
@@ -314,7 +324,7 @@ class NaverClient(BaseHTTPClient):
             NaverFlightDomesticSearchFlightsResponseModel: 마지막 이벤트 (편·판매처별 운임·진행 상태).
 
         Raises:
-            ValueError: 이벤트가 하나도 없을 때 (`PARSE_ERROR`).
+            ValueError: 이벤트가 하나도 없거나 마지막 이벤트가 검색 결과가 아닐 때 (`PARSE_ERROR`).
         """
         event = self._stream_last_event(self.flight_domestic_search_flights_endpoint, payload, stream_seconds)
         return NaverFlightDomesticSearchFlightsResponseModel.model_validate(event)
