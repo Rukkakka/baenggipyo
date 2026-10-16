@@ -229,7 +229,7 @@ class NaverDomesticBooking(BaseModel):
     ]
     offers: Annotated[
         list[NaverOffer],
-        Field(description='판매처별 가격. 한 판매처에서 사는 운임이 먼저, 판매처가 다른 조합이 뒤에')
+        Field(description='판매처별 가격 (싼 순). 판매처가 다른 조합은 조합 합계로 함께 세운다')
     ]
 
 
@@ -733,7 +733,6 @@ def get_domestic_flights(
         _offer(ota, '성인/모든 결제수단', per_adult.get(ota.ota_id), total_known=total_known.get(ota.ota_id, False))
         for ota in options.ota_list if ota.active is None or ota.active.realtime is not False
     ]
-    offers.sort(key=lambda offer: (offer.total_price_krw is None, offer.total_price_krw or 0))
     # 따로 예약하는 조합은 편마다 한 줄씩 온다. 넘긴 순서(가는 편, 오는 편)와 판매처로 어느 편인지 붙인다
     direction_by_agent = {fare.ota_id: label for fare, label in zip(combined_fares, ('가는 편', '오는 편'))}
     combined_known = {best.agt_code: fare_total(best, conditions) is not None for best in combined_bests}
@@ -742,9 +741,19 @@ def get_domestic_flights(
                total_known=combined_known.get(ota.ota_id, False))
         for ota in options.combined if ota.active is None or ota.active.realtime is not False
     ]
+    # 판매처 운임을 (합계, 성인 1인 요금, 조합인지, 줄) 로 묶어 싼 순으로 세운다. 합계를 모르면(유아, 소아 운임 없는 판매처) 성인 1인 요금으로
+    # 세워 --limit 이 1인 요금이 싼 판매처를 남기게 한다. 같은 값이면 한 판매처 운임을 앞에 둔다
+    groups: list[tuple[int | None, int | None, bool, list[NaverOffer]]] = [
+        (offer.total_price_krw, offer.price_per_adult_krw, False, [offer]) for offer in offers
+    ]
     # 따로 예약하는 조합은 두 줄을 모두 예약해야 하는 운임 하나다. --limit 이 줄을 가르지 않게 묶어 세고, 실시간이 아니라 한 줄이 빠진 조합은
-    # 내지 않는다 (남은 줄만으로는 다른 편을 어디서 사는지 모른다)
-    fares = [[offer] for offer in offers] + ([combined] if combined and len(combined) == len(combined_fares) else [])
+    # 내지 않는다 (남은 줄만으로는 다른 편을 어디서 사는지 모른다). 조합은 두 편 최저가의 합이라 대개 가장 싸고 대표 가격(total_price_krw)과
+    # 같으므로, 뒤에 따로 두지 않고 조합 합계로 함께 세운다 (뒤에 두면 --limit 에 잘려 대표 가격의 운임이 offers 에 없다. skyscanner `_offers` 와 같다)
+    if combined and len(combined) == len(combined_fares):
+        combined_total = None if any(offer.total_price_krw is None for offer in combined) else sum(offer.total_price_krw or 0 for offer in combined)
+        groups.append((combined_total, sum(fare_per_person(best)[0] for best in combined_bests), True, combined))
+    groups.sort(key=lambda group: (group[0] is None, group[0] or 0, group[1] is None, group[1] or 0, group[2]))
+    fares = [rows for _, _, _, rows in groups]
     if len(fares) > offer_limit:
         notes.append(f'판매처 운임 {len(fares)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
     totals = [itinerary.total_price_krw for itinerary in itineraries]

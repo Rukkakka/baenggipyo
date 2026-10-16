@@ -275,9 +275,11 @@ def seller_type_of(ota_type: str | None) -> SellerType | None:
     return '항공사' if ota_type in AIRLINE_OTA_TYPES else '여행사'
 
 
-def flight_number_of(airline_code: str, number: str | None) -> str:
-    # 네이버는 편명 숫자 앞에 0 을 붙인다 (0605 → ZE605)
-    digits = (number or '').lstrip('0') or '0'
+def flight_number_of(airline_code: str, number: str | None) -> str | None:
+    # 네이버는 편명 숫자 앞에 0 을 붙인다 (0605 → ZE605). 편 번호가 없으면 없는 편명(KE0)을 만들지 않고 모름(None)으로 둔다
+    if not number:
+        return None
+    digits = number.lstrip('0') or '0'
     return f'{airline_code}{digits}'
 
 

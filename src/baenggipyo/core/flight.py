@@ -361,16 +361,16 @@ class Segment(FlightModel):
     """비행 한 번."""
 
     airline_code: Annotated[
-        str,
-        Field(description='판매(표기) 항공사 IATA 코드')
+        str | None,
+        Field(description='판매(표기) 항공사 IATA 코드 (모르면 null)')
     ]
     airline: Annotated[
         str | None,
         Field(description='판매(표기) 항공사 이름')
     ] = None
     flight_number: Annotated[
-        str,
-        Field(description='편명 (예: KE703)')
+        str | None,
+        Field(description='편명 (예: KE703). 항공사 코드나 편 번호를 모르면 null')
     ]
     operating_airline_code: Annotated[
         str | None,
@@ -381,12 +381,12 @@ class Segment(FlightModel):
         Field(description='실제 운항 항공사 이름. 공동운항일 때만 키가 있다')
     ] = None
     departure_airport: Annotated[
-        str,
-        Field(description='출발 공항 IATA 코드')
+        str | None,
+        Field(description='출발 공항 IATA 코드 (모르면 null)')
     ]
     arrival_airport: Annotated[
-        str,
-        Field(description='도착 공항 IATA 코드')
+        str | None,
+        Field(description='도착 공항 IATA 코드 (모르면 null)')
     ]
     departure_at: Annotated[
         str | None,
@@ -410,23 +410,26 @@ class Segment(FlightModel):
         return frozenset() if codeshare else frozenset({'operating_airline_code', 'operating_airline'})
 
     def brief_omitted_fields(self) -> frozenset[str]:
-        # 편명·항공사(코드셰어면 운항 항공사)만 남긴다. 코드는 편명 앞에 있고, 공항·시각은 여정과 경유 공항에 있다 (직항이면 여정과 똑같다)
-        return frozenset({
-            'airline_code', 'operating_airline_code', 'departure_airport', 'arrival_airport',
-            'departure_at', 'arrival_at', 'duration_minutes', 'aircraft',
-        })
+        # 편명·항공사(코드셰어면 운항 항공사)만 남긴다. 코드는 편명 앞에 있고, 공항·시각은 여정과 경유 공항에 있다 (직항이면 여정과 똑같다).
+        # 편명을 모르면 판매 항공사 코드를, 운항 항공사 이름을 모르면 운항 항공사 코드를 남긴다 (빼면 요약에서 그 항공사를 알 수 없다)
+        omitted = {'departure_airport', 'arrival_airport', 'departure_at', 'arrival_at', 'duration_minutes', 'aircraft'}
+        if self.flight_number is not None:
+            omitted.add('airline_code')
+        if self.operating_airline is not None:
+            omitted.add('operating_airline_code')
+        return frozenset(omitted)
 
 
 class Journey(FlightModel):
     """한 방향 여정 (편도 하나, 왕복의 가는 편·오는 편, 다구간의 한 구간)."""
 
     departure_airport: Annotated[
-        str,
-        Field(description='여정 출발 공항 IATA 코드')
+        str | None,
+        Field(description='여정 출발 공항 IATA 코드 (모르면 null)')
     ]
     arrival_airport: Annotated[
-        str,
-        Field(description='여정 도착 공항 IATA 코드')
+        str | None,
+        Field(description='여정 도착 공항 IATA 코드 (모르면 null)')
     ]
     departure_at: Annotated[
         str | None,
@@ -445,8 +448,8 @@ class Journey(FlightModel):
         Field(ge=0, description='경유 횟수 (0 = 직항)')
     ]
     stopover_airports: Annotated[
-        list[str],
-        Field(description='경유 공항 코드 (직항이면 [])')
+        list[str | None],
+        Field(description='경유 공항 코드 (직항이면 [], 모르는 공항은 null)')
     ]
     segments: Annotated[
         list[Segment],
@@ -593,8 +596,8 @@ class Destination(FlightModel):
     """어디든지 결과의 목적지 하나 (`explore`)."""
 
     code: Annotated[
-        str,
-        Field(description='목적지 코드 (네이버는 IATA 공항 코드, 스카이스캐너는 자체 도시 코드)')
+        str | None,
+        Field(description='목적지 코드 (네이버는 IATA 공항 코드, 스카이스캐너는 자체 도시 코드). 모르면 null')
     ]
     city: Annotated[
         str | None,

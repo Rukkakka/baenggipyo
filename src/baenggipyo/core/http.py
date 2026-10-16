@@ -27,6 +27,7 @@ from httpx import (
     AsyncClient,
     Client,
     HTTPStatusError,
+    Request,
     Response,
     TimeoutException,
     TransportError,
@@ -60,6 +61,11 @@ DEFAULT_USER_AGENT: str = (
 
 BODY_PREVIEW_LIMIT: int = 2048
 RETRY_BODY_PREVIEW_LIMIT: int = 200
+
+# 경로에 세션 ID 같은 응답 값을 넣는 요청은 이 요청 확장(`extensions`) 키로 자리표시자를 남긴 엔드포인트(`/…/{session_id}`)를 넘긴다.
+# 에러 메시지·재시도 로그·요청 로그는 실제 경로 대신 이것을 쓴다 (본문 가리기는 URL 에 닿지 않는다)
+LOG_PATH_EXTENSION: str = 'baenggipyo_log_path'
+
 # 에러 본문은 에러 JSON 의 message 로 나간다. 인증정보와 함께 세션·추적 ID(sessionId, traceId, requestId, X-Request-Id 등)도 가린다
 # (AGENTS.md: 세션 토큰·쿠키·추적 ID 는 출력하지 않는다)
 SENSITIVE_KEYWORDS: str = (
@@ -103,10 +109,10 @@ def _redact_text(value: str) -> str:
     return SENSITIVE_TEXT_PATTERN.sub(r'\1<redacted>', value)
 
 
-def _safe_request_url(url: object) -> str:
+def _safe_request_url(url: object, path: str | None = None) -> str:
     parts = urlsplit(str(url))
     netloc = parts.netloc.rsplit('@', 1)[-1]
-    return urlunsplit((parts.scheme, netloc, parts.path, '', ''))
+    return urlunsplit((parts.scheme, netloc, parts.path if path is None else path, '', ''))
 
 
 class ResponseStatusError(HTTPStatusError):
@@ -123,7 +129,22 @@ def _request_origin(exc: HTTPStatusError) -> str:
         request = exc.request
     except RuntimeError:
         return '<unknown request>'
-    return f'{request.method} {_safe_request_url(request.url)}'
+    return _describe_request(request)
+
+
+def _describe_request(request: Request) -> str:
+    """로그·에러 메시지에 쓰는 요청 이름: 메서드와 쿼리·계정 정보를 뗀 주소 (`LOG_PATH_EXTENSION` 이 있으면 그 경로)."""
+    log_path = request.extensions.get(LOG_PATH_EXTENSION)
+    return f'{request.method} {_safe_request_url(request.url, log_path if isinstance(log_path, str) else None)}'
+
+
+def _log_response(response: Response) -> None:
+    # httpx 의 요청 로그(INFO)는 쿼리와 경로의 세션 ID 를 그대로 찍어 CLI 가 끈다 (`configure_logging`). 같은 줄을 가린 주소로 남긴다
+    logger.info('%s -> %d %s', _describe_request(response.request), response.status_code, response.reason_phrase)
+
+
+async def _alog_response(response: Response) -> None:
+    _log_response(response)
 
 
 def _body_preview(response: Response, limit: int = BODY_PREVIEW_LIMIT) -> str:
@@ -324,12 +345,17 @@ class BaseHTTPClient(BaseModel, ABC):
         return RateLimiter(self.source_name, policy)
 
     def rate_limit_hooks(self) -> dict[str, list[Callable[..., None]]]:
-        return self.rate_limiter.event_hooks()
+        hooks = self.rate_limiter.event_hooks()
+        # 요청 로그를 먼저 남긴다. 429·봇 차단이면 요청 제한 훅이 예외를 던져 뒤 훅은 돌지 않는다
+        hooks['response'].insert(0, _log_response)
+        return hooks
 
     def async_rate_limit_hooks(self) -> dict[str, list[Callable[..., Awaitable[None]]]]:
         # async 쪽(이 훅, `_async_client`, provider 의 `arun_request_*`)은 CLI 가 부르지 않지만 라이브러리로 쓸 때의 공개 API 라
         # 일부러 둔다 (provider-conventions.md '요청 메서드'). 호출부 0건은 죽은 코드가 아니다.
-        return self.rate_limiter.async_event_hooks()
+        hooks = self.rate_limiter.async_event_hooks()
+        hooks['response'].insert(0, _alog_response)
+        return hooks
 
     @property
     @abstractmethod

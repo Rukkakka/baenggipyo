@@ -216,15 +216,16 @@ def _local_minute(value: str | None) -> str | None:
 def _segment(segment: SkyscannerSegmentModel) -> Segment:
     marketing = segment.marketing_carrier
     operating = segment.operating_carrier
-    code = (marketing.display_code or marketing.alternate_id or '') if marketing else ''
+    # 모르는 코드는 빈 문자열이 아니라 None(모름)으로 둔다. 코드나 편 번호 중 하나라도 없으면 편명도 모른다
+    code = (marketing.display_code or marketing.alternate_id or None) if marketing else None
     return Segment(
         airline_code=code,
         airline=marketing.name if marketing else None,
-        flight_number=f'{code}{segment.flight_number or ""}',
+        flight_number=f'{code}{segment.flight_number}' if code and segment.flight_number else None,
         operating_airline_code=(operating.display_code or operating.alternate_id) if operating else None,
         operating_airline=operating.name if operating else None,
-        departure_airport=segment.origin.display_code or '',
-        arrival_airport=segment.destination.display_code or '',
+        departure_airport=segment.origin.display_code or None,
+        arrival_airport=segment.destination.display_code or None,
         departure_at=_local_minute(segment.departure),
         arrival_at=_local_minute(segment.arrival),
         duration_minutes=segment.duration_in_minutes,

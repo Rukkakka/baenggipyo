@@ -163,6 +163,8 @@ def run_search(
     완료는 응답의 `context.status` 로만 판정한다. 폴링 응답이 `sessionId` 를 빠뜨려도 같은 검색이라 처음 받은 값으로 계속 묻고,
     상태가 빠진 응답은 끝났는지 모르므로 완료로 보지 않는다. 세션 ID 를 한 번도 받지 못했으면(빈 문자열 포함) 더 묻지 못해 미완료로 끝낸다.
     다음 폴링이 로컬 요청 제한(분당·시간당 상한, 쿨다운)에 걸리면 에러로 끝내지 않고 그때까지 받은 응답을 돌려준다. 이미 받은 결과와 쓴 요청을 버리지 않는다.
+    폴링 요청의 슬롯을 기다리는 시간도 폴링 시간 상한에 넣어, 상한 안에 슬롯이 나지 않을 때도 같이 멈춘다. 다만 폴링 요청 자체가 실패하면
+    (서버 오류 재시도가 요청 제한에 걸린 경우 포함) 앞 응답을 이미 놓아 에러로 끝난다.
 
     Returns:
         tuple[응답, 완료 여부, 요청 제한 에러]: 시간 상한·요청 제한에 닿았거나 완료 표시를 받지 못하면 그때까지 받은 응답과 False.
@@ -184,9 +186,11 @@ def run_search(
             parameter = SkyscannerRadarWebUnifiedSearchPollV2RequestParameterModel(session_id=session_id)
         # 큰 검색은 응답 한 벌이 수백 MB 다. 다음 응답을 받는 동안 앞 응답을 들고 있지 않게 먼저 놓는다. 놓으면 폴링이 실패할 때 받은 결과도
         # 잃으므로, 놓기 전에 폴링 요청의 슬롯을 예약해 둔다. 시간당 상한은 검색 도중에 닿기 쉽다 (검색 한 번이 요청 4~10회, 상한 30회).
-        # 예약한 뒤에 다른 프로세스가 쿨다운을 걸거나 서버가 막으면(봇 차단) 여전히 에러로 끝난다
+        # 슬롯은 폴링 시간 상한 안의 것만 잡는다. 요청 제한 훅이 슬롯까지 기다리는 시간(최대 max_wait)이 상한 검사 뒤에 붙어 상한을 넘기지 않게 한다.
+        # 예약한 뒤에 다른 프로세스가 쿨다운을 걸거나 서버가 막으면(봇 차단) 여전히 에러로 끝난다. 폴링이 서버 오류로 재시도하면 재시도는 슬롯을
+        # 새로 잡으므로 그때 상한에 걸려도 에러로 끝난다 (재시도 슬롯까지 미리 잡으면 대개 쓰지 않을 슬롯이 시간당 상한을 깎는다)
         try:
-            client.rate_limiter.reserve_ahead()
+            client.rate_limiter.reserve_ahead(within=max(0.0, poll_seconds - (time.monotonic() - started)))
         except RateLimitedError as exc:
             return response, False, exc
         del response

@@ -20,6 +20,7 @@ from tenacity import (
 )
 
 from baenggipyo.core.http import (
+    LOG_PATH_EXTENSION,
     BaseHTTPClient,
     create_base_url,
     log_retry_before_sleep,
@@ -311,7 +312,9 @@ class SkyscannerClient(BaseHTTPClient):
         """
         response = self._client.get(
             url=self.radar_web_unified_search_poll_v2_endpoint.format(session_id=quote(parameter.session_id, safe='')),
-            headers=self.search_header
+            headers=self.search_header,
+            # 세션 ID 가 경로에 들어가 에러 메시지·요청 로그에는 자리표시자를 남긴 엔드포인트를 쓴다
+            extensions={LOG_PATH_EXTENSION: self.radar_web_unified_search_poll_v2_endpoint},
         )
         raise_for_status(response=response)
         return SkyscannerRadarWebUnifiedSearchPollV2ResponseModel.model_validate_json(response.content)
@@ -324,7 +327,9 @@ class SkyscannerClient(BaseHTTPClient):
         """Async variant of `run_request_radar_web_unified_search_poll_v2`."""
         response = await self._async_client.get(
             url=self.radar_web_unified_search_poll_v2_endpoint.format(session_id=quote(parameter.session_id, safe='')),
-            headers=self.search_header
+            headers=self.search_header,
+            # 세션 ID 가 경로에 들어가 에러 메시지·요청 로그에는 자리표시자를 남긴 엔드포인트를 쓴다
+            extensions={LOG_PATH_EXTENSION: self.radar_web_unified_search_poll_v2_endpoint},
         )
         raise_for_status(response=response)
         return SkyscannerRadarWebUnifiedSearchPollV2ResponseModel.model_validate_json(response.content)

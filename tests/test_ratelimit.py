@@ -115,6 +115,16 @@ def test_slot_reserved_ahead_is_taken_by_next_request_only() -> None:
         ahead.acquire()
 
 
+def test_slot_ahead_past_poll_deadline_is_not_reserved() -> None:
+    # 폴링은 시간 상한까지 남은 시간 안의 슬롯만 미리 잡는다. 더 먼 슬롯은 예약하지 않고 거절해, 쓰지 않을 슬롯이 상한을 깎지 않게 한다
+    # (분당 상한 근처의 상태라 실제 API 로 맞추려면 요청 예산을 일부러 써야 한다)
+    ahead = limiter(min_interval=0, max_per_minute=1, max_wait=60)
+    ahead.reserve()
+    with pytest.raises(RateLimitedError):
+        ahead.reserve_ahead(within=10)
+    assert ahead.status()['requests_last_minute'] == 1
+
+
 def test_transient_permission_error_does_not_drop_cooldown(monkeypatch: pytest.MonkeyPatch) -> None:
     # Windows 는 다른 프로세스가 상태 파일을 바꿔 넣는 순간 읽으면 PermissionError 가 잠깐 난다. 빈 상태로 보면 걸린 쿨다운을 놓치고
     # 그 빈 상태를 다시 써서 쿨다운을 지운다. macOS·Linux 에서는 나지 않아 한 번 실패하는 읽기로 본다

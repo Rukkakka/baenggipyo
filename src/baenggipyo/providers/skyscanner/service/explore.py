@@ -112,7 +112,7 @@ def explore(
             continue
         parent = content.location.parent_location
         destinations.append(Destination(
-            code=content.location.sky_code or '',
+            code=content.location.sky_code or None,
             city=content.location.name,
             country=parent.name if parent else None,
             country_code=parent.sky_code if parent else None,

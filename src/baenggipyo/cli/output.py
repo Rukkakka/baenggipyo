@@ -183,13 +183,13 @@ def handle_errors(source: str) -> Iterator[None]:
         )
         raise typer.Exit(code=1)
     except (ValueError, LookupError) as exc:
-        # JSON 이 아닌 응답(차단 페이지 등)의 JSONDecodeError 포함
-        emit_error(
-            'PARSE_ERROR',
-            f'{type(exc).__name__}: {exc}',
-            '응답이 예상한 형식이 아닙니다. 차단 페이지이거나 구조가 바뀌었을 수 있으니 다른 소스를 쓰세요',
-            source=source,
-        )
+        # JSON 이 아닌 응답(차단 페이지 등)의 JSONDecodeError 포함. KeyError·IndexError 는 응답이 예상과 다를 때(빈 목록 등)와 baenggipyo
+        # 내부 버그일 때 모두 나서 코드만으로 가를 수 없다. 출력 규약대로 PARSE_ERROR 로 두되, 내부 버그일 수 있으니 --verbose 로 다시 실행하라고
+        # 덧붙인다 (2026-10-17 리뷰. INTERNAL_ERROR 로 바꾸면 실제 응답 변화도 내부 오류로 보인다)
+        hint = '응답이 예상한 형식이 아닙니다. 차단 페이지이거나 구조가 바뀌었을 수 있으니 다른 소스를 쓰세요'
+        if isinstance(exc, LookupError):
+            hint += '. 계속되면 baenggipyo 내부 오류일 수 있으니 baenggipyo --verbose <명령> 처럼 baenggipyo 바로 뒤에 --verbose 를 붙여 다시 실행해 보세요'
+        emit_error('PARSE_ERROR', f'{type(exc).__name__}: {exc}', hint, source=source)
         raise typer.Exit(code=1)
     except (ClickException, typer.Exit):
         # 사용법 오류와 정상 종료는 baenggipyo.cli.app.run 이 처리한다
