@@ -80,6 +80,8 @@ def configure_logging(
         level=logging.INFO if verbose else logging.ERROR,
         format='%(levelname)s %(name)s: %(message)s',
     )
+    # httpx 의 요청 로그는 쿼리와 경로의 세션 ID 를 그대로 찍는다. 요청 제한 훅이 가린 주소로 같은 줄을 남긴다 (`baenggipyo.core.http`)
+    logging.getLogger('httpx').setLevel(logging.WARNING)
 
 
 @app.command('limits')

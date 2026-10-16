@@ -1,3 +1,5 @@
+import logging
+
 import httpx
 import pytest
 
@@ -8,6 +10,9 @@ from baenggipyo.core.ratelimit import (
 from baenggipyo.providers.skyscanner.api.client import SkyscannerClient
 from baenggipyo.providers.skyscanner.api.request.airport import (
     SkyscannerAutosuggestSearchSearchFlightV1RequestParameterModel,
+)
+from baenggipyo.providers.skyscanner.api.request.common import (
+    SkyscannerRadarWebUnifiedSearchPollV2RequestParameterModel,
 )
 from baenggipyo.providers.skyscanner.service.airport import (
     resolve_place,
@@ -127,6 +132,23 @@ def test_search_returns_received_results_when_next_poll_hits_rate_limit(monkeypa
     assert len(sent) == 1
     assert [itinerary.total_price_krw for itinerary in result.itineraries] == [175500]
     assert any('요청 제한' in note for note in result.notes)
+
+
+def test_poll_error_message_and_log_hide_session_id_in_path(caplog: pytest.LogCaptureFixture) -> None:
+    # 폴링 주소 경로에 검색 세션 ID 가 들어간다. 서버 오류 메시지(에러 JSON 의 message)와 --verbose 요청 로그에는 자리표시자를 남긴
+    # 엔드포인트만 싣는다. 서버 오류라 실제 API 로 재현할 수 없어 가짜 응답으로 본다 (404 는 재시도하지 않아 바로 끝난다)
+    # CLI 의 configure_logging 처럼 httpx 자체 요청 로그는 끈다. set_level 은 캡처 핸들러 레벨도 바꾸므로 INFO 를 나중에 건다
+    caplog.set_level(logging.WARNING, logger='httpx')
+    caplog.set_level(logging.INFO)
+    client = SkyscannerClient(rate_limit=RateLimitPolicy(enabled=False))
+    client.__dict__['_client'] = httpx.Client(
+        base_url=client.base_url, transport=httpx.MockTransport(lambda request: httpx.Response(404)), event_hooks=client.rate_limit_hooks(),
+    )
+    with client, pytest.raises(httpx.HTTPStatusError) as exc:
+        client.run_request_radar_web_unified_search_poll_v2(SkyscannerRadarWebUnifiedSearchPollV2RequestParameterModel(session_id='secret-session'))
+    assert 'secret-session' not in str(exc.value) + caplog.text
+    assert '/web-unified-search/{session_id}' in str(exc.value)
+    assert '/web-unified-search/{session_id} -> 404' in caplog.text
 
 
 # --- 판매 불가 운임 ---
