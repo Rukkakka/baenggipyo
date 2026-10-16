@@ -139,9 +139,9 @@ baenggipyo naver flight <가는 편 id> <오는 편 id>
   다시 찾아도 없으면 `FARE_UNAVAILABLE` 이다. 다시 묻는 검색이 시간 상한에 끊겨 확인하지 못했으면 매진이 아니라 `UPSTREAM_ERROR`
   (`reason: SEARCH_INCOMPLETE`)이니 후보에서 빼지 말고 잠시 뒤 다시 부른다 (국내선도 같다).
 - **국내선**은 `flights[]`(고른 편, 방금 다시 조회한 값), `total_price_krw`(고른 편 대표 가격의 합), `offer_count`, `offers[]` 를 준다. `offers` 는
-  고른 편 전부를 한 판매처에서 사는 운임이 먼저(`fare_name: 성인/모든 결제수단`), 왕복에서 두 편의 최저가 판매처가 다를 때 편마다 따로 사는 운임이 뒤에
-  (`fare_name: 가는 편만 …`/`오는 편만 …`, 그 편 가격) 온다. 이 두 줄은 함께 예약해야 하는 운임 하나라 `--limit`·`offer_count` 에서 하나로 세고 가르지 않는다. 유아가 있으면 국내선 `total_price_krw`(항공권·`offers` 모두)는 `null` 이다 (네이버가 유아
-  운임을 주지 않는다). `price_per_adult_krw` 는 그대로 성인 1인 요금이다.
+  싼 순이다. 고른 편 전부를 한 판매처에서 사는 운임(`fare_name: 성인/모든 결제수단`)과, 왕복에서 두 편의 최저가 판매처가 다를 때 편마다 따로 사는 조합
+  (`fare_name: 가는 편만 …`/`오는 편만 …`, 줄마다 그 편 가격)을 조합 합계로 함께 세운다 (같은 값이면 한 판매처 운임이 앞). 조합의 두 줄은 함께 예약해야 하는 운임 하나라 `--limit`·`offer_count` 에서 하나로 세고 가르지 않는다. 유아가 있으면 국내선 `total_price_krw`(항공권·`offers` 모두)는 `null` 이다 (네이버가 유아
+  운임을 주지 않는다). `price_per_adult_krw` 는 그대로 성인 1인 요금이고, 합계를 모를 때 `offers` 는 이 값으로 싼 순이다.
 
 ## 4. `calendar` — 날짜별 최저가
 

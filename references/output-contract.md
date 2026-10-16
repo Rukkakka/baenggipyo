@@ -12,7 +12,8 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 - **에러는 stderr 에 `{"error": {...}}` JSON 하나.** `emit_error()` 로만 쓴다. 사용법 오류
   (없는 옵션, 잘못된 값, 인자 누락)도 마찬가지다. 이를 위해 `run()` 이 Typer 를
   `standalone_mode=False` 로 돌려 Click 예외를 직접 잡는다.
-- 로그(`--verbose`)는 `logging` 으로 stderr 에 나간다. 기본 레벨은 ERROR.
+- 로그(`--verbose`)는 `logging` 으로 stderr 에 나간다. 기본 레벨은 ERROR. 요청 한 줄 로그는 요청 제한 훅(`rate_limit_hooks`)이 쿼리를 떼고
+  경로의 세션 ID 를 자리표시자로 바꾼 주소로 남긴다 (`baenggipyo.core.http`). httpx 자체 요청 로그는 주소를 그대로 찍어 끈다 (WARNING).
 - JSON 은 터미널이면 들여쓰기, 파이프면 한 줄. `--pretty/--compact` 로 강제한다.
   `ensure_ascii=False` 로 한글을 그대로 쓴다.
 - `--help` 도 같은 기준이다. 터미널이면 Rich 상자로, 파이프면 Click 평문으로 쓴다 (`cli/output.py` 의 `HELP_MARKUP_MODE` 를 최상위 Typer 의
@@ -41,7 +42,7 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 | `HTTPStatusError` 404 / 429 / 그 밖 | `NOT_FOUND` / `RATE_LIMITED` / `UPSTREAM_ERROR` | 1 |
 | 그 밖의 `HTTPError` | `NETWORK_ERROR` | 1 |
 | `UnicodeEncodeError` (결과를 쓰는 출력 인코딩이 UTF-8 이 아님. PYTHONUTF8 없는 Windows 파이프의 cp949) | `INTERNAL_ERROR` (hint: `PYTHONUTF8=1`) | 1 |
-| 그 밖의 `ValueError` (JSON 아닌 응답의 `JSONDecodeError`, 이벤트 없는 SSE 등), `LookupError` | `PARSE_ERROR` | 1 |
+| 그 밖의 `ValueError` (JSON 아닌 응답의 `JSONDecodeError`, 이벤트 없는 SSE 등), `LookupError` (응답이 예상과 달라도, 내부 버그여도 나서 가를 수 없다. hint 에 `--verbose` 로 다시 실행하라고 덧붙인다) | `PARSE_ERROR` | 1 |
 | 그 밖의 모든 예외 | `INTERNAL_ERROR` | 1 |
 | Click `UsageError` (`run()` 에서) | `INVALID_ARGUMENT` | 2 |
 | 그 밖의 Click `ClickException` (`run()` 에서, 파일 인자 오류 등. 지금은 나오지 않음) | `CLI_ERROR` | 예외의 `exit_code` |
@@ -87,7 +88,7 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 | 모델 | 요약에서 빼는 필드 | 대신 볼 곳 |
 | --- | --- | --- |
 | `Itinerary` | `source`, `url`, `trip_type`, `cabin` | 결과의 `search`(`search.url`), 항공권 링크는 `flight <id>` |
-| `Segment` | `airline_code`, `operating_airline_code`, 공항·시각, `duration_minutes`, `aircraft` | 편명 앞 코드, 여정 공항·시각과 `stopover_airports` (직항이면 여정과 똑같다) |
+| `Segment` | `airline_code`(편명을 알 때만), `operating_airline_code`(운항 항공사 이름을 알 때만), 공항·시각, `duration_minutes`, `aircraft` | 편명 앞 코드, 운항 항공사 이름, 여정 공항·시각과 `stopover_airports` (직항이면 여정과 똑같다) |
 | `NaverDomesticItinerary` | 위에 더해 `direction` | `legs[].direction` |
 
 ### 금액·시각·코드

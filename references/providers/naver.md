@@ -69,7 +69,9 @@
   정렬 키는 번들에 `adultMinFare`(가격)·`departureTime`·`returnTime`·`departureDurationSecond`(소요 시간)가 보인다. baenggipyo 가 쓰는
   `adultMinFare`·`departureTime`·`departureDurationSecond` 는 서버가 적용한다 (2026-10-11 ICN→NRT 실측: 출발 시각순, 소요 시간순이고
   소요 시간이 같으면 가격순). 그래서 출발시각·소요시간 정렬은 받은 순서를 그대로 쓰고 다시 확인하지 않는다.
-- 마지막 이벤트 구조: `uniqueId`, `isExpired`, `status`, `itineraries[]`, `fareMappings[]`, `popularFlights[]`.
+- 마지막 이벤트 구조: `uniqueId`, `isExpired`, `status`, `itineraries[]`, `fareMappings[]`, `popularFlights[]`. 새 검색·캐시 조회·만료된 캐시
+  조회 모두 `status` 가 오고 국내선 검색도 그렇다 (2026-10-17 실측). 그래서 `status`·`isExpired` 가 둘 다 없는 마지막 이벤트는 에러 본문 같은 것으로 보고
+  `PARSE_ERROR` 로 낸다 (`_search_event`). 응답 모델은 필드가 모두 선택이라 그대로 검증하면 결과 0건인 정상 검색이 된다.
   - `status`: `searchKey`(검색 조건에서 만든 키, 예 `OWY100PN20261115ICNANRTA`), `__v`, `expireAt`(검색 뒤 15분), `airlinesCodeMap`(코드 →
     한국어 이름), `airportsCodeMap`, `fareTypesCodeMap`(운임 종류 코드 → 이름·분류), `lowestFare`, `priceRange`.
   - `itineraries[]`: 한 방향 여정 하나. `itineraryId`(예 `20261115ICNNRTZE0605`, 경유는 `+` 로 이음), `sequence`(1 = 가는 편, 2 = 오는 편),

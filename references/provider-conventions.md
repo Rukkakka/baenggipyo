@@ -84,7 +84,8 @@ GraphQL 은 오퍼레이션의 루트 필드 이름을 snake_case 로 쓴다. �
   쿼리·경로만 있으면 `RequestParameterModel` 과 `parameter`.
 - 엔드포인트 ClassVar 에는 경로 파라미터를 `{snake_case}` 자리표시자로 남기고 메서드에서
   `.format(session_id=parameter.session_id)` 로 채운다. 경로 파라미터 필드는 `Field(exclude=True)` 로
-  쿼리 직렬화에서 뺀다.
+  쿼리 직렬화에서 뺀다. 세션 ID 처럼 출력하지 않는 값이 경로에 들어가면 요청에 `extensions={LOG_PATH_EXTENSION: <엔드포인트 ClassVar>}` 를
+  넘긴다. 에러 메시지·요청 로그가 실제 경로 대신 자리표시자를 남긴 엔드포인트를 쓴다 (스카이스캐너 폴링).
 - 경로를 action id 규칙대로 만들기 어렵다면 client 클래스 docstring 에 그 소스의 규칙을 한 문단으로 적는다.
 - 응답 모양이 같은 엔드포인트는 공통 베이스를 두고 빈 서브클래스로 action id 이름을 붙인다.
 
