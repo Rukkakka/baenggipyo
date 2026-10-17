@@ -87,23 +87,29 @@ Windows 는 `.venv/bin/pytest` 대신 `.venv\Scripts\pytest` 로 부른다.
 CI 는 여전히 실제 API 를 부르지 않는다.
 
 - **무엇을 부르나:** 두 소스의 `search airports`·`search flights`·`flight`·`calendar`·`explore` 를 국제선·국내선으로 (편도, 30일 뒤,
-  결과가 0건일 리 없는 인기 노선). `flight` 는 바로 앞 검색의 첫 항공권 ID 로 부른다. 묶음은 네이버, 스카이스캐너 국제선, 스카이스캐너
-  국내선 셋이고 러너를 나눈다. 스카이스캐너를 한 러너에서 30번쯤 보내면 봇 차단·시간당 상한(30회)에 걸리기 쉽다.
+  결과가 0건일 리 없는 인기 노선). `flight` 는 바로 앞 검색의 첫 항공권 ID 로 부른다. 날짜는 한국 시간으로 센다. 묶음은 네이버, 스카이스캐너
+  국제선, 스카이스캐너 국내선 셋이고 러너를 나눈다. 스카이스캐너 명령을 모두 부르면 40번 남짓이라 한 러너로는 시간당 상한(30회)에 막혀 한 시간
+  넘게 기다린다. 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (IP 를 바꿔 봇 차단을 피하는 우회다).
 - **판정:** 명령마다 셋으로 나눈다.
 
   | 판정 | 기준 |
   | --- | --- |
   | 정상 | exit 0, 결과 1건 이상 |
-  | 고장 | `PARSE_ERROR`·`INTERNAL_ERROR`·`NOT_FOUND`·4xx `UPSTREAM_ERROR` 같은 에러, 결과 0건, JSON 이 아닌 출력, 결과 파일 없음(조회 잡 실패) |
-  | 확인 못 함 | `RATE_LIMITED`(봇 차단·요청 제한), `NETWORK_ERROR`, 5xx 이거나 `SEARCH_INCOMPLETE` 인 `UPSTREAM_ERROR`, `FARE_UNAVAILABLE`(검색 직후 매진), 5분 안에 끝나지 않음, 앞 검색이 결과를 주지 않아 건너뛴 상세 |
+  | 고장 | `PARSE_ERROR`·`INTERNAL_ERROR`·`NOT_FOUND`·4xx·500 `UPSTREAM_ERROR` 같은 에러, 결과 0건, JSON 이 아닌 출력, 결과 파일 없음(조회 잡 실패) |
+  | 확인 못 함 | `RATE_LIMITED`(봇 차단·요청 제한), `NETWORK_ERROR`, 502·503 같은 서버 일시 오류이거나 `SEARCH_INCOMPLETE` 인 `UPSTREAM_ERROR`, `FARE_UNAVAILABLE`(검색 직후 매진), 5분 안에 끝나지 않음, 앞 검색이 결과를 주지 않아 건너뛴 상세, 판매처를 모두 뺀 까닭을 `notes` 로 알린 상세(`offers` 0건) |
+
+  500 은 고장으로 본다. 두 소스 모두 요청 형식이 맞지 않으면 늘 같은 500 을 줘서(네이버는 헤더가 빠지면, 스카이스캐너 달력은 도시를 `SEL` 로
+  주면) 사이트가 바뀐 것일 수 있다. 사이트가 잠깐 아파 500 을 준 날은 고장으로 잘못 알릴 수 있다.
 
 - **알림:** 고장이면 `api-broken` 이슈를 열고(열려 있으면 댓글) 실행이 실패로 끝나 GitHub 이 메일로 알린다. 모든 묶음이 정상이면 그
-  이슈를 닫는다. 같은 묶음이 사흘 연속 확인 못 함이면 `api-blocked` 이슈를 열고, 확인 못 함이 없어지면 닫는다. 막힘이 이어지면 그 묶음을
-  덜 자주 돌리는 것을 검토한다.
+  이슈를 닫는다. 같은 묶음이 사흘 연속 확인 못 함이면 `api-blocked` 이슈를 열고(열려 있으면 새로 연속이 된 묶음을 댓글로), 연속인 묶음이
+  없어지면 닫는다. 연속은 실행 횟수가 아니라 한국 날짜로 센다 (하루 여러 번 돌린 날은 그날 마지막 실행, 실행이 없는 날이 끼면 끊긴다).
+  이슈는 `main` 의 예약·수동 실행만 고친다. 막힘이 이어지면 그 묶음을 덜 자주 돌리는 것을 검토한다.
 - **명령을 추가·삭제하면** `api_check.py` 의 `GROUPS` 도 고친다. 국제선·국내선이 다르게 동작하면 둘 다 넣는다.
   `tests/test_cli.py::test_every_source_command_is_in_api_monitor` 가 CLI 명령 목록과 대조해 빠뜨리면 실패한다.
 - **수동 실행:** Actions 의 "API 감시" → Run workflow, 또는 `gh workflow run api-monitor.yml`. 로컬에서는
   `python scripts/monitor/api_check.py run naver --out result.json` 처럼 묶음 하나를 돌린다 (스카이스캐너 묶음은 봇 차단을 아끼려고 로컬에서
   돌리지 않는다). 이슈 처리는 `report result.json --issues --dry-run` 으로 보낼 `gh` 명령만 본다.
-- 감시 파일(`scripts/monitor/`, 워크플로)을 고친 PR 에서도 한 번 돌고, 이슈는 건드리지 않는다. 고장이면 그 PR 의 검사가 실패한다.
+- 감시 파일(`scripts/monitor/`, 워크플로)을 고친 PR 에서도 한 번 돌고, 이슈는 건드리지 않는다 (다른 브랜치의 수동 실행도). 고장이면 그 PR 의
+  검사가 실패한다. 실행을 취소하면 결과 정리 잡은 돌지 않는다.
 - 공개 저장소에 60일 동안 활동이 없으면 GitHub 이 예약 실행을 끈다. 꺼졌으면 Actions 의 "API 감시" 에서 다시 켠다.
