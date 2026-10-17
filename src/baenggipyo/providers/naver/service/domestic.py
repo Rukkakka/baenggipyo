@@ -755,6 +755,10 @@ def get_domestic_flights(
         groups.append((combined_total, sum(fare_per_person(best)[0] for best in combined_bests), True, combined))
     groups.sort(key=lambda group: (group[0] is None, group[0] or 0, group[1] is None, group[1] or 0, group[2]))
     fares = [rows for _, _, _, rows in groups]
+    # 국제선처럼 사이트를 따라 뺀 판매처 수를 알린다. 알리지 않으면 판매처가 모두 빠졌을 때 빈 offers 가 파는 곳이 없다고 읽힌다
+    hidden = {ota.ota_id for ota in [*options.ota_list, *options.combined] if ota.active is not None and ota.active.realtime is False}
+    if hidden:
+        notes.append(f'실시간 가격을 주지 않는 판매처 {len(hidden)}곳은 사이트처럼 뺐습니다' + (' (남은 판매처가 없어 offers 가 비었습니다)' if not fares else ''))
     if len(fares) > offer_limit:
         notes.append(f'판매처 운임 {len(fares)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
     totals = [itinerary.total_price_krw for itinerary in itineraries]
