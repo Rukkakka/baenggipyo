@@ -45,6 +45,9 @@ WINDOW_SECONDS: float = 60.0
 HOUR_SECONDS: float = 3600.0
 # 거듭 차단될 때 쿨다운을 두 배씩 늘리는 횟수 상한 (2 ** n 이 넘치지 않게. 실제 길이는 max_cooldown 이 먼저 막는다)
 MAX_BLOCK_STREAK: int = 20
+# 서버 `Retry-After` 를 따르는 상한. 이보다 길게(먼 날짜 포함) 오면 잘못 온 값으로 보고 줄인다. 그대로 따르면 `limits --reset` 전까지
+# 그 소스를 못 쓴다. 우리가 스스로 거는 가장 긴 쿨다운(스카이스캐너 max_cooldown 4시간)과 같은 길이다
+MAX_RETRY_AFTER_SECONDS: float = 4 * HOUR_SECONDS
 # Windows 는 다른 프로세스가 열고 있는 파일을 replace 로 바꾸거나 바뀌는 중인 파일을 열면 잠깐 PermissionError 가 난다. 몇 번 다시 해 본다
 SHARING_RETRIES: int = 5
 SHARING_RETRY_SECONDS: float = 0.02
@@ -92,7 +95,7 @@ class RateLimitPolicy(BaseModel):
         max_per_minute: 최근 60초 동안 허용하는 최대 요청 수. None 이면 제한 없음.
         max_per_hour: 최근 1시간 동안 허용하는 최대 요청 수. None 이면 제한 없음. 짧은 간격만 보는 상한으로는 막지 못하는 봇 차단용이다.
         cooldown: 429·봇 차단을 받은 뒤 요청을 보내지 않는 시간 (초). 응답에
-            `Retry-After` 가 있으면 그 값과 이 값 중 큰 쪽을 쓴다.
+            `Retry-After` 가 있으면 그 값(`MAX_RETRY_AFTER_SECONDS` 까지)과 이 값 중 큰 쪽을 쓴다.
         max_cooldown: 차단이 거듭될 때 쿨다운을 두 배씩 늘리는 상한 (초). None 이면 늘리지 않는다.
         max_wait: 한 요청이 슬롯을 기다릴 최대 시간 (초). 넘으면 기다리지 않고
             `RateLimitedError` 를 낸다.
@@ -397,7 +400,7 @@ class RateLimiter:
             cooldown = self.policy.cooldown * 2 ** streak
             if self.policy.max_cooldown is not None:
                 cooldown = min(cooldown, max(self.policy.max_cooldown, self.policy.cooldown))
-            blocked_until = max(previous, now + max(cooldown, retry_after or 0.0))
+            blocked_until = max(previous, now + max(cooldown, min(retry_after or 0.0, MAX_RETRY_AFTER_SECONDS)))
             state['blocked_until'] = blocked_until
             state['block_streak'] = streak
             return blocked_until

@@ -72,7 +72,8 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
   성인 2명은 4번째(약 4초)에 `complete` (결과 184개, 마지막 응답 2.1MB).
   폴링 응답마다 `context` 에 `status`·`sessionId` 가 다시 온다 (김포↔광주 왕복 POST 1 + 폴링 3, 2026-10-11). 그래도 `sessionId` 가 빠지면 처음 받은 값으로
   계속 묻고, 완료는 `status: complete` 로만 판정한다 (상태가 없으면 미완료로 보고 `notes` 로 알린다, `service/common.py` `run_search`).
-  세션 ID 를 한 번도 받지 못했으면(빈 문자열 포함) 더 묻지 못해 미완료로 끝낸다. 폴링 요청 모델은 응답 값으로 만드는 것이라 `built_from_response` 안에서
+  세션 ID 를 한 번도 받지 못했으면(빈 문자열 포함) 더 묻지 못해 미완료로 끝낸다. 시간 상한에 멈춘 것과 달리 다시 불러도 같으므로 `notes` 에 그 까닭을
+  적고, `flight` 는 `SEARCH_INCOMPLETE`(잠시 뒤 다시) 대신 `PARSE_ERROR` 로 낸다. 폴링 요청 모델은 응답 값으로 만드는 것이라 `built_from_response` 안에서
   만들어, 값이 어긋나도 입력 오류(`INVALID_ARGUMENT`)가 아닌 `PARSE_ERROR` 로 낸다 (ICN→BCN POST 1 + 폴링 3 모두 세션 ID 가 있었다, 2026-10-11).
 - 결과 `itineraries.results[]`:
   - `id`(예 `12409-2611150810--31158-0-14788-2611151025`), `price.raw`(KRW), `tags`(`cheapest`·`shortest` …), `isSelfTransfer`,

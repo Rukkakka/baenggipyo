@@ -3,8 +3,9 @@
 명령마다 셋으로 나눈다 (references/development.md '매일 API 감시').
 
 - 정상: exit 0 이고 결과가 1건 이상
-- 고장: 응답 형식 오류·서버 거절·내부 오류 같은 에러, 결과 0건, JSON 이 아닌 출력. 인기 노선이라 0건이면 사이트가 바뀐 것으로 본다
-- 확인 못 함: 봇 차단·요청 제한·네트워크 오류·서버 5xx·검색 시간 초과·검색 직후 매진. 사이트가 바뀐 것인지 알 수 없다
+- 고장: 응답 형식 오류·서버 거절(4xx·500)·내부 오류 같은 에러, 결과 0건, JSON 이 아닌 출력. 인기 노선이라 0건이면 사이트가 바뀐 것으로 본다
+- 확인 못 함: 봇 차단·요청 제한·네트워크 오류·서버 일시 오류(502·503 등)·검색 시간 초과·검색 직후 매진, 판매처가 모두 빠진 상세.
+  사이트가 바뀐 것인지 알 수 없다
 
     python scripts/monitor/api_check.py run naver --out result-naver.json
     python scripts/monitor/api_check.py report result-*.json [--issues] [--dry-run]
@@ -44,9 +45,9 @@ COMMAND_TIMEOUT_SECONDS: int = 300
 SEARCH: tuple[str, ...] = ('--depart', '{depart}', '--limit', '2', '--brief')
 FLIGHT: tuple[str, ...] = ('{id}', '--limit', '3', '--offer-urls', '0')
 
-# 러너 하나가 묶음 하나를 돈다. 스카이스캐너는 한 러너에서 몇 분 안에 30번쯤 보내면 봇 차단·시간당 상한(30회)에 걸리기 쉬워
-# 국제선·국내선을 나눈다 (한 묶음 15번 안팎). 모두 편도다: 국내선 왕복은 스카이스캐너 결과가 8천 건·100MB 를 넘는다.
-# 노선은 결과가 0건일 리 없는 인기 노선으로 고른다 (0건이면 고장으로 본다)
+# 러너 하나가 묶음 하나를 돈다. 스카이스캐너 명령을 모두 부르면 요청이 40번 남짓이라 한 러너로는 시간당 상한(30회)에 막혀 한 시간 넘게
+# 기다리므로 국제선·국내선을 나눈다 (한 묶음 15~25번). 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (IP 를 바꿔 봇 차단을 피하는 우회다).
+# 모두 편도다: 국내선 왕복은 스카이스캐너 결과가 8천 건·100MB 를 넘는다. 노선은 결과가 0건일 리 없는 인기 노선으로 고른다 (0건이면 고장으로 본다)
 GROUPS: dict[str, tuple[Step, ...]] = {
     'naver': (
         Step('공항 찾기', ('naver', 'search', 'airports'), ('인천',)),
@@ -89,6 +90,12 @@ BLOCKED_LABEL: str = 'api-blocked'
 BLOCKED_STREAK: int = 3
 WORKFLOW_FILE: str = 'api-monitor.yml'
 REPORT_ARTIFACT: str = 'report'
+# 날짜는 CLI 처럼 한국 시간으로 센다. 러너는 UTC 라 그대로 쓰면 한국 04:17 실행이 전날로 찍힌다
+KST: datetime.timezone = datetime.timezone(datetime.timedelta(hours=9), 'KST')
+
+
+def _today() -> datetime.date:
+    return datetime.datetime.now(KST).date()
 
 
 # --- 조회 ---
@@ -111,9 +118,20 @@ def _is_unknown(error: dict[str, object]) -> bool:
         return True
     if code != 'UPSTREAM_ERROR':
         return False
-    # 검색이 시간 상한에 끊긴 것과 서버 5xx 는 사이트가 바뀐 것이 아니다. 4xx 는 요청 형식이 맞지 않게 된 것이라 고장이다
+    # 검색이 시간 상한에 끊긴 것과 서버 일시 오류(502·503 등)는 사이트가 바뀐 것이 아니다. 4xx 는 요청 형식이 맞지 않게 된 것이라 고장이다.
+    # 500 도 고장이다. 두 소스 모두 요청 형식이 맞지 않으면 늘 같은 500 을 준다 (각 api/client.py 설명. 네이버는 헤더가 빠지면, 스카이스캐너
+    # 달력은 도시를 SEL 로 주면). 사이트가 잠깐 아파 500 을 준 날에는 고장으로 잘못 알릴 수 있다
     status = error.get('status')
-    return error.get('reason') == 'SEARCH_INCOMPLETE' or (isinstance(status, int) and status >= 500)
+    return error.get('reason') == 'SEARCH_INCOMPLETE' or (isinstance(status, int) and status > 500)
+
+
+def _itineraries(data: dict[str, object]) -> list[object]:
+    """검색 결과의 항공권. 국내선 네이버 검색만 `legs[].itineraries` 로 방향마다 나눠 준다."""
+    itineraries = data.get('itineraries')
+    if isinstance(itineraries, list):
+        return itineraries
+    legs = data.get('legs')
+    return [item for leg in legs if isinstance(leg, dict) for item in leg.get('itineraries') or []] if isinstance(legs, list) else []
 
 
 def _count(data: dict[str, object]) -> int:
@@ -121,17 +139,11 @@ def _count(data: dict[str, object]) -> int:
         value = data.get(key)
         if isinstance(value, list):
             return len(value)
-    legs = data.get('legs')
-    if isinstance(legs, list):
-        return sum(len(leg.get('itineraries') or []) for leg in legs if isinstance(leg, dict))
-    return 0
+    return len(_itineraries(data))
 
 
 def _first_id(data: dict[str, object]) -> str | None:
-    itineraries = data.get('itineraries')
-    if not isinstance(itineraries, list):
-        legs = data.get('legs')
-        itineraries = [item for leg in legs if isinstance(leg, dict) for item in leg.get('itineraries') or []] if isinstance(legs, list) else []
+    itineraries = _itineraries(data)
     first = itineraries[0] if itineraries else None
     value = first.get('id') if isinstance(first, dict) else None
     return value if isinstance(value, str) else None
@@ -160,7 +172,13 @@ def _run_step(step: Step, values: dict[str, str]) -> tuple[str, str, dict[str, o
         if not isinstance(data, dict):
             return BROKEN, 'stdout 이 JSON 객체가 아님', None
         count = _count(data)
-        return (OK, f'{count}건', data) if count else (BROKEN, '결과 0건', data)
+        if count:
+            return OK, f'{count}건', data
+        notes = data.get('notes')
+        if data.get('offers') == [] and isinstance(notes, list) and notes:
+            # 상세는 판매처를 모두 뺀 까닭(실시간 가격을 주지 않는 판매처 등)을 notes 로 알리고 offers 를 비워 정상으로 끝날 수 있다
+            return UNKNOWN, f'판매처 운임 0건: {" / ".join(str(note) for note in notes)[:200]}', data
+        return BROKEN, '결과 0건', data
     error = _error(done.stderr)
     if error is None:
         return BROKEN, f'exit {done.returncode}, 에러 JSON 없음', None
@@ -171,7 +189,7 @@ def _run_step(step: Step, values: dict[str, str]) -> tuple[str, str, dict[str, o
 
 def run_group(name: str) -> dict[str, object]:
     """묶음 하나의 명령을 차례로 부른다. 상세는 바로 앞 검색 결과의 첫 항공권 ID 로 부르고, 그 검색이 실패했으면 건너뛴다."""
-    depart = datetime.date.today() + datetime.timedelta(days=DAYS_AHEAD)
+    depart = _today() + datetime.timedelta(days=DAYS_AHEAD)
     values = {'depart': depart.isoformat(), 'month': depart.strftime('%Y-%m'), 'id': ''}
     steps: list[dict[str, str]] = []
     for step in GROUPS[name]:
@@ -183,7 +201,7 @@ def run_group(name: str) -> dict[str, object]:
         if step.command[-1] == 'flights':
             values['id'] = (_first_id(data) if data else None) or ''
         steps.append({'label': step.label, 'command': line, 'status': status, 'detail': detail})
-    return {'group': name, 'date': datetime.date.today().isoformat(), 'status': _overall([step['status'] for step in steps]), 'steps': steps}
+    return {'group': name, 'date': _today().isoformat(), 'status': _overall([step['status'] for step in steps]), 'steps': steps}
 
 
 def _overall(statuses: list[str]) -> str:
@@ -213,7 +231,12 @@ def _gh(*args: str, write: bool = False, dry_run: bool = False) -> str:
     if write and dry_run:
         print('[dry-run] gh', ' '.join(args))
         return ''
-    return subprocess.run(['gh', *args], check=True, capture_output=True, text=True, encoding='utf-8').stdout
+    done = subprocess.run(['gh', *args], capture_output=True, text=True, encoding='utf-8')
+    if done.returncode != 0:
+        # 권한 부족·라벨 생성 실패 같은 원인이 로그에 남게 stderr 를 찍는다. 이슈 본문이 길어 명령은 앞 두 낱말만
+        print(f"gh {' '.join(args[:2])} 실패 (exit {done.returncode}): {done.stderr.strip()}", file=sys.stderr)
+        done.check_returncode()
+    return done.stdout
 
 
 def _open_issue(label: str) -> int | None:
@@ -221,26 +244,48 @@ def _open_issue(label: str) -> int | None:
     return issues[0]['number'] if issues else None
 
 
+def _run_date(created_at: str) -> datetime.date:
+    """실행 시작 시각(gh 의 `createdAt`, UTC ISO 8601)의 한국 날짜."""
+    return datetime.datetime.fromisoformat(created_at.replace('Z', '+00:00')).astimezone(KST).date()
+
+
 def _previous_reports(count: int) -> list[dict]:
-    """앞선 예약·수동 실행의 묶음별 판정 (가까운 것부터). 결과 파일이 없는 실행(만료·실패)을 만나면 거기서 멈춘다."""
+    """어제부터 하루에 하나씩 거슬러 올라간 묶음별 판정 (그날 마지막 예약·수동 실행). 같은 브랜치의 실행만 본다.
+
+    실행 횟수가 아니라 날짜로 센다. 하루에 여러 번 돌린 날도 하루다. 실행이 없는 날(예약 실행이 빠짐)이나 결과 파일이 없는 실행(만료·실패)을
+    만나면 거기서 멈춘다.
+    """
+    command = ['run', 'list', '--workflow', WORKFLOW_FILE, '--status', 'completed', '--limit', '30', '--json', 'databaseId,event,createdAt']
+    branch = os.environ.get('GITHUB_REF_NAME')
+    if branch:
+        command += ['--branch', branch]
     try:
-        runs = json.loads(_gh('run', 'list', '--workflow', WORKFLOW_FILE, '--status', 'completed', '--limit', '20', '--json', 'databaseId,event'))
+        runs = json.loads(_gh(*command))
     except subprocess.CalledProcessError:
         # 워크플로가 아직 기본 브랜치에 없으면(첫 실행 전) 실행 목록을 묻지 못한다
         return []
     current = os.environ.get('GITHUB_RUN_ID')
+    expected = _today() - datetime.timedelta(days=1)
     reports: list[dict] = []
+    # gh run list 는 최근 실행부터 준다
     for run in runs:
         if len(reports) == count:
             break
         if run['event'] not in ('schedule', 'workflow_dispatch') or str(run['databaseId']) == current:
             continue
+        day = _run_date(run['createdAt'])
+        if day > expected:
+            # 오늘 앞서 돌린 실행이거나 이미 센 날의 더 이른 실행
+            continue
+        if day < expected:
+            break
         with tempfile.TemporaryDirectory() as folder:
             try:
                 _gh('run', 'download', str(run['databaseId']), '--name', REPORT_ARTIFACT, '--dir', folder)
             except subprocess.CalledProcessError:
                 break
             reports.append(json.loads((Path(folder) / 'report.json').read_text(encoding='utf-8')))
+        expected -= datetime.timedelta(days=1)
     return reports
 
 
@@ -254,28 +299,37 @@ def _update_issues(results: list[dict], dry_run: bool) -> None:
 
     number = _open_issue(BROKEN_LABEL)
     if broken:
-        body = f'{datetime.date.today()} 감시에서 고장: {", ".join(broken)}{link}\n\n{table}'
+        body = f'{_today()} 감시에서 고장: {", ".join(broken)}{link}\n\n{table}'
         if number is None:
             _gh('issue', 'create', '--label', BROKEN_LABEL, '--title', f'API 감시: 고장 ({", ".join(broken)})', '--body', body,
                 write=True, dry_run=dry_run)
         else:
             _gh('issue', 'comment', str(number), '--body', body, write=True, dry_run=dry_run)
     elif number is not None and all(status == OK for status in statuses.values()):
-        _gh('issue', 'close', str(number), '--comment', f'{datetime.date.today()} 감시에서 모두 정상이다{link}', write=True, dry_run=dry_run)
+        _gh('issue', 'close', str(number), '--comment', f'{_today()} 감시에서 모두 정상이다{link}', write=True, dry_run=dry_run)
 
-    previous = [{result['group']: result['status'] for result in report['results']} for report in _previous_reports(BLOCKED_STREAK - 1)]
-    streak = [
-        group for group, status in statuses.items()
-        if status == UNKNOWN and len(previous) == BLOCKED_STREAK - 1 and all(report.get(group) == UNKNOWN for report in previous)
-    ]
+    # 어제부터 거슬러 BLOCKED_STREAK 일. 오늘 막 연속이 된 묶음(어제까지는 연속이 아니었다)을 가리려고 하루 더 받는다
+    previous = [{result['group']: result['status'] for result in report['results']} for report in _previous_reports(BLOCKED_STREAK)]
+
+    def unknown_before(group: str, days: int) -> bool:
+        return len(previous) >= days and all(report.get(group) == UNKNOWN for report in previous[:days])
+
+    streak = [group for group, status in statuses.items() if status == UNKNOWN and unknown_before(group, BLOCKED_STREAK - 1)]
+    started = [group for group in streak if not unknown_before(group, BLOCKED_STREAK)]
     number = _open_issue(BLOCKED_LABEL)
     if streak and number is None:
-        body = (f'{BLOCKED_STREAK}일 연속 확인 못 함: {", ".join(streak)}{_run_link("오늘 실행 기록")}. 봇 차단·요청 제한·서버 오류로 '
+        body = (f'{BLOCKED_STREAK}일 연속 확인 못 함: {", ".join(streak)}{_run_link("오늘 실행 기록")}. 봇 차단·요청 제한·서버 일시 오류로 '
                 f'고장인지 알 수 없는 상태가 이어진다. 막힘이 계속되면 그 묶음을 덜 자주 돌리는 것을 검토한다.\n\n{table}')
         _gh('issue', 'create', '--label', BLOCKED_LABEL, '--title', f'API 감시: {BLOCKED_STREAK}일째 확인 못 함 ({", ".join(streak)})',
             '--body', body, write=True, dry_run=dry_run)
-    elif number is not None and UNKNOWN not in statuses.values():
-        _gh('issue', 'close', str(number), '--comment', f'{datetime.date.today()} 감시에서 확인 못 함이 없다{link}', write=True, dry_run=dry_run)
+    elif started and number is not None:
+        # 이슈가 열린 뒤 다른 묶음도 연속 확인 못 함이 됐다
+        _gh('issue', 'comment', str(number), '--body', f'{_today()} 감시에서 {BLOCKED_STREAK}일 연속 확인 못 함: {", ".join(started)}{link}\n\n{table}',
+            write=True, dry_run=dry_run)
+    elif number is not None and not streak and (UNKNOWN not in statuses.values() or len(previous) >= BLOCKED_STREAK - 1):
+        # 오늘 확인 못 함이 남았어도 연속이 끊겼으면 닫는다. 앞선 날 결과를 받지 못해 연속인지 모르면 닫지 않는다
+        _gh('issue', 'close', str(number), '--comment', f'{_today()} 감시에서 {BLOCKED_STREAK}일 연속 확인 못 함인 묶음이 없다{link}',
+            write=True, dry_run=dry_run)
 
 
 def report(paths: list[str], *, issues: bool, dry_run: bool) -> int:
@@ -292,7 +346,7 @@ def report(paths: list[str], *, issues: bool, dry_run: bool) -> int:
         found.get(group) or {'group': group, 'status': BROKEN, 'steps': [{'label': '조회 잡', 'command': '-', 'status': BROKEN, 'detail': '결과 파일 없음 (조회 잡 실패)'}]}
         for group in GROUPS
     ]
-    text = f'## API 감시 {datetime.date.today()}\n\n{_table(results)}\n'
+    text = f'## API 감시 {_today()}\n\n{_table(results)}\n'
     print(text)
     summary = os.environ.get('GITHUB_STEP_SUMMARY')
     if summary:

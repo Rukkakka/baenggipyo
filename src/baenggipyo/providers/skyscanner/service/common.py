@@ -9,6 +9,7 @@ from pydantic import (
     Field,
 )
 
+from baenggipyo.core.errors import BaenggipyoError
 from baenggipyo.core.flight import (
     CabinClass,
     TripType,
@@ -157,18 +158,20 @@ def run_search(
     client: SkyscannerClient,
     payload: SkyscannerRadarWebUnifiedSearchV2RequestPayloadModel,
     poll_seconds: float = POLL_SECONDS,
-) -> tuple[SkyscannerRadarWebUnifiedSearchV2ResponseModel, bool, RateLimitedError | None]:
+) -> tuple[SkyscannerRadarWebUnifiedSearchV2ResponseModel, bool, BaenggipyoError | None]:
     """검색을 시작하고 `complete` 가 될 때까지 폴링한다 (요청 1회 + 폴링).
 
     완료는 응답의 `context.status` 로만 판정한다. 폴링 응답이 `sessionId` 를 빠뜨려도 같은 검색이라 처음 받은 값으로 계속 묻고,
-    상태가 빠진 응답은 끝났는지 모르므로 완료로 보지 않는다. 세션 ID 를 한 번도 받지 못했으면(빈 문자열 포함) 더 묻지 못해 미완료로 끝낸다.
+    상태가 빠진 응답은 끝났는지 모르므로 완료로 보지 않는다. 세션 ID 를 한 번도 받지 못했으면(빈 문자열 포함) 더 묻지 못해 미완료로 끝내고,
+    시간 상한에 닿은 것(잠시 뒤 다시 부르면 끝날 수 있다)과 가르도록 그 까닭을 `PARSE_ERROR` 로 함께 돌려준다 (다시 불러도 같다).
     다음 폴링이 로컬 요청 제한(분당·시간당 상한, 쿨다운)에 걸리면 에러로 끝내지 않고 그때까지 받은 응답을 돌려준다. 이미 받은 결과와 쓴 요청을 버리지 않는다.
     폴링 요청의 슬롯을 기다리는 시간도 폴링 시간 상한에 넣어, 상한 안에 슬롯이 나지 않을 때도 같이 멈춘다. 다만 폴링 요청 자체가 실패하면
     (서버 오류 재시도가 요청 제한에 걸린 경우 포함) 앞 응답을 이미 놓아 에러로 끝난다.
 
     Returns:
-        tuple[응답, 완료 여부, 요청 제한 에러]: 시간 상한·요청 제한에 닿았거나 완료 표시를 받지 못하면 그때까지 받은 응답과 False.
-            요청 제한 에러는 요청 제한에 걸려 멈췄을 때만 있다 (언제 풀리는지 알릴 때 쓴다).
+        tuple[응답, 완료 여부, 멈춘 까닭]: 시간 상한·요청 제한에 닿았거나 완료 표시를 받지 못하면 그때까지 받은 응답과 False.
+            멈춘 까닭은 요청 제한에 걸렸을 때(`RateLimitedError`, 언제 풀리는지 알릴 때 쓴다)와 세션 ID 가 없어 더 묻지 못했을 때
+            (`PARSE_ERROR`)만 있다. 시간 상한에 닿았거나 끝까지 받았으면 None 이다.
     """
     response = client.run_request_radar_web_unified_search_v2(payload)
     # 폴링 시간은 첫 응답을 받은 뒤부터 잰다. 요청 제한 훅이 POST 앞에서 슬롯을 기다린 시간(최대 max_wait)이 폴링 시간을 깎지 않게 한다
@@ -177,8 +180,14 @@ def run_search(
     polls = 0
     while response.context is not None and response.context.status == 'incomplete':
         session_id = response.context.session_id or session_id
+        if not session_id:
+            return response, False, BaenggipyoError(
+                code='PARSE_ERROR',
+                message='스카이스캐너 검색 응답에 세션 ID 가 없어 남은 결과를 이어서 묻지 못했습니다',
+                hint='비공식 API 응답 형식이 바뀌었을 수 있습니다. 다른 소스를 쓰세요',
+            )
         wait = poll_wait_seconds(polls)
-        if not session_id or time.monotonic() - started + wait > poll_seconds:
+        if time.monotonic() - started + wait > poll_seconds:
             return response, False, None
         time.sleep(wait)
         # 세션 ID 는 검색 응답 값이라 검증 실패는 입력 오류(INVALID_ARGUMENT)가 아니다
@@ -199,8 +208,11 @@ def run_search(
     return response, response.context is not None and response.context.status == 'complete', None
 
 
-def stopped_early(limited: RateLimitedError | None) -> str:
-    """검색 완료를 받기 전에 멈춘 까닭 (`notes` 문구 앞부분). 요청 제한에 걸렸으면 언제 풀리는지 넣는다."""
-    if limited is None:
+def stopped_early(stopped: BaenggipyoError | None) -> str:
+    """검색 완료를 받기 전에 멈춘 까닭 (`notes` 문구 앞부분, `run_search` 의 멈춘 까닭). 요청 제한에 걸렸으면 언제 풀리는지 넣는다."""
+    if stopped is None:
         return f'스카이스캐너가 검색 완료를 알리기 전에(시간 상한 {POLL_SECONDS:g}초) 멈춰'
-    return f"스카이스캐너가 검색 완료를 알리기 전에 요청 제한에 걸려({limited.details['retry_after_seconds']}초 뒤 풀림) 멈춰"
+    if isinstance(stopped, RateLimitedError):
+        return f"스카이스캐너가 검색 완료를 알리기 전에 요청 제한에 걸려({stopped.details['retry_after_seconds']}초 뒤 풀림) 멈춰"
+    # 그 밖의 까닭은 세션 ID 가 없어 더 묻지 못한 것뿐이다 (run_search)
+    return '스카이스캐너 검색 응답에 세션 ID 가 없어 남은 결과를 묻지 못하고 멈춰'

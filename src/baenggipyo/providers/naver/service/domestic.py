@@ -509,7 +509,8 @@ def search_domestic_flights(
         # 오는 편은 같은 검색의 version 으로 묻는다. __v 가 없으면 None(가장 새 캐시)으로 묻는다. version 0 은 인기 노선에서 먼저
         # 만료돼 다시 검색하게 된다 (김포→제주가 v32 일 때 v0 은 isExpired, 생략하면 v32, 2026-10-11 실측)
         version = status.version
-        notes += _search_note(event.status)
+        # 방향마다 따로 끊길 수 있어 어느 목록이 덜 받았는지 붙인다 (flight 와 같다)
+        notes += [f'{DIRECTION_LABELS[direction]}: {note}' for note in _search_note(event.status)]
         leg = legs[index]
         itineraries = [
             _itinerary(flight, status, partners, legs=legs, conditions=conditions, direction=direction)
@@ -754,6 +755,10 @@ def get_domestic_flights(
         groups.append((combined_total, sum(fare_per_person(best)[0] for best in combined_bests), True, combined))
     groups.sort(key=lambda group: (group[0] is None, group[0] or 0, group[1] is None, group[1] or 0, group[2]))
     fares = [rows for _, _, _, rows in groups]
+    # 국제선처럼 사이트를 따라 뺀 판매처 수를 알린다. 알리지 않으면 판매처가 모두 빠졌을 때 빈 offers 가 파는 곳이 없다고 읽힌다
+    hidden = {ota.ota_id for ota in [*options.ota_list, *options.combined] if ota.active is not None and ota.active.realtime is False}
+    if hidden:
+        notes.append(f'실시간 가격을 주지 않는 판매처 {len(hidden)}곳은 사이트처럼 뺐습니다' + (' (남은 판매처가 없어 offers 가 비었습니다)' if not fares else ''))
     if len(fares) > offer_limit:
         notes.append(f'판매처 운임 {len(fares)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
     totals = [itinerary.total_price_krw for itinerary in itineraries]
