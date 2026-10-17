@@ -262,23 +262,31 @@ def _cheapest_option(result: SkyscannerItineraryModel) -> SkyscannerPricingOptio
     return next((option for option in result.pricing_options if option.pricing_option_id == option_id), None)
 
 
+def _shared_fields(legs: list[SkyscannerLeg], conditions: SkyscannerFlightConditions) -> dict[str, object]:
+    """검색 조건만으로 정해져 결과의 모든 항공권이 같은 값인 키. 검색마다 한 번 만든다."""
+    return {
+        'source': 'skyscanner',
+        'url': results_url(legs, adults=conditions.adults, children=conditions.children, infants=conditions.infants, cabin=conditions.cabin),
+        'trip_type': leg_trip_type(legs),
+        'cabin': conditions.cabin,
+    }
+
+
 def _itinerary_fields(
     result: SkyscannerItineraryModel,
     agents: dict[str, SkyscannerAgentModel],
     *,
     legs: list[SkyscannerLeg],
     conditions: SkyscannerFlightConditions,
+    shared: dict[str, object],
 ) -> dict[str, object]:
     total = round(result.price.raw) if result.price and result.price.raw is not None else None
     cheapest = _cheapest_option(result)
     # 따로 예약하는 조합이면 판매처가 여럿이다
     sellers = [agents[agent_id].name for agent_id in cheapest.agent_ids if agent_id in agents] if cheapest else []
     return {
-        'source': 'skyscanner',
+        **shared,
         'id': flight_id(legs, conditions, result.id),
-        'url': results_url(legs, adults=conditions.adults, children=conditions.children, infants=conditions.infants, cabin=conditions.cabin),
-        'trip_type': leg_trip_type(legs),
-        'cabin': conditions.cabin,
         'journeys': [_journey(leg) for leg in result.legs],
         'total_price_krw': total,
         # 스카이스캐너 가격은 모든 승객 합계다. 성인 1명만 찾았을 때만 1인 요금과 같다 (나눗셈으로 만들지 않는다)
@@ -384,7 +392,11 @@ def search_flights(
         total_count=len(found),
         url=results_url(legs, adults=conditions.adults, children=conditions.children, infants=conditions.infants, cabin=conditions.cabin),
     )
-    shown = [SkyscannerItinerary.model_validate(_itinerary_fields(result, agents, legs=legs, conditions=conditions)) for result in matched[:limit]]
+    shared = _shared_fields(legs, conditions)
+    shown = [
+        SkyscannerItinerary.model_validate(_itinerary_fields(result, agents, legs=legs, conditions=conditions, shared=shared))
+        for result in matched[:limit]
+    ]
     self_transfers = sum(1 for itinerary in shown if itinerary.self_transfer)
     if self_transfers:
         notes.append(f'self_transfer 가 true 인 항공권 {self_transfers}개는 {SELF_TRANSFER_WARNING}')
@@ -495,7 +507,7 @@ def get_flight(
         notes.append('판매처 여러 곳에서 따로 예약하는 조합은 조합 합계 순서에 구간마다 한 줄씩 둡니다 (줄의 가격·url 은 fare_name 의 구간만이라 같은 조합의 줄을 모두 각 url 에서 따로 예약)')
     if len(fares) > offer_limit:
         notes.append(f'판매처 운임 {len(fares)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
-    fields = _itinerary_fields(result, agents, legs=legs, conditions=conditions)
+    fields = _itinerary_fields(result, agents, legs=legs, conditions=conditions, shared=_shared_fields(legs, conditions))
     detail = SkyscannerItineraryDetail.model_validate({**fields, 'offers': shown})
     if detail.self_transfer:
         notes.append(f'이 항공권은 {SELF_TRANSFER_WARNING}')
