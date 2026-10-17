@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_USER_AGENT: str = (
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
-    '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    '(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36'
 )
 
 BODY_PREVIEW_LIMIT: int = 2048
