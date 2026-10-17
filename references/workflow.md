@@ -72,10 +72,13 @@ PR 템플릿의 `변경 종류` 도 같은 다섯 이름을 쓴다. PR 이 닫�
 - 사용자(에이전트 포함)에게 보이는 변경이면 `CHANGELOG.md` 의 `Unreleased` 에 적었다
   ([CHANGELOG 쓰는 법](release.md#changelog-쓰는-법)).
 - 모듈을 추가·이름 변경·삭제했다면 해당 `references/providers/<source>.md`와 `AGENTS.md`의 관련 구조 설명을 고쳤다.
+- 명령을 추가·삭제했다면 매일 API 감시 목록(`scripts/monitor/api_check.py` 의 `GROUPS`)도 고쳤다. 국제선·국내선이 다르게 동작하면 둘 다
+  넣었다 ([매일 API 감시](development.md#매일-api-감시)).
 - diff 와 새 픽스처에 토큰, 쿠키, 세션·추적 ID 같은 값이 없고, 픽스처의 항공권·가격은 가상 데이터다.
 - 의존성을 바꿨다면 `pyproject.toml` 에 반영했고, 범위는 기존 항목처럼 상한을 둔다
   (`'httpx>=0.28,<0.29'`).
 
 PR 을 열면 [CI](../.github/workflows/ci.yml) 가 `ruff check`·`mypy`·전체 `pytest`(Ubuntu·macOS·Windows ×
 Python 3.11·3.14)·설치본 확인(`baenggipyo --version`, `baenggipyo guide` 와 `docs/llm.md` 비교)·`docs/llm.md` 200줄 검사를 돌린다.
-CI 가 통과해야 머지한다.
+CI 가 통과해야 머지한다. 감시 파일(`scripts/monitor/`, [api-monitor.yml](../.github/workflows/api-monitor.yml))을 고친 PR 에서는 실제 API 를
+부르는 [API 감시](development.md#매일-api-감시)도 한 번 돈다.

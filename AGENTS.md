@@ -5,6 +5,7 @@ LLM 에이전트가 셸로 호출하는 도구라, 출력 형식과 에러 형�
 패키지 코드는 모두 `src/baenggipyo/` 아래에 있다.
 개발 문서(구현 규약·소스별 개발 가이드)는 `references/`, 사용자 문서(CLI 사용법)는 `docs/`에 있다.
 README 데모 GIF 는 `docs/demo/`, 그 녹화 도구(VHS 대본·후처리 스크립트)는 `scripts/demo/` 에 있다.
+매일 새벽 두 소스의 모든 CLI 명령을 실제로 불러 보는 감시는 `scripts/monitor/` 와 `.github/workflows/api-monitor.yml` 이다 ([매일 API 감시](references/development.md#매일-api-감시)).
 
 **지금 상태: 두 소스 모두 구현.** 네이버·스카이스캐너 모두 `search airports`·`search flights`·`flight`·`calendar`·`explore` 가 실제 API 로
 동작한다. 스카이스캐너는 봇 차단이 있어 검증 요청도 아껴 쓴다 ([개발 가이드](references/providers/skyscanner.md#봇-차단)).
@@ -38,6 +39,7 @@ CLI 직접 조회나 원본 응답으로 확인한다.
 - **원본 응답 통째·세션 토큰·쿠키·추적 ID 는 출력하지 않는다.** 예약은 `url` 의 원 사이트에서. 판매처 예약 링크는 원 사이트가 준 그대로 내며, 그 안의 검색 ID 는 예외다 ([내보내지 않는 정보](references/output-contract.md#내보내지-않는-정보)).
 - **모든 HTTP 요청은 요청 제한 훅을 거친다.** 새 클라이언트도 `rate_limit_hooks()` 를 `event_hooks` 로 넘긴다. 폴링으로 다시 묻는 요청도 마찬가지다.
 - **봇 차단을 우회하지 않는다.** 차단 페이지가 오면 에러로 알리고, 지문 위조 같은 우회 기법은 쓰지 않는다.
+- **명령을 추가·삭제하면 매일 API 감시 목록도 고친다.** `scripts/monitor/api_check.py` 의 `GROUPS` 에 넣고, 국제선·국내선이 다르게 동작하면 둘 다 넣는다. 빠뜨리면 `test_every_source_command_is_in_api_monitor` 가 실패한다. ([매일 API 감시](references/development.md#매일-api-감시))
 - **검증은 실제 API 로, 테스트는 최소로.** 코드를 바꾸면 CLI 직접 조회 같은 실제 API 호출로 확인한다 (요청은 최소로). 테스트는 아주 드문 엣지케이스나 틀어지면 안 되는 핵심 동작일 때만 추가한다. 전체 `pytest` 는 먼저 묻고, 평소에는 바꾼 부분 테스트 몇 개만 이름으로 골라 한 번 돌린다. ([검증과 테스트](references/development.md#검증과-테스트))
 
 ## 문서 지도

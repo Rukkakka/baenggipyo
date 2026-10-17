@@ -48,7 +48,7 @@ Windows 는 `.venv\Scripts\ruff`, `.venv\Scripts\mypy` 로 부른다.
 
 ### 검증은 실제 API 로
 
-- 코드를 바꾸면 CLI 직접 조회나 원본 응답 확인처럼 실제 API 호출로 동작을 확인하는 것이 기본이다. 가짜 응답(픽스처·`MockTransport`)으로만 확인했다고 하지 않는다. 실제 API 를 부르는 테스트(live 테스트)는 두지 않고 CLI 직접 조회로 확인한다.
+- 코드를 바꾸면 CLI 직접 조회나 원본 응답 확인처럼 실제 API 호출로 동작을 확인하는 것이 기본이다. 가짜 응답(픽스처·`MockTransport`)으로만 확인했다고 하지 않는다. 실제 API 를 부르는 테스트(live 테스트)는 두지 않고 CLI 직접 조회로 확인한다. 매일 새벽 도는 [API 감시](#매일-api-감시)만 예외다 (pytest 가 아니라 따로 도는 워크플로다).
 - 실제 API 로 재현할 수 없는 상태(커서가 멈춘 응답 등)만 가짜 응답으로 확인하고 그 이유를 적는다.
 - 요청 수는 최소로 하고 요청 제한 훅을 거친다 (두 소스 모두 봇 차단이 있을 수 있다. 조사 결과는 소스 개발 가이드에 적는다).
 - 문서·문구만 바꿨으면 링크·코드 선언·출력 필드 대응만 검토하고 pytest·실제 호출은 하지 않는다.
@@ -79,3 +79,31 @@ Windows 는 `.venv/bin/pytest` 대신 `.venv\Scripts\pytest` 로 부른다.
 - 픽스처는 테스트가 읽는 것만 둔다. 응답 형태를 보여 주는 참고 자료로 두지 않고, 테스트를 지워 아무도 읽지 않게 된 픽스처는 함께 지운다.
 - `conftest.py` 가 `BAENGGIPYO_STATE_DIR` 을 임시 디렉터리로 돌려 `~/.cache/baenggipyo` 를 건드리지 않는다.
 - 테스트 코드 형식(파일·함수 이름, `MockTransport` 끼우는 법)은 [코드 형식](code-style.md#8-테스트-코드)에 있다.
+
+## 매일 API 감시
+
+비공식 API 는 사이트가 응답을 바꾸면 조용히 깨진다. 사용자보다 먼저 알려고 [API 감시 워크플로](../.github/workflows/api-monitor.yml)가
+한국 시간 매일 04:17 에 두 소스의 모든 CLI 명령을 실제로 부른다 ([scripts/monitor/api_check.py](../scripts/monitor/api_check.py)).
+CI 는 여전히 실제 API 를 부르지 않는다.
+
+- **무엇을 부르나:** 두 소스의 `search airports`·`search flights`·`flight`·`calendar`·`explore` 를 국제선·국내선으로 (편도, 30일 뒤,
+  결과가 0건일 리 없는 인기 노선). `flight` 는 바로 앞 검색의 첫 항공권 ID 로 부른다. 묶음은 네이버, 스카이스캐너 국제선, 스카이스캐너
+  국내선 셋이고 러너를 나눈다. 스카이스캐너를 한 러너에서 30번쯤 보내면 봇 차단·시간당 상한(30회)에 걸리기 쉽다.
+- **판정:** 명령마다 셋으로 나눈다.
+
+  | 판정 | 기준 |
+  | --- | --- |
+  | 정상 | exit 0, 결과 1건 이상 |
+  | 고장 | `PARSE_ERROR`·`INTERNAL_ERROR`·`NOT_FOUND`·4xx `UPSTREAM_ERROR` 같은 에러, 결과 0건, JSON 이 아닌 출력, 결과 파일 없음(조회 잡 실패) |
+  | 확인 못 함 | `RATE_LIMITED`(봇 차단·요청 제한), `NETWORK_ERROR`, 5xx 이거나 `SEARCH_INCOMPLETE` 인 `UPSTREAM_ERROR`, `FARE_UNAVAILABLE`(검색 직후 매진), 5분 안에 끝나지 않음, 앞 검색이 결과를 주지 않아 건너뛴 상세 |
+
+- **알림:** 고장이면 `api-broken` 이슈를 열고(열려 있으면 댓글) 실행이 실패로 끝나 GitHub 이 메일로 알린다. 모든 묶음이 정상이면 그
+  이슈를 닫는다. 같은 묶음이 사흘 연속 확인 못 함이면 `api-blocked` 이슈를 열고, 확인 못 함이 없어지면 닫는다. 막힘이 이어지면 그 묶음을
+  덜 자주 돌리는 것을 검토한다.
+- **명령을 추가·삭제하면** `api_check.py` 의 `GROUPS` 도 고친다. 국제선·국내선이 다르게 동작하면 둘 다 넣는다.
+  `tests/test_cli.py::test_every_source_command_is_in_api_monitor` 가 CLI 명령 목록과 대조해 빠뜨리면 실패한다.
+- **수동 실행:** Actions 의 "API 감시" → Run workflow, 또는 `gh workflow run api-monitor.yml`. 로컬에서는
+  `python scripts/monitor/api_check.py run naver --out result.json` 처럼 묶음 하나를 돌린다 (스카이스캐너 묶음은 봇 차단을 아끼려고 로컬에서
+  돌리지 않는다). 이슈 처리는 `report result.json --issues --dry-run` 으로 보낼 `gh` 명령만 본다.
+- 감시 파일(`scripts/monitor/`, 워크플로)을 고친 PR 에서도 한 번 돌고, 이슈는 건드리지 않는다. 고장이면 그 PR 의 검사가 실패한다.
+- 공개 저장소에 60일 동안 활동이 없으면 GitHub 이 예약 실행을 끈다. 꺼졌으면 Actions 의 "API 감시" 에서 다시 켠다.
