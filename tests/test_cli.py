@@ -1,10 +1,16 @@
+import importlib.util
 import json
+import sys
+from pathlib import Path
 
 import httpx
 import pytest
 import typer
 
-from baenggipyo.cli.app import run
+from baenggipyo.cli.app import (
+    app,
+    run,
+)
 from baenggipyo.cli.output import (
     emit,
     handle_errors,
@@ -154,3 +160,26 @@ def test_offer_urls_count_fares_and_never_split_a_combination() -> None:
     assert has_url(None) == [True, True, True, True]
     assert has_url(2) == [True, True, True, False]
     assert has_url(1) == [True, False, False, False]
+
+
+# --- 매일 API 감시 ---
+
+def test_every_source_command_is_in_api_monitor() -> None:
+    # 비공식 API 는 언제 바뀔지 몰라 매일 새벽 소스 명령을 모두 실제로 불러 본다 (scripts/monitor/api_check.py).
+    # 새 명령을 만들고 감시 목록에 넣지 않으면 그 명령은 깨져도 모른다
+    path = Path(__file__).resolve().parents[1] / 'scripts' / 'monitor' / 'api_check.py'
+    spec = importlib.util.spec_from_file_location('api_check', path)
+    assert spec is not None and spec.loader is not None
+    monitor = importlib.util.module_from_spec(spec)
+    sys.modules['api_check'] = monitor  # dataclass 가 자기 모듈을 찾는다
+    spec.loader.exec_module(monitor)
+
+    def leaves(command: object, path: tuple[str, ...]) -> list[tuple[str, ...]]:
+        commands = getattr(command, 'commands', None)
+        if not commands:
+            return [path]
+        return [leaf for name, sub in commands.items() for leaf in leaves(sub, (*path, name))]
+
+    source_commands = {leaf for leaf in leaves(typer.main.get_command(app), ()) if leaf[0] in ('naver', 'skyscanner')}
+    monitored = {step.command for steps in monitor.GROUPS.values() for step in steps}
+    assert monitored == source_commands
