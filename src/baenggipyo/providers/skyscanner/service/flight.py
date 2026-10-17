@@ -347,7 +347,7 @@ def search_flights(
     # 엔티티 ID 는 자동완성 응답 값이라 검증 실패는 입력 오류가 아니다 (flight 는 ID 에서 만들어 입력 오류가 맞으니 감싸지 않는다)
     with built_from_response('스카이스캐너 항공권 검색'):
         payload = _search_payload(legs, conditions)
-    response, completed, limited = run_search(client, payload)
+    response, completed, stopped = run_search(client, payload)
     found = response.itineraries.results if response.itineraries else []
     agents = {agent.id: agent for agent in response.itineraries.agents} if response.itineraries else {}
     routed = [result for result in found if _has_route(result)]
@@ -358,7 +358,7 @@ def search_flights(
     matched = sorted((result for result in verifiable if _matches(result, conditions)), key=lambda result: _sort_key(sort, result))
     notes = []
     if not completed:
-        notes.append(f'{stopped_early(limited)} 받은 데까지만 보여 줍니다. 더 싼 항공권이 빠졌을 수 있습니다')
+        notes.append(f'{stopped_early(stopped)} 받은 데까지만 보여 줍니다. 더 싼 항공권이 빠졌을 수 있습니다')
     if len(routed) < len(found):
         notes.append(f'여정 정보가 응답에 없는 항공권 {len(found) - len(routed)}개는 뺐습니다')
     if len(priced) < len(routed):
@@ -468,24 +468,26 @@ def get_flight(
         FareUnavailableError: 검색이 끝났는데 그 항공권이 없을 때 (매진·운항 변경).
         SearchIncompleteError: 검색이 시간 상한 안에 끝나지 않아 그 항공권을 아직 받지 못했을 때 (`UPSTREAM_ERROR`, `reason: SEARCH_INCOMPLETE`).
         RateLimitedError: 검색 폴링이 요청 제한에 걸려 멈췄는데 그 항공권을 아직 받지 못했을 때.
+        BaenggipyoError: 검색 응답에 세션 ID 가 없어 더 묻지 못했는데 그 항공권을 아직 받지 못했을 때 (`PARSE_ERROR`).
     """
     legs, conditions, itinerary_id = parse_flight_id(value)
-    response, completed, limited = run_search(client, _search_payload(legs, conditions))
+    response, completed, stopped = run_search(client, _search_payload(legs, conditions))
     found = response.itineraries.results if response.itineraries else []
     result = next((result for result in found if result.id == itinerary_id), None)
     # 여정·구간 정보나 가격을 준 판매처 운임이 없는 항공권은 search flights 도 빼므로 결과에 없는 것으로 낸다.
     # ID 에는 직항·항공사 조건이 없어 구조만 본다
     if result is None or not _has_route(result) or not _priced_options(result):
-        if limited is not None:
-            # 요청 제한에 걸려 멈춘 검색이라 아직 팔고 있을 수 있다. 언제 다시 부를 수 있는지 알리는 요청 제한 에러로 낸다
-            raise limited
+        if stopped is not None:
+            # 요청 제한에 걸려 멈춘 검색이라 아직 팔고 있을 수 있다. 언제 다시 부를 수 있는지 알리는 요청 제한 에러로 낸다.
+            # 세션 ID 가 없어 멈췄으면 다시 불러도 같으므로 SEARCH_INCOMPLETE(잠시 뒤 다시) 대신 그 PARSE_ERROR 로 낸다
+            raise stopped
         raise fare_missing_error('skyscanner', value, cut_short=not completed, reason='NOT_IN_RESULTS', alternative='naver')
     agents = {agent.id: agent for agent in response.itineraries.agents} if response.itineraries else {}
     fares = _offers(result, agents, conditions)
     shown = shown_offers(fares, offer_limit, url_limit)
     notes = ['가격은 방금 다시 검색한 값입니다']
     if not completed:
-        notes.append(f'{stopped_early(limited)}, 판매처가 더 있을 수 있습니다')
+        notes.append(f'{stopped_early(stopped)}, 판매처가 더 있을 수 있습니다')
     unpriced = len(result.pricing_options) - len(_priced_options(result))
     if unpriced:
         notes.append(f'스카이스캐너가 가격 없음으로 준 판매처 운임 {unpriced}개는 뺐습니다')

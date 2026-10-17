@@ -94,7 +94,7 @@ def explore(
         if round_trip:
             legs.append(SkyscannerSearchLegModel(leg_origin=everywhere, leg_destination=origin_place, dates=_dates(month)))
         payload = SkyscannerRadarWebUnifiedSearchV2RequestPayloadModel(legs=legs, target_geo_level='city')
-    response, completed, limited = run_search(client, payload)
+    response, completed, stopped = run_search(client, payload)
     found = response.everywhere_destination
     # 어디든지 결과의 상태는 결과 안의 context 다 (바로 complete 로 온다, 2026-10-11 실측). 그것이 없을 때만 검색 전체 상태(run_search)로 판정한다
     found_status = found.context.status if found and found.context else None
@@ -127,7 +127,7 @@ def explore(
         '스카이스캐너 어디든지는 날짜를 주지 않습니다 (departure_date·return_date 는 null). calendar 로 날짜를 고르세요',
     ]
     if not completed:
-        notes.append(f'{stopped_early(limited)} 받은 데까지만 보여 줍니다. 더 싼 목적지가 빠졌을 수 있습니다')
+        notes.append(f'{stopped_early(stopped)} 받은 데까지만 보여 줍니다. 더 싼 목적지가 빠졌을 수 있습니다')
     if len(destinations) > limit:
         notes.append(f'도시 {len(destinations)}곳 중 싼 순 {limit}곳만 보여 줍니다 (--limit 최대 {EXPLORE_MAX_LIMIT})')
     shown = destinations[:limit]
