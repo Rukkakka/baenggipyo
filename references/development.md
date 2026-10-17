@@ -89,7 +89,12 @@ CI 는 여전히 실제 API 를 부르지 않는다.
 - **무엇을 부르나:** 두 소스의 `search airports`·`search flights`·`flight`·`calendar`·`explore` 를 국제선·국내선으로 (편도, 30일 뒤,
   결과가 0건일 리 없는 인기 노선). `flight` 는 바로 앞 검색의 첫 항공권 ID 로 부른다. 날짜는 한국 시간으로 센다. 묶음은 네이버, 스카이스캐너
   국제선, 스카이스캐너 국내선 셋이고 러너를 나눈다. 스카이스캐너 명령을 모두 부르면 40번 남짓이라 한 러너로는 시간당 상한(30회)에 막혀 한 시간
-  넘게 기다린다. 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (IP 를 바꿔 봇 차단을 피하는 우회다).
+  넘게 기다린다. 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (막힌 날은 확인 못 함으로 남긴다).
+- **스카이스캐너는 접속 버릇만 크롬처럼:** 러너는 데이터센터 IP 라 스카이스캐너 봇 차단에 첫 요청부터 막히곤 한다. 감시는 검증용이라
+  스카이스캐너 묶음만 [disguise.py](../scripts/monitor/disguise.py)(`api_check.py run --disguise`)로 부른다. `SkyscannerClient` 의 httpx
+  전송만 curl_cffi(`impersonate='chrome'`, 워크플로에서 `curl_cffi==0.16.3` 설치)로 바꾸고, 요청 제한·로그 훅, 헤더, 응답 해석은 CLI 와 같다.
+  설치되는 CLI 에는 넣지 않고 캡차는 풀지 않는다 (막히면 확인 못 함). [AGENTS.md](../AGENTS.md) 의 "봇 차단을 우회하지 않는다" 는 CLI
+  원칙이라 감시는 예외다.
 - **판정:** 명령마다 셋으로 나눈다.
 
   | 판정 | 기준 |
@@ -109,7 +114,7 @@ CI 는 여전히 실제 API 를 부르지 않는다.
   `tests/test_cli.py::test_every_source_command_is_in_api_monitor` 가 CLI 명령 목록과 대조해 빠뜨리면 실패한다.
 - **수동 실행:** Actions 의 "API 감시" → Run workflow, 또는 `gh workflow run api-monitor.yml`. 로컬에서는
   `python scripts/monitor/api_check.py run naver --out result.json` 처럼 묶음 하나를 돌린다 (스카이스캐너 묶음은 봇 차단을 아끼려고 로컬에서
-  돌리지 않는다). 이슈 처리는 `report result.json --issues --dry-run` 으로 보낼 `gh` 명령만 본다.
+  돌리지 않는다. 돌린다면 `pip install curl_cffi==0.16.3` 뒤 `--disguise`). 이슈 처리는 `report result.json --issues --dry-run` 으로 보낼 `gh` 명령만 본다.
 - 감시 파일(`scripts/monitor/`, 워크플로)을 고친 PR 에서도 한 번 돌고, 이슈는 건드리지 않는다 (다른 브랜치의 수동 실행도). 고장이면 그 PR 의
   검사가 실패한다. 실행을 취소하면 결과 정리 잡은 돌지 않는다.
 - 공개 저장소에 60일 동안 활동이 없으면 GitHub 이 예약 실행을 끈다. 꺼졌으면 Actions 의 "API 감시" 에서 다시 켠다.
