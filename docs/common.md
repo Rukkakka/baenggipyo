@@ -109,7 +109,7 @@
 
 - 슬롯이 날 때까지 기다리되, 60초 넘게 기다려야 하면 기다리지 않고 `RATE_LIMITED` (`reason: budget`) 를 낸다. 시간당 상한에 닿으면 대개 이 경우다.
   스카이스캐너 검색이 결과를 다시 묻는 도중에 걸리면 에러 대신 받은 데까지 돌려주고 `notes` 로 알린다 (`flight` 는 그 항공권을 아직 못 받았을 때만 `RATE_LIMITED`)
-- 429 를 받으면 쿨다운 동안 그 소스로 요청을 아예 보내지 않고 `RATE_LIMITED` (`reason: cooldown`, `retry_after_seconds`) 를 낸다. `Retry-After` 가 더 길면 그 값을 따른다
+- 429 를 받으면 쿨다운 동안 그 소스로 요청을 아예 보내지 않고 `RATE_LIMITED` (`reason: cooldown`, `retry_after_seconds`) 를 낸다. `Retry-After` 가 더 길면 그 값을 따른다 (4시간까지)
 - 스카이스캐너의 봇 차단(403 캡차)도 같은 쿨다운을 걸고 `RATE_LIMITED` (`reason: blocked`) 를 낸다. 쿨다운이 끝나고 4시간 안에 다시 막히면 쿨다운을
   두 배로 늘린다 (차단 중에 쿨다운마다 다시 확인하는 요청을 줄인다). baenggipyo 는 차단을 우회하지 않는다
 - `baenggipyo limits` 로 상태를 보고, `baenggipyo limits --reset naver` 로 초기화한다
