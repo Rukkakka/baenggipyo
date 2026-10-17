@@ -44,9 +44,11 @@ DAYS_AHEAD: int = 30
 COMMAND_TIMEOUT_SECONDS: int = 300
 SEARCH: tuple[str, ...] = ('--depart', '{depart}', '--limit', '2', '--brief')
 FLIGHT: tuple[str, ...] = ('{id}', '--limit', '3', '--offer-urls', '0')
+# `run --disguise` 면 스카이스캐너 명령을 이것으로 부른다 (접속 버릇만 크롬처럼, curl_cffi 필요)
+DISGUISE: Path = Path(__file__).with_name('disguise.py')
 
 # 러너 하나가 묶음 하나를 돈다. 스카이스캐너 명령을 모두 부르면 요청이 40번 남짓이라 한 러너로는 시간당 상한(30회)에 막혀 한 시간 넘게
-# 기다리므로 국제선·국내선을 나눈다 (한 묶음 15~25번). 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (IP 를 바꿔 봇 차단을 피하는 우회다).
+# 기다리므로 국제선·국내선을 나눈다 (한 묶음 15~25번). 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (막힌 날은 확인 못 함으로 남긴다).
 # 모두 편도다: 국내선 왕복은 스카이스캐너 결과가 8천 건·100MB 를 넘는다. 노선은 결과가 0건일 리 없는 인기 노선으로 고른다 (0건이면 고장으로 본다)
 GROUPS: dict[str, tuple[Step, ...]] = {
     'naver': (
@@ -149,13 +151,14 @@ def _first_id(data: dict[str, object]) -> str | None:
     return value if isinstance(value, str) else None
 
 
-def _run_step(step: Step, values: dict[str, str]) -> tuple[str, str, dict[str, object] | None]:
-    """(판정, 내용, stdout JSON)."""
+def _run_step(step: Step, values: dict[str, str], *, disguise: bool = False) -> tuple[str, str, dict[str, object] | None]:
+    """(판정, 내용, stdout JSON). `disguise` 면 스카이스캐너 명령을 disguise.py 로 부른다."""
     command = [*step.command, *(arg.format(**values) for arg in step.args)]
-    print(f"::group::baenggipyo {' '.join(command)}", flush=True)
+    entry = [str(DISGUISE)] if disguise and step.command[0] == 'skyscanner' else ['-m', 'baenggipyo']
+    print(f"::group::baenggipyo {' '.join(command)}{' (disguise)' if entry[0] == str(DISGUISE) else ''}", flush=True)
     try:
         done = subprocess.run(
-            [sys.executable, '-m', 'baenggipyo', '--verbose', *command],
+            [sys.executable, *entry, '--verbose', *command],
             capture_output=True, text=True, encoding='utf-8', timeout=COMMAND_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
@@ -187,7 +190,7 @@ def _run_step(step: Step, values: dict[str, str]) -> tuple[str, str, dict[str, o
     return (UNKNOWN if _is_unknown(error) else BROKEN), f'{detail}: {message[:200]}', None
 
 
-def run_group(name: str) -> dict[str, object]:
+def run_group(name: str, *, disguise: bool = False) -> dict[str, object]:
     """묶음 하나의 명령을 차례로 부른다. 상세는 바로 앞 검색 결과의 첫 항공권 ID 로 부르고, 그 검색이 실패했으면 건너뛴다."""
     depart = _today() + datetime.timedelta(days=DAYS_AHEAD)
     values = {'depart': depart.isoformat(), 'month': depart.strftime('%Y-%m'), 'id': ''}
@@ -197,7 +200,7 @@ def run_group(name: str) -> dict[str, object]:
         if '{id}' in step.args and not values['id']:
             steps.append({'label': step.label, 'command': line, 'status': UNKNOWN, 'detail': '앞 검색이 결과를 주지 않아 건너뜀'})
             continue
-        status, detail, data = _run_step(step, values)
+        status, detail, data = _run_step(step, values, disguise=disguise)
         if step.command[-1] == 'flights':
             values['id'] = (_first_id(data) if data else None) or ''
         steps.append({'label': step.label, 'command': line, 'status': status, 'detail': detail})
@@ -364,13 +367,14 @@ def main() -> int:
     run = commands.add_parser('run', help='묶음 하나의 명령을 부르고 결과를 JSON 파일로 쓴다')
     run.add_argument('group', choices=list(GROUPS))
     run.add_argument('--out', required=True)
+    run.add_argument('--disguise', action='store_true', help='스카이스캐너 명령을 접속 버릇만 크롬처럼 바꿔 부른다 (disguise.py, curl_cffi 필요)')
     collect = commands.add_parser('report', help='결과 파일을 모아 표를 남기고 이슈를 고친다')
     collect.add_argument('paths', nargs='*')
     collect.add_argument('--issues', action='store_true', help='고장·연속 확인 못 함을 이슈로 알린다 (예약·수동 실행만)')
     collect.add_argument('--dry-run', action='store_true', help='이슈·라벨을 바꾸지 않고 보낼 gh 명령만 출력한다')
     options = parser.parse_args()
     if options.action == 'run':
-        result = run_group(options.group)
+        result = run_group(options.group, disguise=options.disguise)
         Path(options.out).write_text(json.dumps(result, ensure_ascii=False), encoding='utf-8')
         print(_table([result]))
         return 0

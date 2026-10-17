@@ -31,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         # 스카이스캐너 명령을 모두 부르면 40번 남짓이라 한 러너로는 시간당 상한(30회)에 막혀 한 시간 넘게 기다리므로 국제선·국내선을 나눈다.
-        # 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (IP 를 바꿔 봇 차단을 피하는 우회다)
+        # 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (막힌 날은 확인 못 함으로 남긴다)
         group: [naver, skyscanner-international, skyscanner-domestic]
     env:
       PYTHONUTF8: '1'
@@ -44,7 +44,13 @@ jobs:
           cache-dependency-path: pyproject.toml
       # PyPI 릴리스가 아니라 이 커밋의 코드를 본다
       - run: pip install .
-      - run: python scripts/monitor/api_check.py run ${{ matrix.group }} --out result-${{ matrix.group }}.json
+      # 스카이스캐너 묶음은 접속 버릇(TLS 지문)만 크롬처럼 바꿔 부른다 (scripts/monitor/disguise.py). 러너는 데이터센터 IP 라 첫 요청부터
+      # 봇 차단에 막히곤 한다. 감시에서만 쓰고 설치되는 CLI 에는 넣지 않는다
+      - if: startsWith(matrix.group, 'skyscanner')
+        run: pip install curl_cffi==0.16.3
+      - run: >-
+          python scripts/monitor/api_check.py run ${{ matrix.group }} --out result-${{ matrix.group }}.json
+          ${{ startsWith(matrix.group, 'skyscanner') && '--disguise' || '' }}
       - uses: actions/upload-artifact@v7
         with:
           name: result-${{ matrix.group }}
