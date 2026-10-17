@@ -222,7 +222,7 @@ def _segment(segment: SkyscannerSegmentModel) -> Segment:
         airline_code=code,
         airline=marketing.name if marketing else None,
         flight_number=f'{code}{segment.flight_number}' if code and segment.flight_number else None,
-        operating_airline_code=(operating.display_code or operating.alternate_id) if operating else None,
+        operating_airline_code=(operating.display_code or operating.alternate_id or None) if operating else None,
         operating_airline=operating.name if operating else None,
         departure_airport=segment.origin.display_code or None,
         arrival_airport=segment.destination.display_code or None,
