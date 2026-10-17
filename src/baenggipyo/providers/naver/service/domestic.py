@@ -509,7 +509,8 @@ def search_domestic_flights(
         # 오는 편은 같은 검색의 version 으로 묻는다. __v 가 없으면 None(가장 새 캐시)으로 묻는다. version 0 은 인기 노선에서 먼저
         # 만료돼 다시 검색하게 된다 (김포→제주가 v32 일 때 v0 은 isExpired, 생략하면 v32, 2026-10-11 실측)
         version = status.version
-        notes += _search_note(event.status)
+        # 방향마다 따로 끊길 수 있어 어느 목록이 덜 받았는지 붙인다 (flight 와 같다)
+        notes += [f'{DIRECTION_LABELS[direction]}: {note}' for note in _search_note(event.status)]
         leg = legs[index]
         itineraries = [
             _itinerary(flight, status, partners, legs=legs, conditions=conditions, direction=direction)
