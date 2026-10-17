@@ -1,0 +1,327 @@
+"""두 소스의 모든 CLI 명령을 실제로 불러 비공식 API 가 깨졌는지 본다 (매일 새벽 `.github/workflows/api-monitor.yml`).
+
+명령마다 셋으로 나눈다 (references/development.md '매일 API 감시').
+
+- 정상: exit 0 이고 결과가 1건 이상
+- 고장: 응답 형식 오류·서버 거절·내부 오류 같은 에러, 결과 0건, JSON 이 아닌 출력. 인기 노선이라 0건이면 사이트가 바뀐 것으로 본다
+- 확인 못 함: 봇 차단·요청 제한·네트워크 오류·서버 5xx·검색 시간 초과·검색 직후 매진. 사이트가 바뀐 것인지 알 수 없다
+
+    python scripts/monitor/api_check.py run naver --out result-naver.json
+    python scripts/monitor/api_check.py report result-*.json [--issues] [--dry-run]
+
+새 CLI 명령을 만들면 GROUPS 에 넣는다 (국제선·국내선이 다르게 동작하면 둘 다). tests/test_cli.py 가 CLI 명령 목록과 대조한다.
+"""
+
+import argparse
+import datetime
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class Step:
+    """감시할 명령 하나.
+
+    Args:
+        label: 결과 표에 쓰는 이름.
+        command: CLI 명령 경로 (예: `('naver', 'search', 'flights')`).
+        args: 인자. `{depart}`(오늘부터 DAYS_AHEAD 일 뒤), `{month}`(그 달), `{id}`(바로 앞 검색 결과의 첫 항공권 ID)를 채운다.
+    """
+
+    label: str
+    command: tuple[str, ...]
+    args: tuple[str, ...]
+
+
+DAYS_AHEAD: int = 30
+# 스카이스캐너 검색은 폴링 60초에 요청 제한 대기(최대 60초)가 붙을 수 있다
+COMMAND_TIMEOUT_SECONDS: int = 300
+SEARCH: tuple[str, ...] = ('--depart', '{depart}', '--limit', '2', '--brief')
+FLIGHT: tuple[str, ...] = ('{id}', '--limit', '3', '--offer-urls', '0')
+
+# 러너 하나가 묶음 하나를 돈다. 스카이스캐너는 한 러너에서 몇 분 안에 30번쯤 보내면 봇 차단·시간당 상한(30회)에 걸리기 쉬워
+# 국제선·국내선을 나눈다 (한 묶음 15번 안팎). 모두 편도다: 국내선 왕복은 스카이스캐너 결과가 8천 건·100MB 를 넘는다.
+# 노선은 결과가 0건일 리 없는 인기 노선으로 고른다 (0건이면 고장으로 본다)
+GROUPS: dict[str, tuple[Step, ...]] = {
+    'naver': (
+        Step('공항 찾기', ('naver', 'search', 'airports'), ('인천',)),
+        Step('국제선 검색 인천→도쿄', ('naver', 'search', 'flights'), ('ICN', 'NRT', *SEARCH)),
+        Step('국제선 상세', ('naver', 'flight'), FLIGHT),
+        Step('국내선 검색 김포→제주', ('naver', 'search', 'flights'), ('GMP', 'CJU', *SEARCH)),
+        Step('국내선 상세', ('naver', 'flight'), FLIGHT),
+        Step('국제선 달력 인천→도쿄', ('naver', 'calendar'), ('ICN', 'NRT', '--month', '{month}')),
+        Step('국내선 달력 김포→제주', ('naver', 'calendar'), ('GMP', 'CJU', '--month', '{month}')),
+        # 네이버 어디든지는 국제선 목적지만 준다
+        Step('어디든지 인천 출발', ('naver', 'explore'), ('ICN', '--limit', '5')),
+    ),
+    'skyscanner-international': (
+        Step('공항 찾기', ('skyscanner', 'search', 'airports'), ('인천',)),
+        Step('국제선 달력 인천→후쿠오카', ('skyscanner', 'calendar'), ('ICN', 'FUK', '--month', '{month}')),
+        # 스카이스캐너 어디든지는 국내·국제 도시가 함께 나온다
+        Step('어디든지 인천 출발', ('skyscanner', 'explore'), ('ICN', '--limit', '5')),
+        Step('국제선 검색 인천→후쿠오카', ('skyscanner', 'search', 'flights'), ('ICN', 'FUK', *SEARCH)),
+        Step('국제선 상세', ('skyscanner', 'flight'), FLIGHT),
+    ),
+    'skyscanner-domestic': (
+        Step('국내선 달력 김포→제주', ('skyscanner', 'calendar'), ('GMP', 'CJU', '--month', '{month}')),
+        Step('국내선 검색 김포→제주', ('skyscanner', 'search', 'flights'), ('GMP', 'CJU', *SEARCH)),
+        Step('국내선 상세', ('skyscanner', 'flight'), FLIGHT),
+    ),
+}
+
+OK: str = 'ok'
+BROKEN: str = 'broken'
+UNKNOWN: str = 'unknown'
+STATUS_LABELS: dict[str, str] = {OK: '✅ 정상', BROKEN: '❌ 고장', UNKNOWN: '⚠️ 확인 못 함'}
+# 사이트가 바뀐 것인지 알 수 없는 에러. 그 밖의 에러 코드(PARSE_ERROR, INTERNAL_ERROR, NOT_FOUND, AIRPORT_NOT_FOUND 등)는 고장이다
+UNKNOWN_CODES: frozenset[str] = frozenset({'RATE_LIMITED', 'NETWORK_ERROR', 'FARE_UNAVAILABLE'})
+# 결과 수를 셀 키. 국내선 네이버 검색만 `legs[].itineraries` 다
+COUNT_KEYS: tuple[str, ...] = ('offers', 'itineraries', 'airports', 'days', 'destinations')
+
+BROKEN_LABEL: str = 'api-broken'
+BLOCKED_LABEL: str = 'api-blocked'
+# 같은 묶음이 이만큼 연속으로 확인 못 함이면 알린다 (오늘 포함)
+BLOCKED_STREAK: int = 3
+WORKFLOW_FILE: str = 'api-monitor.yml'
+REPORT_ARTIFACT: str = 'report'
+
+
+# --- 조회 ---
+
+def _error(stderr: str) -> dict[str, object] | None:
+    """stderr 의 에러 JSON (`--verbose` 로그 뒤 마지막 `{` 줄)."""
+    for line in reversed(stderr.splitlines()):
+        if line.startswith('{'):
+            try:
+                body = json.loads(line).get('error')
+            except ValueError:
+                return None
+            return body if isinstance(body, dict) else None
+    return None
+
+
+def _is_unknown(error: dict[str, object]) -> bool:
+    code = error.get('code')
+    if code in UNKNOWN_CODES:
+        return True
+    if code != 'UPSTREAM_ERROR':
+        return False
+    # 검색이 시간 상한에 끊긴 것과 서버 5xx 는 사이트가 바뀐 것이 아니다. 4xx 는 요청 형식이 맞지 않게 된 것이라 고장이다
+    status = error.get('status')
+    return error.get('reason') == 'SEARCH_INCOMPLETE' or (isinstance(status, int) and status >= 500)
+
+
+def _count(data: dict[str, object]) -> int:
+    for key in COUNT_KEYS:
+        value = data.get(key)
+        if isinstance(value, list):
+            return len(value)
+    legs = data.get('legs')
+    if isinstance(legs, list):
+        return sum(len(leg.get('itineraries') or []) for leg in legs if isinstance(leg, dict))
+    return 0
+
+
+def _first_id(data: dict[str, object]) -> str | None:
+    itineraries = data.get('itineraries')
+    if not isinstance(itineraries, list):
+        legs = data.get('legs')
+        itineraries = [item for leg in legs if isinstance(leg, dict) for item in leg.get('itineraries') or []] if isinstance(legs, list) else []
+    first = itineraries[0] if itineraries else None
+    value = first.get('id') if isinstance(first, dict) else None
+    return value if isinstance(value, str) else None
+
+
+def _run_step(step: Step, values: dict[str, str]) -> tuple[str, str, dict[str, object] | None]:
+    """(판정, 내용, stdout JSON)."""
+    command = [*step.command, *(arg.format(**values) for arg in step.args)]
+    print(f"::group::baenggipyo {' '.join(command)}", flush=True)
+    try:
+        done = subprocess.run(
+            [sys.executable, '-m', 'baenggipyo', '--verbose', *command],
+            capture_output=True, text=True, encoding='utf-8', timeout=COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print('::endgroup::', flush=True)
+        return UNKNOWN, f'{COMMAND_TIMEOUT_SECONDS}초 안에 끝나지 않음', None
+    print(done.stderr.strip())
+    print(done.stdout.strip()[:2000])
+    print('::endgroup::', flush=True)
+    if done.returncode == 0:
+        try:
+            data = json.loads(done.stdout)
+        except ValueError:
+            return BROKEN, 'stdout 이 JSON 이 아님', None
+        if not isinstance(data, dict):
+            return BROKEN, 'stdout 이 JSON 객체가 아님', None
+        count = _count(data)
+        return (OK, f'{count}건', data) if count else (BROKEN, '결과 0건', data)
+    error = _error(done.stderr)
+    if error is None:
+        return BROKEN, f'exit {done.returncode}, 에러 JSON 없음', None
+    detail = ' '.join(str(part) for part in (error.get('code'), error.get('reason'), error.get('status')) if part)
+    message = str(error.get('message') or '').replace('\n', ' ')
+    return (UNKNOWN if _is_unknown(error) else BROKEN), f'{detail}: {message[:200]}', None
+
+
+def run_group(name: str) -> dict[str, object]:
+    """묶음 하나의 명령을 차례로 부른다. 상세는 바로 앞 검색 결과의 첫 항공권 ID 로 부르고, 그 검색이 실패했으면 건너뛴다."""
+    depart = datetime.date.today() + datetime.timedelta(days=DAYS_AHEAD)
+    values = {'depart': depart.isoformat(), 'month': depart.strftime('%Y-%m'), 'id': ''}
+    steps: list[dict[str, str]] = []
+    for step in GROUPS[name]:
+        line = ' '.join(step.command)
+        if '{id}' in step.args and not values['id']:
+            steps.append({'label': step.label, 'command': line, 'status': UNKNOWN, 'detail': '앞 검색이 결과를 주지 않아 건너뜀'})
+            continue
+        status, detail, data = _run_step(step, values)
+        if step.command[-1] == 'flights':
+            values['id'] = (_first_id(data) if data else None) or ''
+        steps.append({'label': step.label, 'command': line, 'status': status, 'detail': detail})
+    return {'group': name, 'date': datetime.date.today().isoformat(), 'status': _overall([step['status'] for step in steps]), 'steps': steps}
+
+
+def _overall(statuses: list[str]) -> str:
+    if BROKEN in statuses:
+        return BROKEN
+    return UNKNOWN if UNKNOWN in statuses else OK
+
+
+# --- 결과 정리 ---
+
+def _table(results: list[dict]) -> str:
+    rows = ['| 묶음 | 명령 | 결과 | 내용 |', '| --- | --- | --- | --- |']
+    for result in results:
+        for step in result['steps']:
+            detail = step['detail'].replace('|', '\\|')
+            rows.append(f"| {result['group']} | {step['label']} (`{step['command']}`) | {STATUS_LABELS[step['status']]} | {detail} |")
+    return '\n'.join(rows)
+
+
+def _run_link(text: str = '실행 기록') -> str:
+    server, repository, run_id = (os.environ.get(key) for key in ('GITHUB_SERVER_URL', 'GITHUB_REPOSITORY', 'GITHUB_RUN_ID'))
+    return f' ([{text}]({server}/{repository}/actions/runs/{run_id}))' if server and repository and run_id else ''
+
+
+def _gh(*args: str, write: bool = False, dry_run: bool = False) -> str:
+    """gh CLI. `dry_run` 이면 이슈·라벨을 바꾸는 명령은 보내지 않고 출력만 한다."""
+    if write and dry_run:
+        print('[dry-run] gh', ' '.join(args))
+        return ''
+    return subprocess.run(['gh', *args], check=True, capture_output=True, text=True, encoding='utf-8').stdout
+
+
+def _open_issue(label: str) -> int | None:
+    issues = json.loads(_gh('issue', 'list', '--label', label, '--state', 'open', '--json', 'number', '--limit', '1'))
+    return issues[0]['number'] if issues else None
+
+
+def _previous_reports(count: int) -> list[dict]:
+    """앞선 예약·수동 실행의 묶음별 판정 (가까운 것부터). 결과 파일이 없는 실행(만료·실패)을 만나면 거기서 멈춘다."""
+    try:
+        runs = json.loads(_gh('run', 'list', '--workflow', WORKFLOW_FILE, '--status', 'completed', '--limit', '20', '--json', 'databaseId,event'))
+    except subprocess.CalledProcessError:
+        # 워크플로가 아직 기본 브랜치에 없으면(첫 실행 전) 실행 목록을 묻지 못한다
+        return []
+    current = os.environ.get('GITHUB_RUN_ID')
+    reports: list[dict] = []
+    for run in runs:
+        if len(reports) == count:
+            break
+        if run['event'] not in ('schedule', 'workflow_dispatch') or str(run['databaseId']) == current:
+            continue
+        with tempfile.TemporaryDirectory() as folder:
+            try:
+                _gh('run', 'download', str(run['databaseId']), '--name', REPORT_ARTIFACT, '--dir', folder)
+            except subprocess.CalledProcessError:
+                break
+            reports.append(json.loads((Path(folder) / 'report.json').read_text(encoding='utf-8')))
+    return reports
+
+
+def _update_issues(results: list[dict], dry_run: bool) -> None:
+    """고장은 api-broken, 사흘 연속 확인 못 함은 api-blocked 이슈로 알린다. 다시 모두 괜찮아지면 닫는다."""
+    table, link = _table(results), _run_link()
+    statuses = {result['group']: result['status'] for result in results}
+    broken = [group for group, status in statuses.items() if status == BROKEN]
+    _gh('label', 'create', BROKEN_LABEL, '--color', 'd73a4a', '--description', '매일 API 감시가 찾은 고장', '--force', write=True, dry_run=dry_run)
+    _gh('label', 'create', BLOCKED_LABEL, '--color', 'fbca04', '--description', '매일 API 감시가 며칠째 확인하지 못함', '--force', write=True, dry_run=dry_run)
+
+    number = _open_issue(BROKEN_LABEL)
+    if broken:
+        body = f'{datetime.date.today()} 감시에서 고장: {", ".join(broken)}{link}\n\n{table}'
+        if number is None:
+            _gh('issue', 'create', '--label', BROKEN_LABEL, '--title', f'API 감시: 고장 ({", ".join(broken)})', '--body', body,
+                write=True, dry_run=dry_run)
+        else:
+            _gh('issue', 'comment', str(number), '--body', body, write=True, dry_run=dry_run)
+    elif number is not None and all(status == OK for status in statuses.values()):
+        _gh('issue', 'close', str(number), '--comment', f'{datetime.date.today()} 감시에서 모두 정상이다{link}', write=True, dry_run=dry_run)
+
+    previous = [{result['group']: result['status'] for result in report['results']} for report in _previous_reports(BLOCKED_STREAK - 1)]
+    streak = [
+        group for group, status in statuses.items()
+        if status == UNKNOWN and len(previous) == BLOCKED_STREAK - 1 and all(report.get(group) == UNKNOWN for report in previous)
+    ]
+    number = _open_issue(BLOCKED_LABEL)
+    if streak and number is None:
+        body = (f'{BLOCKED_STREAK}일 연속 확인 못 함: {", ".join(streak)}{_run_link("오늘 실행 기록")}. 봇 차단·요청 제한·서버 오류로 '
+                f'고장인지 알 수 없는 상태가 이어진다. 막힘이 계속되면 그 묶음을 덜 자주 돌리는 것을 검토한다.\n\n{table}')
+        _gh('issue', 'create', '--label', BLOCKED_LABEL, '--title', f'API 감시: {BLOCKED_STREAK}일째 확인 못 함 ({", ".join(streak)})',
+            '--body', body, write=True, dry_run=dry_run)
+    elif number is not None and UNKNOWN not in statuses.values():
+        _gh('issue', 'close', str(number), '--comment', f'{datetime.date.today()} 감시에서 확인 못 함이 없다{link}', write=True, dry_run=dry_run)
+
+
+def report(paths: list[str], *, issues: bool, dry_run: bool) -> int:
+    """묶음별 결과 파일을 모아 표를 남기고, 고장이 있으면 1 을 돌려준다 (실행이 실패로 끝나 GitHub 이 메일로 알린다)."""
+    found = {}
+    for path in paths:
+        # 결과 파일이 하나도 없으면 셸이 글롭(result-*.json)을 그대로 넘긴다
+        if not Path(path).is_file():
+            continue
+        result = json.loads(Path(path).read_text(encoding='utf-8'))
+        found[result['group']] = result
+    # 결과 파일이 없는 묶음은 조회 잡이 감시 코드나 설치에서 실패한 것이다
+    results = [
+        found.get(group) or {'group': group, 'status': BROKEN, 'steps': [{'label': '조회 잡', 'command': '-', 'status': BROKEN, 'detail': '결과 파일 없음 (조회 잡 실패)'}]}
+        for group in GROUPS
+    ]
+    text = f'## API 감시 {datetime.date.today()}\n\n{_table(results)}\n'
+    print(text)
+    summary = os.environ.get('GITHUB_STEP_SUMMARY')
+    if summary:
+        with open(summary, 'a', encoding='utf-8') as file:
+            file.write(text)
+    Path('report.json').write_text(json.dumps({'results': results}, ensure_ascii=False), encoding='utf-8')
+    if issues:
+        _update_issues(results, dry_run)
+    return 1 if any(result['status'] == BROKEN for result in results) else 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    commands = parser.add_subparsers(dest='action', required=True)
+    run = commands.add_parser('run', help='묶음 하나의 명령을 부르고 결과를 JSON 파일로 쓴다')
+    run.add_argument('group', choices=list(GROUPS))
+    run.add_argument('--out', required=True)
+    collect = commands.add_parser('report', help='결과 파일을 모아 표를 남기고 이슈를 고친다')
+    collect.add_argument('paths', nargs='*')
+    collect.add_argument('--issues', action='store_true', help='고장·연속 확인 못 함을 이슈로 알린다 (예약·수동 실행만)')
+    collect.add_argument('--dry-run', action='store_true', help='이슈·라벨을 바꾸지 않고 보낼 gh 명령만 출력한다')
+    options = parser.parse_args()
+    if options.action == 'run':
+        result = run_group(options.group)
+        Path(options.out).write_text(json.dumps(result, ensure_ascii=False), encoding='utf-8')
+        print(_table([result]))
+        return 0
+    return report(options.paths, issues=options.issues, dry_run=options.dry_run)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
