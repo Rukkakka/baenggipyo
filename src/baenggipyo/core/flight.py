@@ -374,7 +374,7 @@ class Segment(FlightModel):
     ]
     operating_airline_code: Annotated[
         str | None,
-        Field(description='실제 운항 항공사 코드. 공동운항(코드셰어)일 때만 키가 있다')
+        Field(description='실제 운항 항공사 코드. 공동운항(코드셰어)일 때만 키가 있다 (코드를 모르면 null)')
     ] = None
     operating_airline: Annotated[
         str | None,
@@ -406,7 +406,12 @@ class Segment(FlightModel):
     ] = None
 
     def not_applicable_fields(self) -> frozenset[str]:
-        codeshare = self.operating_airline_code is not None and self.operating_airline_code != self.airline_code
+        if self.operating_airline_code is not None:
+            codeshare = self.operating_airline_code != self.airline_code
+        else:
+            # 운항 항공사 코드를 모르면(스카이스캐너) 이름으로 가린다. 빼면 이름까지 준 공동운항이 자사편처럼 보인다. 어느 이름이든 모르면
+            # 공동운항인지 알 수 없어 뺀다 (판매 항공사 이름을 모를 때 운항 항공사를 달면 자사편이 공동운항처럼 보인다)
+            codeshare = self.airline is not None and self.operating_airline is not None and self.operating_airline != self.airline
         return frozenset() if codeshare else frozenset({'operating_airline_code', 'operating_airline'})
 
     def brief_omitted_fields(self) -> frozenset[str]:
