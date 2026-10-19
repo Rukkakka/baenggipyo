@@ -21,6 +21,7 @@ from baenggipyo.core.flight import (
     Offer,
     shown_offers,
 )
+from baenggipyo.core.http import raise_for_status
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.naver.api.request.common import NaverBookingItineraryModel
 
@@ -124,6 +125,22 @@ def test_handle_errors_maps_exceptions_to_codes(
     assert exited.value.exit_code == exit_code
     error = stderr_error(capsys)
     assert error['code'] == code and error['source'] == 'naver'
+
+
+@pytest.mark.parametrize('body', [
+    '<html><script>window.__s = {"sessionId": "secret-session"}</script></html>',  # 차단·오류 HTML 안의 JSON
+    '{"traceId": "secret-session", "items": [1',  # 잘린 JSON
+    '{"error": "{\\"requestId\\": \\"secret-session\\"}"}',  # JSON 값 안의 JSON 문자열
+])
+def test_upstream_error_message_hides_quoted_session_ids(body: str, capsys: pytest.CaptureFixture[str]) -> None:
+    # 서버 오류 본문은 에러 JSON 의 message 로 나간다. JSON 으로 읽히지 않는 본문의 따옴표 친 키도 세션·추적 ID 를 가려야 한다
+    # (AGENTS.md: 세션 토큰·추적 ID 는 출력하지 않는다). 오류 본문이라 실제 API 로 만들 수 없어 가짜 응답으로 본다
+    response = httpx.Response(500, text=body, request=httpx.Request('GET', 'https://example.com/x'))
+    with pytest.raises(typer.Exit), handle_errors('naver'):
+        raise_for_status(response)
+    error = stderr_error(capsys)
+    assert error['code'] == 'UPSTREAM_ERROR'
+    assert 'secret-session' not in error['message'] and '<redacted>' in error['message']
 
 
 def test_request_built_from_response_fails_as_parse_error(capsys: pytest.CaptureFixture[str]) -> None:
