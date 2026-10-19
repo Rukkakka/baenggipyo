@@ -480,7 +480,7 @@ def get_flight(
         FareUnavailableError: 검색이 끝났는데 그 항공권이 없을 때 (매진·운항 변경).
         SearchIncompleteError: 검색이 시간 상한 안에 끝나지 않아 그 항공권을 아직 받지 못했을 때 (`UPSTREAM_ERROR`, `reason: SEARCH_INCOMPLETE`).
         RateLimitedError: 검색 폴링이 요청 제한에 걸려 멈췄는데 그 항공권을 아직 받지 못했을 때.
-        BaenggipyoError: 검색 응답에 세션 ID 가 없어 더 묻지 못했는데 그 항공권을 아직 받지 못했을 때 (`PARSE_ERROR`).
+        BaenggipyoError: 검색 응답에 세션 ID 가 없거나 진행 상태를 알 수 없어 더 묻지 못했는데 그 항공권을 아직 받지 못했을 때 (`PARSE_ERROR`).
     """
     legs, conditions, itinerary_id = parse_flight_id(value)
     response, completed, stopped = run_search(client, _search_payload(legs, conditions))
@@ -491,7 +491,7 @@ def get_flight(
     if result is None or not _has_route(result) or not _priced_options(result):
         if stopped is not None:
             # 요청 제한에 걸려 멈춘 검색이라 아직 팔고 있을 수 있다. 언제 다시 부를 수 있는지 알리는 요청 제한 에러로 낸다.
-            # 세션 ID 가 없어 멈췄으면 다시 불러도 같으므로 SEARCH_INCOMPLETE(잠시 뒤 다시) 대신 그 PARSE_ERROR 로 낸다
+            # 세션 ID 가 없거나 진행 상태를 알 수 없어 멈췄으면 다시 불러도 같으므로 SEARCH_INCOMPLETE(잠시 뒤 다시) 대신 그 PARSE_ERROR 로 낸다
             raise stopped
         raise fare_missing_error('skyscanner', value, cut_short=not completed, reason='NOT_IN_RESULTS', alternative='naver')
     agents = {agent.id: agent for agent in response.itineraries.agents} if response.itineraries else {}
