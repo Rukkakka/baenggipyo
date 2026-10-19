@@ -36,6 +36,7 @@ from baenggipyo.providers.skyscanner.api.response.common import (
     SkyscannerLegModel,
     SkyscannerPricingOptionModel,
     SkyscannerSegmentModel,
+    SkyscannerSegmentPlaceModel,
 )
 from baenggipyo.providers.skyscanner.service.common import (
     CABIN_BY_LETTER,
@@ -412,9 +413,13 @@ def _deeplink(url: str | None) -> str | None:
 
 def _part_label(result: SkyscannerItineraryModel, segment_ids: list[str]) -> str:
     """예약 단위가 사는 구간 (`PUS→FUK`). 구간 ID 를 찾지 못하면 '일부 구간'."""
+    def place(point: SkyscannerSegmentPlaceModel) -> str:
+        # 공항 코드를 모르면 이름, 그것도 모르면 '?' 다. f-string 에 None 을 넣으면 'None→None' 이 나온다
+        return point.display_code or point.name or '?'
+
     segments = {segment.id: segment for leg in result.legs for segment in leg.segments if segment.id}
     routes = [
-        f'{segments[segment_id].origin.display_code}→{segments[segment_id].destination.display_code}'
+        f'{place(segments[segment_id].origin)}→{place(segments[segment_id].destination)}'
         for segment_id in segment_ids if segment_id in segments
     ]
     return ', '.join(routes) or '일부 구간'
