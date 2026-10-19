@@ -76,6 +76,7 @@ from typing import (
 
 
 DomesticDirection = Literal['departure', 'arrival']
+DirectionLabel = Literal['가는 편', '오는 편']
 
 # 번들의 좌석 등급 이름표 (NON_REFUNDABLE·NO_FREE_BAGGAGE·SPECIAL_DEAL·DISCOUNT·ECONOMY·BUSINESS)
 SEAT_CLASS_LABELS: dict[str, str] = {
@@ -101,7 +102,7 @@ DOMESTIC_SORT_BY_LABEL: dict[NaverFlightSort, dict[str, int]] = {
     '출발시각': {'segment.departure.time': 1, 'minFare': 1},
     '소요시간': {'duration': 1, 'minFare': 1},
 }
-DIRECTION_LABELS: dict[DomesticDirection, str] = {
+DIRECTION_LABELS: dict[DomesticDirection, DirectionLabel] = {
     'departure': '가는 편',
     'arrival': '오는 편',
 }
@@ -125,7 +126,7 @@ class NaverDomesticItinerary(NaverItinerary):
     """국내선 편 하나. 좌석 등급과 남은 좌석을 더한다."""
 
     direction: Annotated[
-        str,
+        DirectionLabel,
         Field(description='가는 편 또는 오는 편')
     ]
     seat_class: Annotated[
@@ -150,7 +151,7 @@ class NaverDomesticLegResult(BaseModel):
     )
 
     direction: Annotated[
-        str,
+        DirectionLabel,
         Field(description='가는 편 또는 오는 편')
     ]
     origin: Annotated[

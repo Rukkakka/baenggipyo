@@ -6,7 +6,10 @@ from pydantic import (
     Field,
 )
 
-from baenggipyo.core.flight import CalendarDay
+from baenggipyo.core.flight import (
+    CalendarDay,
+    TripType,
+)
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.skyscanner.api.client import SkyscannerClient
 from baenggipyo.providers.skyscanner.api.request.calendar import (
@@ -36,7 +39,7 @@ class SkyscannerCalendarResult(BaseModel):
         Field(description='도착 코드')
     ]
     trip_type: Annotated[
-        str,
+        TripType,
         Field(description='편도 (스카이스캐너 달력은 편도만)')
     ] = '편도'
     month: Annotated[
