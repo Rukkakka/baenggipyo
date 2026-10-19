@@ -102,6 +102,8 @@ def explore(
         completed = found_status == 'complete'
     results = found.results if found else []
     destinations = []
+    # 지표 가격이 없어(--direct 면 직항 지표 가격이 없어) 뺀 도시 수. 광고·나라 항목과 달리 목적지라 notes 로 알린다
+    unpriced = 0
     for result in results:
         content = result.content
         if result.type != 'LOCATION' or content is None or content.location is None or content.location.type != CITY_LOCATION_TYPE:
@@ -109,6 +111,7 @@ def explore(
         quotes = content.flight_quotes
         quote = (quotes.direct if direct else quotes.cheapest) if quotes else None
         if quote is None or quote.raw_price is None:
+            unpriced += 1
             continue
         parent = content.location.parent_location
         destinations.append(Destination(
@@ -128,6 +131,8 @@ def explore(
     ]
     if not completed:
         notes.append(f'{stopped_early(stopped)} 받은 데까지만 보여 줍니다. 더 싼 목적지가 빠졌을 수 있습니다')
+    if unpriced:
+        notes.append(f"{'직항 ' if direct else ''}지표 가격이 없는 도시 {unpriced}곳은 뺐습니다")
     if len(destinations) > limit:
         notes.append(f'도시 {len(destinations)}곳 중 싼 순 {limit}곳만 보여 줍니다 (--limit 최대 {EXPLORE_MAX_LIMIT})')
     shown = destinations[:limit]

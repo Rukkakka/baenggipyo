@@ -178,7 +178,7 @@ baenggipyo naver calendar SEL OSA --month 2026-12 --trip-days 4
 `min_price_krw`, `direct`, `departure_date`, `return_date`(왕복만). `country`(나라 이름)는 네이버가 주지 않아 `null` 이다.
 
 - 실시간이 아닌 추정가다 (`calendar` 와 같다).
-- 네이버는 인기 목적지 100곳을 주고, 그중 싼 순으로 자른다.
+- 네이버는 인기 목적지 100곳을 주고, 그중 싼 순으로 자른다. 최저가를 주지 않은 목적지는 빼고 그 수를 `notes` 로 알린다.
 
 ```bash
 baenggipyo naver explore 서울 --month 2026-11 --trip-days 4

@@ -96,10 +96,8 @@ def explore(
         )
     response = client.run_request_min_prices_by_destination(payload)
     data = unwrap_graphql(response, response.data, '어디든지')
-    rows = sorted(
-        (row for row in data.min_prices_by_destination or [] if row.min_price is not None),
-        key=lambda row: row.min_price or 0,
-    )
+    found = data.min_prices_by_destination or []
+    rows = sorted((row for row in found if row.min_price is not None), key=lambda row: row.min_price or 0)
     destinations = [
         Destination(
             code=row.destination.airport_code,
@@ -114,6 +112,9 @@ def explore(
         for row in rows[:limit]
     ]
     notes = [ESTIMATE_NOTE, '나라 이름은 주지 않습니다 (country 는 null, country_code 를 보세요)']
+    if len(rows) < len(found):
+        # 가격순으로 세울 수 없어 뺀다. 알리지 않으면 인기 목적지가 말없이 빠진다
+        notes.append(f'최저가를 주지 않은 목적지 {len(found) - len(rows)}곳은 뺐습니다')
     if len(rows) > limit:
         notes.append(f'목적지 {len(rows)}곳 중 싼 순 {limit}곳만 보여 줍니다 (--limit 최대 {EXPLORE_MAX_LIMIT})')
     return NaverExploreResult(

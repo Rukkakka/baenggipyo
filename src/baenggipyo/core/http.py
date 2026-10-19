@@ -74,9 +74,11 @@ SENSITIVE_KEYWORDS: str = (
     r'session|trace|span[-_]?id|request[-_]?id|correlation[-_]?id'
 )
 SENSITIVE_KEY_PATTERN: re.Pattern[str] = re.compile(f'({SENSITIVE_KEYWORDS})', re.IGNORECASE)
+# JSON 으로 읽히지 않는 본문(HTML 안의 JSON, 잘린 JSON)과 JSON 값 안에 든 JSON 문자열은 키·값이 따옴표에 싸여 온다. 따옴표를 건너뛰지 않으면
+# `"sessionId": "…"` 를 가리지 못한다
 SENSITIVE_TEXT_PATTERN: re.Pattern[str] = re.compile(
-    rf'([\w-]*(?:{SENSITIVE_KEYWORDS})[\w-]*\s*[=:]\s*)'
-    r'([^,\s&}\n]+)',
+    rf'([\w-]*(?:{SENSITIVE_KEYWORDS})[\w-]*["\']?\s*[=:]\s*["\']?)'
+    r'([^"\',\s&}\n]+)',
     re.IGNORECASE,
 )
 

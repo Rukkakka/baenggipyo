@@ -5,6 +5,18 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 
 ## Unreleased
 
+### 수정
+
+- 서버 오류 본문이 JSON 으로 읽히지 않을 때(HTML·잘린 JSON) 따옴표 친 세션·추적 ID(`"sessionId": "…"`)를 가리지 않고 에러 `message` 와
+  `--verbose` 로그에 싣던 문제 (#65)
+- 스카이스캐너 검색 응답에 진행 상태(`context.status`)가 없거나 모르는 값이면 시간 상한에 멈췄다고 안내하던 문제. `notes` 에 그 까닭을 적고,
+  `flight` 는 `SEARCH_INCOMPLETE`(잠시 뒤 다시) 대신 `PARSE_ERROR`(`reason: SEARCH_STATUS_UNKNOWN`)다. 세션 ID 가 없어 멈춘 `PARSE_ERROR` 에도
+  `reason: SESSION_ID_MISSING` 을 붙인다 (#65)
+- 스카이스캐너가 운항 항공사 코드 없이 이름만 준 공동운항 구간에서 운항 항공사가 빠져 자사편처럼 보이던 문제. 판매 항공사와 이름이 다르면
+  `operating_airline` 과 `operating_airline_code: null` 을 낸다 (#65)
+- 스카이스캐너 `flight` 의 판매처 여러 곳 조합 `fare_name` 이 공항 코드를 모르면 `None→None` 으로 나오던 문제 (#65)
+- `explore` 가 최저가(스카이스캐너 `--direct` 는 직항 지표 가격)를 주지 않은 목적지를 말없이 빼던 문제. 뺀 수를 `notes` 로 알린다 (#65)
+
 ## 0.3.0 — 2026-10-17
 
 ### 변경
