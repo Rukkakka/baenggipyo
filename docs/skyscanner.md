@@ -69,7 +69,8 @@ baenggipyo skyscanner search flights ICN NRT --depart 2026-11-20 --direct --airl
 
 `search flights` 의 `id` 를 그대로 넣는다 (여러 항공사를 타는 항공권은 ID 에 쉼표가 들어 있다). 같은 조건으로 **다시 검색해** 그 항공권을 찾으므로
 가격은 방금 값이다. 검색이 끝났는데 없으면 `FARE_UNAVAILABLE` 이다. 검색이 60초 안에 끝나지 않아 아직 못 받았으면 매진이 아니라 `UPSTREAM_ERROR`
-(`reason: SEARCH_INCOMPLETE`)이니 잠시 뒤 다시 부른다. 검색 도중 요청 제한에 걸려 아직 못 받았으면 `RATE_LIMITED` 다.
+(`reason: SEARCH_INCOMPLETE`)이니 잠시 뒤 다시 부른다. 검색 도중 요청 제한에 걸려 아직 못 받았으면 `RATE_LIMITED` 다. 검색 응답에 세션 ID 나
+진행 상태가 없어 더 묻지 못했으면 다시 불러도 같아 `PARSE_ERROR` 다.
 
 | 인자·옵션 | 넣을 수 있는 값 |
 | --- | --- |
@@ -108,13 +109,14 @@ baenggipyo skyscanner search flights ICN NRT --depart 2026-11-20 --direct --airl
 | `<출발>` | IATA 공항·도시 코드 또는 이름 |
 | `--month` | 출발 달 `YYYY-MM` (주지 않으면 언제든) |
 | `--round-trip` | 같은 달 안의 왕복 (여행 일수는 정할 수 없다) |
-| `--direct` | 직항 지표 가격만 (직항이 없는 도시는 빠진다) |
+| `--direct` | 직항 지표 가격만 (직항이 없는 도시는 빠지고 그 수를 `notes` 로 알린다) |
 | `--limit` | 도시 수 (1~100, 기본 20) |
 
 반환: `origin`, `trip_type`, `month`, `returned`, `destinations[]` — `code`(스카이스캐너 도시 코드, 예 `CJUA`. IATA 가 아니다), `city`, `country`·
 `country_code`(주면), `min_price_krw`, `direct`, `departure_date`·`return_date`(주지 않아 null).
 
 - 지표 가격(추정가)이고 날짜를 주지 않는다. 고른 도시는 `calendar`·`search flights` 에 도시 **이름**이나 `search airports` 의 코드로 넣는다.
+- 지표 가격이 없는 도시는 싼 순으로 세울 수 없어 빼고 그 수를 `notes` 로 알린다.
 
 ```bash
 baenggipyo skyscanner explore SEL --month 2026-11 --round-trip

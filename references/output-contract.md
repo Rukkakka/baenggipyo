@@ -146,7 +146,7 @@ baenggipyo 는 **찾기까지만** 한다. 예약을 대신하게 되는 정보�
 | 소스 | 판매 가능 조건 | 목록 | 상세 |
 | --- | --- | --- | --- |
 | 네이버 | 검색 결과의 운임 묶음(`fareMappings`)에 있음. 운임 상태값은 없다 | 응답에 있는 것만 낸다 | 다시 검색해도 없으면 `FareUnavailableError` (`reason`: `SEARCH_EXPIRED`·`NOT_IN_RESULTS`·`NO_ITINERARY`). 다시 묻는 검색이 시간 상한에 끊겨 못 찾았으면 매진으로 단정하지 않고 `SearchIncompleteError` (`UPSTREAM_ERROR`, `reason`: `SEARCH_INCOMPLETE`) |
-| 스카이스캐너 | 검색 결과(`itineraries.results`)에 있음. 판매처 운임은 가격 없음 표시(`unpricedType`)가 없는 것만 | 응답에 있는 것 중 가격을 준 판매처 운임이 하나라도 있는 것만 낸다 | `flight` 가 다시 검색해 끝났는데 없거나 가격을 준 판매처 운임이 없으면 `FareUnavailableError` (`reason`: `NOT_IN_RESULTS`). 검색이 시간 상한 안에 끝나지 않아 못 찾았으면 매진으로 단정하지 않고 `SearchIncompleteError` (`UPSTREAM_ERROR`, `reason`: `SEARCH_INCOMPLETE`), 폴링이 요청 제한에 걸려 멈춰 못 찾았으면 `RateLimitedError` |
+| 스카이스캐너 | 검색 결과(`itineraries.results`)에 있음. 판매처 운임은 가격 없음 표시(`unpricedType`)가 없는 것만 | 응답에 있는 것 중 가격을 준 판매처 운임이 하나라도 있는 것만 낸다 | `flight` 가 다시 검색해 끝났는데 없거나 가격을 준 판매처 운임이 없으면 `FareUnavailableError` (`reason`: `NOT_IN_RESULTS`). 검색이 시간 상한 안에 끝나지 않아 못 찾았으면 매진으로 단정하지 않고 `SearchIncompleteError` (`UPSTREAM_ERROR`, `reason`: `SEARCH_INCOMPLETE`), 폴링이 요청 제한에 걸려 멈춰 못 찾았으면 `RateLimitedError`, 응답에 세션 ID 나 진행 상태가 없어 멈춰 못 찾았으면 다시 불러도 같아 `PARSE_ERROR` |
 
 검색 세션이 만료돼 ID 로 상세를 볼 수 없으면 `FareUnavailableError(reason='SEARCH_EXPIRED')` 로 내고, hint 로 다시
 검색하게 한다.

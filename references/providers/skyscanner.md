@@ -73,16 +73,20 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
   사이트의 간격: 처음 4번 1초, 8번까지 2초, 12번까지 3초, 그 뒤 4초. 첫 요청 60초가 지나면 멈춘다. 실측: 성인 1명 편도는 첫 폴링(약 1초)에,
   성인 2명은 4번째(약 4초)에 `complete` (결과 184개, 마지막 응답 2.1MB).
   폴링 응답마다 `context` 에 `status`·`sessionId` 가 다시 온다 (김포↔광주 왕복 POST 1 + 폴링 3, 2026-10-11). 그래도 `sessionId` 가 빠지면 처음 받은 값으로
-  계속 묻고, 완료는 `status: complete` 로만 판정한다 (상태가 없으면 미완료로 보고 `notes` 로 알린다, `service/common.py` `run_search`).
-  세션 ID 를 한 번도 받지 못했으면(빈 문자열 포함) 더 묻지 못해 미완료로 끝낸다. 시간 상한에 멈춘 것과 달리 다시 불러도 같으므로 `notes` 에 그 까닭을
-  적고, `flight` 는 `SEARCH_INCOMPLETE`(잠시 뒤 다시) 대신 `PARSE_ERROR` 로 낸다. 폴링 요청 모델은 응답 값으로 만드는 것이라 `built_from_response` 안에서
+  계속 묻고, 완료는 `status: complete` 로만 판정한다 (`service/common.py` `run_search`).
+  세션 ID 를 한 번도 받지 못했거나(빈 문자열 포함), 진행 중(`incomplete`)도 완료도 아닌 응답(`context`·`status` 가 빠졌거나 모르는 값)이 오면 더 묻지 못해
+  미완료로 끝낸다. 시간 상한에 멈춘 것과 달리 다시 불러도 같으므로 `notes` 에 그 까닭을 적고, `flight` 는 `SEARCH_INCOMPLETE`(잠시 뒤 다시) 대신
+  `PARSE_ERROR`(`reason`: `SESSION_ID_MISSING`·`SEARCH_STATUS_UNKNOWN`)로 낸다. 시간 상한으로 알리면 매일 API 감시도 고장이 아닌 확인 못 함으로 보아
+  응답 형식이 바뀐 것을 놓친다. 폴링 요청 모델은 응답 값으로 만드는 것이라 `built_from_response` 안에서
   만들어, 값이 어긋나도 입력 오류(`INVALID_ARGUMENT`)가 아닌 `PARSE_ERROR` 로 낸다 (ICN→BCN POST 1 + 폴링 3 모두 세션 ID 가 있었다, 2026-10-11).
 - 결과 `itineraries.results[]`:
   - `id`(예 `12409-2611150810--31158-0-14788-2611151025`), `price.raw`(KRW), `tags`(`cheapest`·`shortest` …), `isSelfTransfer`,
     `farePolicy`(변경·환불 가능 여부).
   - `legs[]`: `origin`·`destination`(IATA·엔티티 ID·이름·도시), `departure`·`arrival`(현지 시각 `YYYY-MM-DDTHH:MM:SS`), `durationInMinutes`,
     `stopCount`, `timeDeltaInDays`, `carriers.marketing[]`, `segments[]` — `flightNumber`, `marketingCarrier`·`operatingCarrier`(`displayCode`
-    가 IATA 항공사 코드, 예 에어서울 `RS`; `alternateId` 는 스카이스캐너 내부 코드).
+    가 IATA 항공사 코드, 예 에어서울 `RS`; `alternateId` 는 스카이스캐너 내부 코드). 운항 항공사 코드가 둘 다 비면 판매·운항 항공사 이름이 둘 다 있고
+    다를 때만 공동운항으로 보고 `operating_airline_code` 를 `null` 로 낸다 (`core.flight.Segment`). ICN→FUK 편도 96건의 구간 175개는 모두 운항 항공사
+    코드가 있었다 (2026-10-19).
   - `pricingOptions[]`: 판매처마다 `agentIds`, `price.amount`, `price.updateStatus`(`current`), `items[].url`(예약 딥링크,
     `/transport_deeplink/4.0/KR/ko-KR/KRW/…`), `items[].bookingProposition`(`PBOOK`). 실측 항공권 184개 중 89개가 판매처 5곳 이상.
 - 판매처 이름은 `itineraries.agents[]`(`id`, `name`, `isCarrier` = 항공사 직판 여부, `rating`)에 있다 (실측 49곳).
@@ -110,6 +114,7 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
 - 기본은 나라 단위다. 본문 최상위에 `"targetGeoLevel": "city"` 를 주면 도시 단위가 온다 (서울 출발 11월: 도시 100곳 안팎).
 - 결과 `results[]` 중 `type: LOCATION` 만 쓴다. `ADVERT` 와 `inlineCreative`(관광청 광고)가 섞여 온다. 항목마다 `content.location`(`name`, `skyCode`
   예 `CJUA`, `type` `City`·`Nation`, `parentLocation`)과 `flightQuotes.cheapest`·`direct`(`rawPrice`, `direct`). 날짜는 주지 않는다.
+  지표 가격이 없는 도시(`--direct` 면 직항 지표 가격이 없는 도시)는 싼 순으로 세울 수 없어 빼고 그 수를 `notes` 로 알린다.
 - 가격은 달력처럼 지표 가격(indicative)이다.
 
 ### 구현 메모 (2026-10-11 실측)
