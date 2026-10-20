@@ -5,6 +5,8 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 
 ## Unreleased
 
+## 0.3.1 — 2026-10-20
+
 ### 수정
 
 - 서버 오류 본문이 JSON 으로 읽히지 않을 때(HTML·잘린 JSON) 따옴표 친 세션·추적 ID(`"sessionId": "…"`)를 가리지 않고 에러 `message` 와
