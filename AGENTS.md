@@ -5,6 +5,7 @@ LLM 에이전트가 셸로 호출하는 도구라, 출력 형식과 에러 형�
 패키지 코드는 모두 `src/baenggipyo/` 아래에 있다.
 개발 문서(구현 규약·소스별 개발 가이드)는 `references/`, 사용자 문서(CLI 사용법)는 `docs/`에 있다.
 README 데모 GIF 는 `docs/demo/`, 그 녹화 도구(VHS 대본·후처리 스크립트)는 `scripts/demo/` 에 있다.
+README 로고 `docs/logo.svg` 는 `scripts/logo/build_logo.py` 로 만든다. 글자를 외곽선으로 바꾼 파일이라 직접 고치지 않고 스크립트를 고쳐 다시 만든다.
 매일 새벽 두 소스의 모든 CLI 명령을 실제로 불러 보는 감시는 `scripts/monitor/` 와 `.github/workflows/api-monitor.yml` 이다 ([매일 API 감시](references/development.md#매일-api-감시)).
 
 **지금 상태: 두 소스 모두 구현.** 네이버·스카이스캐너 모두 `search airports`·`search flights`·`flight`·`calendar`·`explore` 가 실제 API 로
@@ -60,7 +61,10 @@ CLI 직접 조회나 원본 응답으로 확인한다.
 
 ## 문서 갱신
 
-README는 제작 목적·설치·LLM 연결 방법·문서 링크를 담는다. 사용자 문서는 `docs/`, 개발 문서는 `references/`에 둔다. CLI 문서는 LLM 에이전트에게 주는 사용 규칙이기도 하다.
+README는 로고·배지·기능 요약·빠른 시작(실제 출력 예시 하나)·설치 요약·LLM 연결 방법·설정(환경 변수)·제작 목적과 원칙·문서 링크·기여 안내를 담는다.
+자세한 설치(준비물·PATH·운영체제별 명령·업데이트·삭제)는 `docs/install.md` 에 두고 README 에서 링크한다. README 는 PyPI 프로젝트
+페이지로도 쓰여 상대 링크와 heading 앵커가 깨지므로, README 안의 링크는 같은 문서를 가리키는 것까지 GitHub 전체 주소로 적는다.
+사용자 문서는 `docs/`, 개발 문서는 `references/`에 둔다. CLI 문서는 LLM 에이전트에게 주는 사용 규칙이기도 하다.
 
 `docs/llm.md` 는 에이전트가 가장 먼저 읽는 요약이고 `baenggipyo guide` 가 그대로 출력한다 (설치본에는 패키지 안으로 복사된다). 짧게 유지하고 (200줄 이하), 링크는 설치본에서도 열리게 GitHub 전체 주소로 쓴다. 옵션 표·실측 근거는 넣지 않고 명령 고르기·출력 읽기·틀리기 쉬운 점·에러 대응만 적은 뒤 자세한 절로 링크한다.
 
@@ -69,6 +73,7 @@ README는 제작 목적·설치·LLM 연결 방법·문서 링크를 담는다. 
 | 한 소스의 명령·옵션·반환 필드·조회 한도 | `docs/<source>.md` |
 | 명령 추가·삭제, 에이전트가 틀리기 쉬운 해석 규칙(단위·누락값·ID·현지 시각 등)·에러 대응 | `docs/llm.md` |
 | 공통 사용법(출력·에러 대응)·요청 제한 정책 | `docs/common.md` |
+| 설치·업데이트·삭제 방법, 준비물·PATH | `docs/install.md` (README 설치 절의 요약 표도 맞춘다) |
 | 한 소스의 구현·예외·API 조사 결과 | `references/providers/<source>.md` |
 | 여러 소스에 공통인 개발 규약 | `references/` 바로 아래 문서 |
 | 사용자(에이전트 포함)에게 보이는 변경 | `CHANGELOG.md` 의 `Unreleased` ([쓰는 법](references/release.md#changelog-쓰는-법)) |

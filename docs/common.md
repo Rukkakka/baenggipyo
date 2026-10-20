@@ -1,6 +1,6 @@
 # 공통 CLI 사용 규칙
 
-[설치](../README.md) · [LLM 가이드](llm.md) · [네이버](naver.md) · [스카이스캐너](skyscanner.md)
+[설치](install.md) · [LLM 가이드](llm.md) · [네이버](naver.md) · [스카이스캐너](skyscanner.md)
 
 
 ## 출력 규칙

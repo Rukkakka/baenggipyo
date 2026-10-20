@@ -55,9 +55,9 @@ Issues = 'https://github.com/Rukkakka/baenggipyo/issues'
 [project.scripts]
 baenggipyo = 'baenggipyo.cli.app:main'
 
-# sdist 에서는 README 데모(GIF·녹화 도구)만 뺀다. PyPI 페이지는 README 의 GitHub 주소로 GIF 를 보여 준다
+# sdist 에서는 README 그림(데모 GIF·로고)과 그 제작 도구만 뺀다. PyPI 페이지는 README 의 GitHub 주소로 그림을 보여 준다
 [tool.hatch.build.targets.sdist]
-exclude = ['docs/demo', 'scripts/demo']
+exclude = ['docs/demo', 'docs/logo.svg', 'scripts/demo', 'scripts/logo']
 
 [tool.hatch.build.targets.wheel]
 packages = ['src/baenggipyo']
