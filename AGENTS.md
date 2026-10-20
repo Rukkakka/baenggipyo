@@ -5,6 +5,7 @@ LLM 에이전트가 셸로 호출하는 도구라, 출력 형식과 에러 형�
 패키지 코드는 모두 `src/baenggipyo/` 아래에 있다.
 개발 문서(구현 규약·소스별 개발 가이드)는 `references/`, 사용자 문서(CLI 사용법)는 `docs/`에 있다.
 README 데모 GIF 는 `docs/demo/`, 그 녹화 도구(VHS 대본·후처리 스크립트)는 `scripts/demo/` 에 있다.
+README 로고 `docs/logo.svg` 는 `scripts/logo/build_logo.py` 로 만든다. 글자를 외곽선으로 바꾼 파일이라 직접 고치지 않고 스크립트를 고쳐 다시 만든다.
 매일 새벽 두 소스의 모든 CLI 명령을 실제로 불러 보는 감시는 `scripts/monitor/` 와 `.github/workflows/api-monitor.yml` 이다 ([매일 API 감시](references/development.md#매일-api-감시)).
 
 **지금 상태: 두 소스 모두 구현.** 네이버·스카이스캐너 모두 `search airports`·`search flights`·`flight`·`calendar`·`explore` 가 실제 API 로

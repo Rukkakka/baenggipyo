@@ -1,4 +1,6 @@
-# baenggipyo (뱅기표)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/docs/logo.svg" alt="baenggipyo (뱅기표)" width="320">
+</p>
 
 네이버 항공권·스카이스캐너에서 지금 살 수 있는 항공권과 날짜별 최저가를 조회하는 LLM 에이전트용 CLI.
 Korean flight search CLI for LLM agents: search bookable fares, daily lowest prices and destinations on Naver Flights and Skyscanner.
@@ -193,7 +195,7 @@ GitHub 주소로 설치했다면 uv·pipx 의 `upgrade` 는 그 주소에서 그
 항공권을 찾을 때는 baenggipyo CLI 를 쓴다. 처음 쓰기 전에 `baenggipyo guide` 를 실행해 읽고 그 규칙을 따른다.
 ```
 
-[맨 위 영상](https://github.com/Rukkakka/baenggipyo#baenggipyo-뱅기표)이 이 한 줄을 적어 둔 폴더에서 Claude Code 에 항공권을 찾게 한 장면이다. 지침 파일의 두 번째 줄("(README 데모) 스카이스캐너는 쓰지 않고 네이버 항공권만 쓴다.")은 데모용이다.
+[맨 위 영상](https://github.com/Rukkakka/baenggipyo#readme)이 이 한 줄을 적어 둔 폴더에서 Claude Code 에 항공권을 찾게 한 장면이다. 지침 파일의 두 번째 줄("(README 데모) 스카이스캐너는 쓰지 않고 네이버 항공권만 쓴다.")은 데모용이다.
 
 ## 데모 영상
 
