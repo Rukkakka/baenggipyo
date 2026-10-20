@@ -1,6 +1,6 @@
 # 스카이스캐너 CLI 사용법 (`baenggipyo skyscanner`)
 
-[설치](../README.md) · [공통 사용 규칙](common.md) · [개발 가이드](../references/providers/skyscanner.md)
+[설치](install.md) · [공통 사용 규칙](common.md) · [개발 가이드](../references/providers/skyscanner.md)
 
 > 금액은 **원**, 시각은 **각 공항 현지 시각**이다. 출력 형식·누락값·에러 대응·요청 제한 같은 공통 규칙은
 > [공통 사용 규칙](common.md)에 있고, 이 문서는 스카이스캐너에만 있는 내용을 적는다.
