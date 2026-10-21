@@ -5,6 +5,8 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 
 ## Unreleased
 
+## 0.4.0 — 2026-10-21
+
 ### ⚠️ 호환 깨짐
 
 - `search flights` 가 기본으로 요약(지금까지의 `--brief`)을 낸다. 구간별 공항·시각·소요 시간·기종, 항공권 `url`·`source`·`trip_type`·`cabin` 이
