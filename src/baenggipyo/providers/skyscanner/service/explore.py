@@ -33,6 +33,19 @@ EXPLORE_MAX_LIMIT: int = 100
 CITY_LOCATION_TYPE: str = 'City'
 
 
+class SkyscannerDestination(Destination):
+    """스카이스캐너 목적지. IATA 코드를 주지 않아 `code` 는 null 이고, 스카이스캐너 도시 코드를 `sky_code` 로 따로 준다.
+
+    도시 코드(CJUA·CYNT·JHSG)는 IATA 와 꼴이 비슷해 `code` 에 두면 IATA 로 읽혀 검색에 그대로 들어간다. 스카이스캐너 'CJUA'(제주)
+    자동완성은 청주·청두를 돌려줘 엉뚱한 곳을 권하게 된다 (2026-10-20 실측). 규칙으로 IATA 를 만들지도 않는다 (CYNT 는 옌타이 YNT).
+    """
+
+    sky_code: Annotated[
+        str | None,
+        Field(description='스카이스캐너 도시 코드 (예: CJUA). IATA 가 아니라 검색에 쓸 수 없다. 모르면 null')
+    ] = None
+
+
 class SkyscannerExploreResult(BaseModel):
     """`explore` 결과."""
 
@@ -57,7 +70,7 @@ class SkyscannerExploreResult(BaseModel):
         Field(description='돌려준 목적지 수')
     ]
     destinations: Annotated[
-        list[Destination],
+        list[SkyscannerDestination],
         Field(description='목적지 (싼 순)')
     ]
     notes: Annotated[
@@ -114,8 +127,9 @@ def explore(
             unpriced += 1
             continue
         parent = content.location.parent_location
-        destinations.append(Destination(
-            code=content.location.sky_code or None,
+        destinations.append(SkyscannerDestination(
+            code=None,
+            sky_code=content.location.sky_code or None,
             city=content.location.name,
             country=parent.name if parent else None,
             country_code=parent.sky_code if parent else None,
@@ -126,7 +140,7 @@ def explore(
     destinations.sort(key=lambda destination: destination.min_price_krw or 0)
     notes = [
         ESTIMATE_NOTE,
-        '목적지 code 는 스카이스캐너 도시 코드라 IATA 가 아닐 수 있습니다 (예: CJUA). 검색에는 city 이름이나 search airports 의 code 를 쓰세요',
+        'sky_code 는 스카이스캐너 도시 코드라 IATA 가 아니고 검색에 쓸 수 없습니다 (예: CJUA). 검색에는 city 이름이나 search airports 의 code 를 쓰세요',
         '스카이스캐너 어디든지는 날짜를 주지 않습니다 (departure_date·return_date 는 null). calendar 로 날짜를 고르세요',
     ]
     if not completed:

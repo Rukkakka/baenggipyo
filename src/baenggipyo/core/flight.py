@@ -224,8 +224,8 @@ class Airport(FlightModel):
     """공항·도시 후보 하나 (`search airports`)."""
 
     code: Annotated[
-        str,
-        Field(description='IATA 공항·도시 코드')
+        str | None,
+        Field(description='IATA 공항·도시 코드. 소스가 IATA 코드를 주지 않은 도시면 null 이다 (검색에는 이름으로 넣는다)')
     ]
     type: Annotated[
         LocationType,
@@ -636,7 +636,7 @@ class Destination(FlightModel):
 
     code: Annotated[
         str | None,
-        Field(description='목적지 코드 (네이버는 IATA 공항 코드, 스카이스캐너는 자체 도시 코드). 모르면 null')
+        Field(description='목적지 IATA 공항·도시 코드. 소스가 주지 않으면 null (스카이스캐너는 sky_code 만 준다)')
     ]
     city: Annotated[
         str | None,
