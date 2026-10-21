@@ -69,6 +69,11 @@
   정렬 키는 번들에 `adultMinFare`(가격)·`departureTime`·`returnTime`·`departureDurationSecond`(소요 시간)가 보인다. baenggipyo 가 쓰는
   `adultMinFare`·`departureTime`·`departureDurationSecond` 는 서버가 적용한다 (2026-10-11 ICN→NRT 실측: 출발 시각순, 소요 시간순이고
   소요 시간이 같으면 가격순). 그래서 출발시각·소요시간 정렬은 받은 순서를 그대로 쓰고 다시 확인하지 않는다.
+- **출발 시각 필터**(`--depart-time`·`--return-time`): `filter.departureTime` 은 구간마다 출발 시각 칸 이름 목록이다
+  (`[["06:00-09:00", "09:00-12:00"], []]`, 빈 목록은 그 구간을 거르지 않는다). 칸은 사이트 `_app` 번들의 출발시각 필터와 같은 `00:00-06:00`·
+  `06:00-09:00`·`09:00-12:00`·`12:00-15:00`·`15:00-18:00`·`18:00-21:00`·`21:00-24:00` 이라 CLI 경계도 이 칸에 맞춘다
+  (`core.flight.DEPART_HOUR_BOUNDARIES`, 칸 이름은 `service.common.hour_slots`). 2026-10-21 실측: ICN→NRT 11/15 06~12시 50건이 모두 06:10~11:20,
+  ICN↔TYO 왕복 가는 편 06~12시·오는 편 18~24시 10건이 07:30~08:10·18:45~20:00, 가는 편만 걸면 오는 편은 10:55~14:00 로 걸리지 않았다.
 - 마지막 이벤트 구조: `uniqueId`, `isExpired`, `status`, `itineraries[]`, `fareMappings[]`, `popularFlights[]`. 새 검색·캐시 조회·만료된 캐시
   조회 모두 `status` 가 오고 국내선 검색도 그렇다 (2026-10-17 실측). 그래서 `status`·`isExpired` 가 둘 다 없는 마지막 이벤트는 에러 본문 같은 것으로 보고
   `PARSE_ERROR` 로 낸다 (`_search_event`). 응답 모델은 필드가 모두 선택이라 그대로 검증하면 결과 0건인 정상 검색이 된다.
@@ -149,7 +154,7 @@ GraphQL `autocompleteLocations(airportOnly: Boolean!, query: String!)`. 결과�
 
 ### 구현 메모 (2026-10-11 실측)
 
-- **공항 해석** (`service/airport.py` `resolve_location`): 3글자 코드는 같은 코드의 공항을 먼저(`ICN`·`BKK`), 없으면 도시(`SEL`·`TYO`·`OSA`)를
+- **공항 해석** (`service/airport.py` `resolve_locations`): 3글자 코드는 같은 코드의 공항을 먼저(`ICN`·`BKK`), 없으면 도시(`SEL`·`TYO`·`OSA`)를
   고른다. 자동완성은 코드를 넣으면 같은 코드의 도시·공항을 함께 준다 ('ICN' → 도시 ICN + 공항 ICN, 'BKK' → 도시 BKK(BKK·DMK) + 공항 BKK·DMK).
   이름은 이름이 똑같은 도시, 없으면 공항, 후보가 하나뿐이면 그것을 쓰고 아니면 `AIRPORT_AMBIGUOUS` (두 소스 공통 `core.flight.pick_place`). 국내선 판정도 자동완성의 `isDomestic` 으로 한다.
   없는 3글자 코드에는 자동완성이 대개 후보를 주지 않지만(`ICM`·`NTR`·`GPM` 등 0개), 이름 앞부분처럼 읽히면 다른 곳을 하나 준다 (`SEO` → 도시 `SEL`
@@ -165,11 +170,15 @@ GraphQL `autocompleteLocations(airportOnly: Boolean!, query: String!)`. 결과�
   검색을 막지 않고 이름 없이 이어 가며, 빈 이름표는 저장하지 않는다 (저장하면 하루 동안 모든 판매처 이름이 빠진다). 실제 응답은 늘 26곳이었다.
 - **항공권 ID**: 서버 캐시 키가 검색 조건이라 `flight_id()` 가 조건을 함께 담는다
   (`Y-100-0-ICNaNRTa20261115_NRTaICNa20261120~20261115ICNNRTZE0605-20261120NRTICNWE0504`). 항공사 필터·정렬은 캐시 키가 아니라 넣지 않는다.
-- **정렬**: 세 정렬 모두 서버가 건다 (위 정렬 키). 서버 가격순(`adultMinFare`)은 카드 할인을 포함한 최저가 기준이라 대표 가격(`A01`) 순서와 어긋날 수 있다. 어긋나면 `notes` 로 알리고
-  다시 세우지 않는다 (서버가 `limit` 로 잘라 준 결과라 다시 세워도 빠진 항공권이 돌아오지 않는다).
+- **정렬**: 세 정렬 모두 서버가 건다 (위 정렬 키). 서버 가격순(`adultMinFare`)은 카드 할인을 포함한 최저가 기준이라 대표 가격(`A01`) 순서와 어긋나고,
+  서버가 그 순서로 `limit` 만큼 잘라 주므로 카드 할인이 없는 싼 항공권이 빠진다 (2026-10-21 ICN↔TYO 11/15~18 왕복 20건: 대표 가격 2~4위
+  340,373·342,311·343,467원이 11·13·14번째). 그래서 가격순은 `--limit` 의 3배(`PRICE_SORT_FETCH_FACTOR`)를 받아 대표 가격 순으로 다시 세운 뒤
+  자른다. 다시 세운 기본 10건에 위 셋이 2~4위로 들어왔고, `--limit 50`(150건)도 3초·메모리 87MB 였다. 빠진 항공권이 없다고 보장하지는
+  못하니 더 받은 만큼 더 있을 수 있다는 `notes` 는 그대로다. 필터 `hasCardBenefit: false`(사이트의 카드 혜택 끄기)는 쓰지 않는다. 순서는
+  거의 맞지만 `card_discount_*` 가 모두 빠지고, 그래도 344,700원 뒤에 342,311원이 왔다 (같은 날 실측).
 - **판매처 목록**: 사이트처럼 `active.realtime` 인 판매처만 낸다. 링크(`tivan.naver.com`)가 하나에 2~3KB 라 `--limit`(기본 10)으로 자르고,
   대표 가격 기준에 맞춰 모든 결제수단 운임을 먼저 둔다 (왕복 한 건에 판매처 운임 64개).
-  `flight` 의 `offer_count` 는 낸 판매처를 코드(`otaId`)로 센 수다. `search flights` 는 실시간 여부를 몰라 운임 묶음의 판매처를 모두 세므로 실시간이
+  `flight` 의 `seller_count` 는 낸 판매처를 코드(`otaId`)로 센 수다. `search flights` 는 실시간 여부를 몰라 운임 묶음의 판매처를 모두 세므로 실시간이
   아닌 판매처만큼 크다 (TW241 11/15: 검색 24곳, `flight` 23곳, `ATW133` 이 `realtime: false`. 판매처 코드와 이름은 1:1 이었다, 2026-10-11). 뺀 수는
   `notes` 로 알린다.
   `flight` 의 대표 가격·`cheapest_seller`·카드 할인도 `offers` 에 낸 운임(실시간 판매처가 돌려준 행)으로 정한다. 검색 운임 전체로 정하면 실시간이 아니라 뺀
@@ -186,7 +195,9 @@ GraphQL `autocompleteLocations(airportOnly: Boolean!, query: String!)`. 결과�
   `departureDate` YYYYMMDD — 공항 코드만), `person`(`adult`·`child`·`infant`), `tripType`(OW·RT), `initialRequest`·`version`, `flightFilter`.
   `fareType` 을 `Y` 로 보내도 캐시 키(`status.flightSearchKey`)는 `YC|…` 라, 좌석은 `flightFilter.filter.seatClass`(배열)로 건다. 항공사는
   `filter.segment__airlineCode`, 방향은 `filter.type`(`departure`·`arrival`). 정렬은 `{minFare: 1}`, `{"segment.departure.time": 1, minFare: 1}`,
-  `{duration: 1, minFare: 1}`.
+  `{duration: 1, minFare: 1}`. 출발 시각은 `filter.segment__departure__time` 에 국제선과 같은 칸 이름 목록을 방향마다 넣는다 (사이트 국내선 페이지의
+  `timeFilters`). 2026-10-21 김포→제주 11/15 실측: 18~24시 50편이 모두 18:20~21:00, `09:00-12:00` 칸이 09:00 출발을 넣었다(시작 포함). 끝 시각 정각
+  출발 편이 없어 끝이 빠지는지는 재지 못했다.
 - **응답**: 국제선과 같은 SSE 이고 완료는 `status.isComplete`, 결과는 `flights[]` 다. 김포→제주 편도 30KB, 이벤트 1개, 0.1초 (방금 누가 검색한 캐시였을
   수 있다). 왕복 첫 검색 5.6초, 오는 편 캐시 조회는 바로.
 - **편**: `itineraryId`(`202611151910GMPCJUWE6503` — 출발 일시 12자리·출발·도착 공항·항공사·편명), `type`, `seatClass`(`NR` 특가석-환불불가, `NB` 특가석-
@@ -205,6 +216,9 @@ GraphQL `autocompleteLocations(airportOnly: Boolean!, query: String!)`. 결과�
   링크는 국제선처럼 `tivan.naver.com` 이고 0.5~0.9KB 다.
 - **검증**: 김포↔제주 11/15~11/17, 가는 편 WE6503 42,000원 + 오는 편 RS6306 59,900원 = 101,900원이 스카이스캐너의 같은 두 편 조합(101,900원)과 같았다.
   `flight` 두 편은 노랑풍선 101,900원이 최저였다.
+- **출력 모양**: 왕복은 가는 편·오는 편을 따로 골라 가격도 편마다 따로라 `itineraries` 대신 방향마다 `legs[].itineraries` 로 낸다. 결과 모양을
+  하나로 두는 [출력 규약](../output-contract.md#항공권-출력)의 예외다. 편도는 목록이 하나라 국제선과 같은 `itineraries` 다 (0.4.0. 전에는 편도도
+  `legs[0]` 안에 있어 국내선인지 먼저 따지지 않으면 `.itineraries` 로 읽다 깨졌다).
 - **결과 페이지**: `/flights/domestic/GMP-CJU-20261115/CJU-GMP-20261117?adult=1&fareType=YC` 가 "김포-제주 왕복" 으로 열린다.
 
 ## Action id 목록

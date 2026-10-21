@@ -210,7 +210,7 @@ def run_request_flights_search_v1(
 
 - 모델 이름은 `<Source><Kind>Conditions` 이고 `RequestModel` 을 상속한다. 항공권 조건(`NaverFlightConditions`,
   `SkyscannerFlightConditions`)은 승객·좌석·직항·항공사 필드와 유아 수 검사를 한곳에 둔 `core.flight.FlightConditions` 를 상속하고,
-  소스마다 다른 점(직항·항공사를 서버가 거르는지)은 모델 docstring 에 적는다. 값은 한국어 라벨·원 그대로 두고 필드마다 `description` 을 단다.
+  소스마다 다른 점(직항·항공사·출발 시각대를 서버가 거르는지)은 모델 docstring 에 적는다. 값은 한국어 라벨·원 그대로 두고 필드마다 `description` 을 단다.
 - "어떤 항공권인지"(승객 수·좌석 등급·직항·항공사·출발 시간대 …)만 담는다. 노선·날짜(`legs`)·`limit`·정렬처럼
   "어디서 몇 개 찾을지"는 함수 인자로 따로 받는다.
 - 목록 필드의 기본값은 `[]`(조건 없음)다. service 함수의 `conditions` 는 키워드 전용이고 `None` 이면 빈 조건이다.
@@ -218,6 +218,8 @@ def run_request_flights_search_v1(
   같은 조건을 여러 요청이 쓰면 이 함수를 같이 쓴다.
 - 입력 검사(범위·라벨·조합·날짜)는 CLI 에서 한다 (`split_csv`, `parse_legs`, `validate_passengers`, `typer.BadParameter`). 에러 문구와
   exit code 가 출력 계약이라, 검사를 모델로 옮겨 경로를 바꾸지 않는다. 모델은 `handle_errors` 안에서 만든다.
+- 한국어 라벨을 받는 옵션은 영어 별칭도 받는다 (`split_csv`·`one_of` 의 `aliases`, `cli/options.py` 의 `CABIN_ALIASES`·`SORT_ALIASES`). 에이전트는
+  영어로 값을 넣기 쉬워 한국어만 받으면 한 번씩 헛걸음한다. 별칭은 입력만 바꾸고 출력 값은 한국어 라벨 그대로다.
 - 여러 모듈이 쓰는 모델은 `service/common.py`, 한 기능만 쓰면 그 모듈에 둔다 ([나누는 기준](#service-모듈을-나누는-기준)).
 - 소스마다 다른 점(필드 이름, 일부 명령만 받는 조건)은 그 소스 개발 가이드에 적는다.
 - CLI 옵션 별칭 중 두 소스가 도움말까지 똑같이 쓰는 것(`PrettyOption`, 승객 수 등)은 `cli/options.py` 에 둔다.
