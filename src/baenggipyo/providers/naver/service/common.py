@@ -177,8 +177,8 @@ def unwrap_graphql(response: NaverGraphQLResponseModel, value: T | None, what: s
 NaverFlightSort = Literal['가격', '출발시각', '소요시간']
 
 # 서버 정렬 키. 셋 다 서버가 적용한다 (2026-10-11 실측 ICN→NRT: departureTime 은 출발 시각순, departureDurationSecond 는 소요
-# 시간순이고 같으면 가격순). 그래서 받은 순서를 그대로 쓰고 다시 세우거나 확인하지 않는다. 가격순만 서버 기준(카드 할인 포함
-# 최저가)이 대표 가격(A01)과 달라 search_flights 가 순서를 보고 notes 로 알린다
+# 시간순이고 같으면 가격순). 그래서 출발시각·소요시간은 받은 순서를 그대로 쓴다. 가격순만 서버 기준(카드 할인 포함 최저가)이
+# 대표 가격(A01)과 달라 국제선 search_flights 가 더 받아 대표 가격 순으로 다시 세운다 (PRICE_SORT_FETCH_FACTOR)
 SORT_BY_LABEL: dict[NaverFlightSort, dict[str, int]] = {
     '가격': {'adultMinFare': 1},
     '출발시각': {'departureTime': 1},
@@ -194,6 +194,9 @@ CACHE_LATEST_VERSION: None = None
 DEFAULT_LIMIT: int = 10
 # limit 은 운임 묶음 수만 줄이고 여정 목록은 늘 전부 온다. 50 이면 편도 응답이 수 MB 안쪽이다
 MAX_LIMIT: int = 50
+# 국제선 가격순은 서버에서 --limit 의 이만큼 배를 받아 대표 가격 순으로 다시 세운 뒤 자른다. 서버 가격순은 카드 할인을 포함한
+# 최저가라 카드 할인이 없는 싼 항공권이 뒤로 밀린다 (2026-10-21 ICN↔TYO 왕복 20건: 대표 가격 2~4위가 11·13·14번째라 기본 10건에서 빠졌다)
+PRICE_SORT_FETCH_FACTOR: int = 3
 # 판매처 링크(tivan.naver.com)가 하나에 2~3KB 라 다 내보내면 출력이 너무 길다 (왕복 한 건 64곳, 2026-10-11 실측)
 DEFAULT_OFFER_LIMIT: int = 10
 MAX_OFFER_LIMIT: int = 100

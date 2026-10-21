@@ -49,6 +49,7 @@ from baenggipyo.providers.naver.service.common import (
     GENERAL_FARE_TYPE,
     MAX_LIMIT,
     MAX_OFFER_LIMIT,
+    PRICE_SORT_FETCH_FACTOR,
     SEAT_CLASS_BY_CABIN,
     SORT_BY_LABEL,
     TRIP_CODE_BY_TYPE,
@@ -341,12 +342,14 @@ def search_flights(
 ) -> NaverFlightSearchResult[NaverItinerary]:
     """편도·왕복·다구간 항공권을 찾는다 (판매처 이름 1회 + 검색 SSE 1회, 9~17초).
 
-    서버가 건 조건(직항·좌석·항공사)과 정렬은 다시 거르거나 다시 세우지 않는다. 대표 가격은 모든 결제수단 운임(A01) 최저가다.
+    서버가 건 조건(직항·좌석·항공사)은 다시 거르지 않는다. 대표 가격은 모든 결제수단 운임(A01) 최저가다. 가격순은 서버 기준(카드
+    할인 포함 최저가)이 대표 가격과 달라 `limit` 의 `PRICE_SORT_FETCH_FACTOR` 배를 받아 대표 가격 순으로 다시 세운 뒤 자른다.
     """
     conditions = conditions or NaverFlightConditions()
+    fetch_limit = limit * PRICE_SORT_FETCH_FACTOR if sort == '가격' else limit
     # 공항·도시 코드는 자동완성 응답 값이라 검증 실패는 입력 오류가 아니다 (flight 는 ID 에서 만들어 입력 오류가 맞으니 감싸지 않는다)
     with built_from_response('네이버 항공권 검색'):
-        payload = _search_payload(legs, conditions, sort=sort, limit=limit, initial=True)
+        payload = _search_payload(legs, conditions, sort=sort, limit=fetch_limit, initial=True)
     partners = partner_names(client)
     event = client.run_request_flight_international_search_flights(payload)
     status = event.status or NaverSearchStatusModel()
@@ -367,6 +370,11 @@ def search_flights(
     missing = len(event.fare_mappings) - len(results)
     if missing:
         notes.append(f'여정 정보가 응답에 없는 항공권 {missing}개는 뺐습니다')
+    more = len(event.fare_mappings) >= fetch_limit or len(results) > limit
+    if sort == '가격':
+        # 대표 가격이 없는 항공권(카드 조건 운임만 있음 등)은 뒤로. 같은 값이면 서버 순서를 지킨다
+        results.sort(key=lambda itinerary: (itinerary.price_per_adult_krw is None, itinerary.price_per_adult_krw or 0))
+    results = results[:limit]
     no_general = [itinerary for itinerary in results if itinerary.price_per_adult_krw is None]
     card_only = sum(1 for itinerary in no_general if itinerary.card_discount_price_krw is not None)
     if card_only:
@@ -380,14 +388,8 @@ def search_flights(
             f'모든 결제수단 운임도 카드 할인 운임도 없는 항공권 {len(no_general) - card_only}개는 가격이 null 입니다. '
             '판매처별 운임은 flight 로 확인하세요'
         )
-    if sort == '가격':
-        prices = [itinerary.price_per_adult_krw for itinerary in results if itinerary.price_per_adult_krw is not None]
-        if prices != sorted(prices):
-            notes.append(
-                '가격순은 네이버 기준(카드 할인을 포함한 최저가)이라 price_per_adult_krw(모든 결제수단 최저가) 순서와 조금 다를 수 있습니다'
-            )
-    if len(event.fare_mappings) >= limit:
-        notes.append(f'조건에 맞는 항공권이 더 있을 수 있습니다. 정렬 순서 앞의 {limit}개만 받았습니다 (--limit 최대 {MAX_LIMIT})')
+    if more:
+        notes.append(f'조건에 맞는 항공권이 더 있을 수 있습니다. 정렬 순서 앞의 {limit}개만 보여 줍니다 (--limit 최대 {MAX_LIMIT})')
     summary = SearchSummary(
         trip_type=trip_type_of(legs),
         legs=[SearchLeg(origin=leg.origin.code, destination=leg.destination.code, date=leg.date) for leg in legs],
