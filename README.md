@@ -51,24 +51,23 @@ Claude Code 에 "11월 20일 인천에서 오사카 가는 편도 항공권 중 
 - **금액은 전부 원 정수**(`*_krw`), **시각은 각 공항 현지 시각**(`YYYY-MM-DDTHH:MM`), 소요 시간은 분이다
 - 매진·만료된 운임은 내보내지 않고, 가격을 캐시하지 않는다
 - 조회 범위·제한·조건 해석은 결과의 `notes` 로 알린다
-- `--brief`·`--limit`·`--offer-urls` 로 응답을 줄여 에이전트의 토큰을 아낀다
+- 기본 출력이 요약이라(`--full` 로 전부) 에이전트의 토큰을 아끼고, `--limit`·`--offer-urls` 로 더 줄인다
 - 모든 요청이 소스별 요청 제한을 지나고, 그 상태를 모든 baenggipyo 프로세스가 함께 쓴다
 
 ## 빠른 시작
 
 ```bash
 uv tool install baenggipyo        # 또는 pipx install baenggipyo
-baenggipyo naver search flights ICN KIX --depart 2026-11-20 --limit 2 --brief
+baenggipyo naver search flights ICN KIX --depart 2026-11-20 --limit 2
 ```
 
 ![uv 로 baenggipyo 를 설치하고 네이버 항공권에서 인천→간사이 편도 최저가 3편을 직접 조회하는 터미널 데모](https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/docs/demo/demo.gif)
 
-결과는 stdout 에 JSON 하나로 나온다 (에러는 stderr 에 JSON). 아래는 위 명령의 실제 출력에서 두 번째 항공권과 일부 키를 줄인 것이다 (2026-10-20 조회).
+결과는 stdout 에 JSON 하나로 나온다 (에러는 stderr 에 JSON). 아래는 위 명령의 실제 출력에서 두 번째 항공권과 일부 키를 줄인 것이다 (2026-10-21 조회).
 
 ```json
 {
-  "notice": "가격은 조회 시점 기준이며 예약 단계에서 바뀔 수 있습니다. 예약·결제는 각 url 의 원 사이트에서 하세요. baenggipyo 는 탐색용입니다.",
-  "notes": ["조건에 맞는 항공권이 더 있을 수 있습니다. 정렬 순서 앞의 2개만 받았습니다 (--limit 최대 50)"],
+  "notes": ["조건에 맞는 항공권이 더 있을 수 있습니다. 정렬 순서 앞의 2개만 보여 줍니다 (--limit 최대 50)"],
   "search": {
     "trip_type": "편도",
     "legs": [{ "origin": "ICN", "destination": "KIX", "date": "2026-11-20" }],
@@ -79,26 +78,24 @@ baenggipyo naver search flights ICN KIX --depart 2026-11-20 --limit 2 --brief
   "returned": 2,
   "itineraries": [
     {
-      "id": "Y-100-0-ICNaKIXa20261120~20261120ICNKIX7C1393",
+      "id": "Y-100-0-ICNaKIXa20261120~20261120ICNKIXTW0307",
       "journeys": [
         {
           "departure_airport": "ICN",
           "arrival_airport": "KIX",
-          "departure_at": "2026-11-20T14:10",
-          "arrival_at": "2026-11-20T16:00",
+          "departure_at": "2026-11-20T20:20",
+          "arrival_at": "2026-11-20T22:10",
           "duration_minutes": 110,
           "stops": 0,
           "stopover_airports": [],
-          "segments": [{ "airline": "제주항공", "flight_number": "7C1393" }]
+          "segments": [{ "airline": "트리니티항공", "flight_number": "TW307" }]
         }
       ],
-      "total_price_krw": 167818,
-      "price_per_adult_krw": 167818,
-      "offer_count": 22,
-      "cheapest_seller": null,
-      "baggage_included": null,
-      "card_discount_price_krw": 167400,
-      "card_discount_name": "성인/하나카드(이용실적 충족시)"
+      "total_price_krw": 187666,
+      "price_per_adult_krw": 187666,
+      "seller_count": 3,
+      "cheapest_seller": "Agoda",
+      "baggage_included": true
     }
   ]
 }
@@ -137,13 +134,14 @@ baenggipyo limits      # 요청 제한 상태 JSON. 네트워크 요청은 보�
 
 ## 설정
 
-로그인·API 키·설정 파일은 없다. 환경 변수 세 개만 쓴다.
+로그인·API 키·설정 파일은 없다. 환경 변수 네 개만 쓴다.
 
 | 환경 변수 | 하는 일 |
 | --- | --- |
 | `BAENGGIPYO_STATE_DIR` | 요청 제한 상태와 네이버 판매처 이름표를 둘 디렉터리. 기본은 `~/.cache/baenggipyo`. 절대 경로가 아니면 무시한다 |
 | `XDG_CACHE_HOME` | 절대 경로로 설정해 두었으면 그 아래 `baenggipyo` 를 쓴다 (`BAENGGIPYO_STATE_DIR` 이 우선) |
 | `PYTHONUTF8` | Windows 에서 `1` 로 설정한다 (아래) |
+| `BAENGGIPYO_PLAIN` | `1` 이면 터미널에서 불러도 JSON 을 한 줄로, `--help` 를 꾸밈 없는 평문으로 쓴다. 명령을 터미널 화면(PTY)으로 돌리는 에이전트(VS Code Copilot, Gemini CLI 대화형 셸 등)에 설정하면 도움말이 3분의 1, 결과 JSON 이 60% 남짓으로 준다. Claude Code 처럼 파이프로 부르는 에이전트는 설정하지 않아도 같다 |
 
 ### Windows 에서 쓸 때
 

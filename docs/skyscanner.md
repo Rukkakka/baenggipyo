@@ -29,7 +29,7 @@
 ### 출발지·도착지 넣는 법
 
 [네이버와 같다](naver.md#출발지도착지-넣는-법): 3글자 코드는 같은 코드의 공항을 먼저, 없으면 도시를 고르고, 이름은 이름이 똑같은 도시·공항을
-고른다. 입력마다 요청이 1회 든다.
+고른다. 대문자 4글자 코드(`explore` 의 `sky_code` `CJUA` 등)는 요청 없이 거르니 한글 도시 이름으로 넣는다. 입력마다 요청이 1회 든다.
 
 ---
 
@@ -41,16 +41,18 @@
 | `--limit` | 후보 수 (1~20, 기본 10) |
 
 반환: `query`, `returned`, `airports[]` — `code`, `type`, `name`, `city`, `country`, `airports`(스카이스캐너가 주지 않아 도시도 null), `domestic`.
+IATA 코드를 주지 않은 도시는 `code` 가 null 이다 (스카이스캐너 도시 코드는 4글자라 검색에 쓸 수 없다). 그 도시는 이름으로 넣는다.
 
 ## 2. `search flights` — 항공권 찾기
 
 옵션은 [네이버 `search flights`](naver.md#2-search-flights--항공권-찾기)와 같다 (`--depart`·`--return`·`--leg`, 승객, `--cabin`, `--direct`,
-`--airline`, `--sort`, `--limit` 1~50·기본 10, `--brief`). 다른 점:
+`--airline`, `--depart-time`·`--return-time`, `--sort`, `--limit` 1~50·기본 10, `--brief`(기본)/`--full`). 다른 점:
 
 - **가격은 모든 승객 합계**(`total_price_krw`)다. 1인 요금을 주지 않아 `price_per_adult_krw` 는 성인 1명만 찾을 때만 값이 있고(합계와 같다) 그 밖에는
   `null` 이다.
 - 소아는 만 8세, 유아는 만 1세로 보내 찾는다 (스카이스캐너는 나이로 받는다).
-- 스카이스캐너는 결과를 한 번에 다 준다. **직항·항공사 조건과 정렬은 받은 결과에서 baenggipyo 가 한다** (`notes` 로 알린다). `search.total_count` 는
+- 스카이스캐너는 결과를 한 번에 다 준다. **직항·항공사·출발 시각대 조건과 정렬은 받은 결과에서 baenggipyo 가 한다** (조건으로 거른 수는 `notes` 로 알린다.
+  정렬은 늘 baenggipyo 가 하니 알리지 않는다. 스카이스캐너 사이트의 기본 순서는 추천순이라 `search.url` 로 열면 순서가 다르다). `search.total_count` 는
   조건을 걸기 전 결과 수다. 여정 정보나 조건을 판정할 값(경유 수·판매 항공사)이 응답에 없는 항공권, 판매처 운임이 모두 가격 없음으로 온 항공권은
   빼고 그 수를 `notes` 로 알린다.
 - 검색 도중 결과를 다시 묻는 요청이 [요청 제한](common.md#요청-제한과-limits)(시간당 상한·쿨다운)에 걸리면 에러로 끝내지 않고 받은 데까지 돌려주며,
@@ -76,12 +78,12 @@ baenggipyo skyscanner search flights ICN NRT --depart 2026-11-20 --direct --airl
 | --- | --- |
 | `<id>` | `search flights` 결과의 `id` |
 | `--limit` | 판매처 운임 수 (1~100, 기본 10) |
-| `--offer-urls` | 예약 링크를 붙일 앞쪽 판매처 운임 수 (0 이상, 기본 모두. [응답 줄이기](common.md#응답-줄이기)). 링크를 뺀 판매처는 맨 위 `url`(검색 결과 페이지)에서 고른다 |
+| `--offer-urls` | 예약 링크를 붙일 앞쪽 판매처 운임 수 (0 이상, 기본 1. [응답 줄이기](common.md#응답-줄이기)). 링크를 뺀 판매처는 맨 위 `url`(검색 결과 페이지)에서 고른다 |
 
 반환: 항공권 필드 + `offers[]` — `seller`, `seller_type`(`항공사`·`여행사`), `total_price_krw`, `price_per_adult_krw`, `fare_name`(판매처 여러 곳에서 따로
 예약하는 조합일 때만), `url`(스카이스캐너를 거쳐 판매처로 가는 예약 링크).
 
-- 스카이스캐너가 가격 없음으로 준 판매처 운임(0원)은 빼고 `notes` 로 알린다. `offer_count` 도 가격을 준 판매처만 센다. 판매처 운임이 모두 가격
+- 스카이스캐너가 가격 없음으로 준 판매처 운임(0원)은 빼고 `notes` 로 알린다. `seller_count` 도 가격을 준 판매처만 센다. 판매처 운임이 모두 가격
   없음이면 `search flights` 처럼 결과에 없는 것으로 보고 `FARE_UNAVAILABLE` 이다.
 - `offers` 는 판매처 운임을 싼 순으로 둔다. 판매처 여러 곳에서 따로 예약하는 조합(예: 가는 편은 이스타항공, 오는 편은 티웨이)도 조합 합계로
   함께 세우고(가격이 같으면 한 판매처 운임이 앞), 예약 단위마다 한 줄씩 낸다. 그 줄의 가격·`url` 은 `fare_name` 의 구간(`PUS→FUK만 (나머지는 … 에서 따로 예약)`)만이라
@@ -95,7 +97,8 @@ baenggipyo skyscanner search flights ICN NRT --depart 2026-11-20 --direct --airl
 | `<출발>`, `<도착>` | IATA 공항·도시 코드 또는 이름 |
 | `--month` | `YYYY-MM` (기본 이번 달) |
 
-반환: `origin`, `destination`, `trip_type`(`편도`), `month`, `returned`, `days[]` — `date`, `min_price_krw`, `direct`(모름 null).
+반환: `origin`, `destination`, `trip_type`(`편도`), `month`, `returned`, `cheapest_days[]`(싼 순 3일), `days[]`(날짜 순) — `date`, `min_price_krw`.
+날마다 직항인지는 스카이스캐너가 주지 않는다.
 
 - **편도만 된다.** 왕복·직항 달력은 [네이버](naver.md#4-calendar--날짜별-최저가)를 쓴다.
 - 실시간이 아닌 추정가다. 고른 날은 `search flights` 로 확인한다.
@@ -112,10 +115,13 @@ baenggipyo skyscanner search flights ICN NRT --depart 2026-11-20 --direct --airl
 | `--direct` | 직항 지표 가격만 (직항이 없는 도시는 빠지고 그 수를 `notes` 로 알린다) |
 | `--limit` | 도시 수 (1~100, 기본 20) |
 
-반환: `origin`, `trip_type`, `month`, `returned`, `destinations[]` — `code`(스카이스캐너 도시 코드, 예 `CJUA`. IATA 가 아니다), `city`, `country`·
-`country_code`(주면), `min_price_krw`, `direct`, `departure_date`·`return_date`(주지 않아 null).
+반환: `origin`, `trip_type`, `month`, `returned`, `destinations[]` — `code`(IATA 코드를 주지 않아 null), `city`, `country`·`country_code`(주면),
+`min_price_krw`, `direct`, `departure_date`·`return_date`(주지 않아 null), `sky_code`(스카이스캐너 도시 코드, 예 `CJUA`).
 
-- 지표 가격(추정가)이고 날짜를 주지 않는다. 고른 도시는 `calendar`·`search flights` 에 도시 **이름**이나 `search airports` 의 코드로 넣는다.
+- 지표 가격(추정가)이고 날짜를 주지 않는다. 가격은 그 기간 어느 날의 최저가라 다른 날은 몇 배 비쌀 수 있다 (인천→제주 11월 26,928원은 9·23일 같은
+  날의 값이고 15일은 315,865원이었다, 2026-10-20). 고른 도시는 `calendar` 로 그 가격의 날을 찾은 뒤 `search flights` 한다. `--round-trip` 은
+  `calendar` 가 편도만 되어 날짜를 찾을 수 없으니 그 달 날짜로 `search flights` 한다.
+- `sky_code` 는 IATA 가 아니라 검색에 쓸 수 없다 (`AIRPORT_NOT_FOUND`). 고른 도시는 도시 **이름**(`city`)이나 `search airports` 의 코드로 넣는다.
 - 지표 가격이 없는 도시는 싼 순으로 세울 수 없어 빼고 그 수를 `notes` 로 알린다.
 
 ```bash
