@@ -15,10 +15,17 @@ from baenggipyo.cli.output import (
     emit,
     handle_errors,
 )
-from baenggipyo.core.errors import BaenggipyoError
+from baenggipyo.core.errors import (
+    AirportNotFoundError,
+    BaenggipyoError,
+)
 from baenggipyo.core.flight import (
     NOTICE,
+    Airport,
     Offer,
+    check_place_inputs,
+    pick_place,
+    resolve_route,
     shown_offers,
 )
 from baenggipyo.core.http import raise_for_status
@@ -158,6 +165,19 @@ def test_notes_sit_under_notice_and_vanish_when_empty(capsys: pytest.CaptureFixt
     assert list(payload) == ['notice', 'notes', 'returned'] and payload['notice'] == NOTICE
     emit({'returned': 0}, pretty=False, notice=True, notes=[])
     assert list(json.loads(capsys.readouterr().out)) == ['notice', 'returned']
+
+
+def test_four_letter_code_is_rejected_before_any_request() -> None:
+    # 스카이스캐너 explore 의 sky_code 'CJUA'(제주) 자동완성은 청주·청두를 돌려준다 (2026-10-20 실측). 비슷한 후보를 권하면
+    # 에이전트가 힌트대로 청주를 검색한다. 입력만 보고 알 수 있어 앞 구간 출발지의 해석 요청(스카이스캐너는 시간당 상한)도 보내지 않는다
+    asked: list[str] = []
+    with pytest.raises(AirportNotFoundError):
+        resolve_route([('ICN', 'CJUA', '2026-11-01')], asked.append)
+    assert asked == []
+    # 대문자가 아니면 이름이다 (영어 도시 이름 Jeju·Rome). 후보가 하나면 그것을 쓴다
+    check_place_inputs('Jeju', 'Rome')
+    jeju = Airport(code='CJU', type='공항', name='제주국제공항', city='제주', country='대한민국')
+    assert pick_place('Jeju', [jeju], lambda airport: airport) is jeju
 
 
 # --- 출력 줄이기 ---

@@ -4,6 +4,7 @@ from baenggipyo.core.flight import (
     Airport,
     AirportSearchResult,
     pick_place,
+    resolve_inputs,
     resolve_route,
 )
 from baenggipyo.providers.skyscanner.api.client import SkyscannerClient
@@ -79,19 +80,24 @@ def search_airports(client: SkyscannerClient, query: str, *, limit: int) -> Airp
     return AirportSearchResult(query=query, returned=len(airports), airports=airports)
 
 
-def resolve_place(client: SkyscannerClient, text: str) -> SkyscannerPlace:
-    """출발·도착지 입력을 검색에 넣을 공항 또는 도시로 정한다 (요청 1회). 고르는 규칙은 `core.flight.pick_place` (네이버와 같다).
-
-    Raises:
-        AirportNotFoundError: 후보가 없을 때.
-        AirportAmbiguousError: 이름에 맞는 후보가 여럿일 때.
-    """
+def _resolve_place(client: SkyscannerClient, text: str) -> SkyscannerPlace:
     return _to_place(pick_place(text, _autosuggest(client, text.strip()), _to_airport))
 
 
+def resolve_places(client: SkyscannerClient, *texts: str) -> list[SkyscannerPlace]:
+    """출발·도착지 입력들을 검색에 넣을 공항 또는 도시로 정한다 (입력마다 요청 1회, 같은 입력은 한 번).
+    고르는 규칙은 `core.flight.pick_place` (네이버와 같다).
+
+    Raises:
+        AirportNotFoundError: 후보가 없거나, IATA 가 아닌 4글자 코드일 때 (모든 입력을 요청 전에 거른다).
+        AirportAmbiguousError: 이름에 맞는 후보가 여럿일 때.
+    """
+    return resolve_inputs(texts, lambda text: _resolve_place(client, text))
+
+
 def resolve_legs(client: SkyscannerClient, raw_legs: list[tuple[str, str, str]]) -> list[SkyscannerLeg]:
-    """(출발, 도착, YYYY-MM-DD) 구간들을 해석한다. 같은 입력은 한 번만 묻는다 (입력마다 요청 1회)."""
+    """(출발, 도착, YYYY-MM-DD) 구간들을 해석한다 (`resolve_places` 와 같은 규칙)."""
     return [
         SkyscannerLeg(origin=origin, destination=destination, date=date)
-        for origin, destination, date in resolve_route(raw_legs, lambda text: resolve_place(client, text))
+        for origin, destination, date in resolve_route(raw_legs, lambda text: _resolve_place(client, text))
     ]

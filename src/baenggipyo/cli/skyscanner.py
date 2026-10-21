@@ -36,7 +36,7 @@ from baenggipyo.core.flight import CABIN_CLASSES
 from baenggipyo.providers.skyscanner.api.client import SkyscannerClient
 from baenggipyo.providers.skyscanner.service.airport import (
     resolve_legs,
-    resolve_place,
+    resolve_places,
     search_airports,
 )
 from baenggipyo.providers.skyscanner.service.calendar import get_calendar
@@ -165,8 +165,7 @@ def calendar_command(
     """
     month_value = parse_month(month, '--month')
     with handle_errors(SOURCE), SkyscannerClient() as client:
-        origin_place = resolve_place(client, origin)
-        destination_place = resolve_place(client, destination)
+        origin_place, destination_place = resolve_places(client, origin, destination)
         result = get_calendar(client, origin_place, destination_place, month=month_value)
         emit(result, pretty, notice=True, notes=result.notes)
 
@@ -198,6 +197,6 @@ def explore_command(
     """
     month_value = parse_month(month, '--month') if month is not None else None
     with handle_errors(SOURCE), SkyscannerClient() as client:
-        origin_place = resolve_place(client, origin)
+        [origin_place] = resolve_places(client, origin)
         result = explore(client, origin_place, month=month_value, round_trip=round_trip, direct=direct, limit=limit)
         emit(result, pretty, notice=True, notes=result.notes)

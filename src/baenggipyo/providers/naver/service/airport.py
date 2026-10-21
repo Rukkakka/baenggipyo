@@ -5,6 +5,7 @@ from baenggipyo.core.flight import (
     Airport,
     AirportSearchResult,
     pick_place,
+    resolve_inputs,
     resolve_route,
 )
 from baenggipyo.providers.naver.api.client import NaverClient
@@ -71,23 +72,26 @@ def search_airports(client: NaverClient, query: str, *, limit: int) -> AirportSe
     return AirportSearchResult(query=query, returned=len(airports), airports=airports)
 
 
-def resolve_location(client: NaverClient, text: str) -> NaverLocation:
-    """출발·도착지 입력을 검색에 넣을 공항 또는 도시로 정한다 (요청 1회). 고르는 규칙은 `core.flight.pick_place` (스카이스캐너와 같다).
-
-    도시 코드(SEL, TYO, OSA)는 그 도시의 모든 공항을 찾는다.
-
-    Raises:
-        AirportNotFoundError: 후보가 없을 때.
-        AirportAmbiguousError: 이름에 맞는 후보가 여럿일 때.
-    """
+def _resolve_location(client: NaverClient, text: str) -> NaverLocation:
     return _to_location(pick_place(text, _autocomplete(client, text.strip()), _to_airport))
 
 
+def resolve_locations(client: NaverClient, *texts: str) -> list[NaverLocation]:
+    """출발·도착지 입력들을 검색에 넣을 공항 또는 도시로 정한다 (입력마다 요청 1회, 같은 입력은 한 번).
+    고르는 규칙은 `core.flight.pick_place` (스카이스캐너와 같다). 도시 코드(SEL, TYO, OSA)는 그 도시의 모든 공항을 찾는다.
+
+    Raises:
+        AirportNotFoundError: 후보가 없거나, IATA 가 아닌 4글자 코드일 때 (모든 입력을 요청 전에 거른다).
+        AirportAmbiguousError: 이름에 맞는 후보가 여럿일 때.
+    """
+    return resolve_inputs(texts, lambda text: _resolve_location(client, text))
+
+
 def resolve_legs(client: NaverClient, raw_legs: list[tuple[str, str, str]]) -> list[NaverLeg]:
-    """(출발, 도착, YYYY-MM-DD) 구간들을 해석한다. 같은 입력은 한 번만 묻는다 (입력마다 요청 1회)."""
+    """(출발, 도착, YYYY-MM-DD) 구간들을 해석한다 (`resolve_locations` 와 같은 규칙)."""
     return [
         NaverLeg(origin=origin, destination=destination, date=date)
-        for origin, destination, date in resolve_route(raw_legs, lambda text: resolve_location(client, text))
+        for origin, destination, date in resolve_route(raw_legs, lambda text: _resolve_location(client, text))
     ]
 
 

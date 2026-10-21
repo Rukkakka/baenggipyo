@@ -15,7 +15,7 @@ from baenggipyo.providers.skyscanner.api.request.common import (
     SkyscannerRadarWebUnifiedSearchPollV2RequestParameterModel,
 )
 from baenggipyo.providers.skyscanner.service.airport import (
-    resolve_place,
+    resolve_places,
     search_airports,
 )
 from baenggipyo.providers.skyscanner.service.common import (
@@ -75,7 +75,7 @@ def test_city_candidate_with_empty_city_id_is_one_city() -> None:
     ))
     with client:
         found = {query: [(airport.code, airport.type) for airport in search_airports(client, query, limit=10).airports] for query in bodies}
-        resolved = {query: resolve_place(client, query) for query in bodies}
+        resolved = {query: resolve_places(client, query)[0] for query in bodies}
     assert found == {'부산': [('PUS', '공항'), ('PUS', '도시')], '서울': [('SEL', '도시'), ('GMP', '공항')]}
     assert [(city.type, city.sky_id) for city in resolved.values()] == [('city', 'PUSA'), ('city', 'SELA')]
 

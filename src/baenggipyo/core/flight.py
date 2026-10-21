@@ -1,11 +1,14 @@
-"""항공권 공통 정의: 소스·여정·좌석 등급 이름, 출력 안내 문구, 검색 조건 베이스, 소스와 상관없는 출력 모델, 구간 공항 해석 묶기와 후보 고르기.
+"""항공권 공통 정의: 소스·여정·좌석 등급 이름, 출력 안내 문구, 검색 조건 베이스, 소스와 상관없는 출력 모델, 입력 공항 해석 묶기와 후보 고르기.
 
 출력 규칙은 references/output-contract.md '항공권 출력' 을 따른다. 금액은 원 정수(`*_krw`), 시각은 각 공항의 현지 시각
 `YYYY-MM-DDTHH:MM`, 소요 시간은 분이다. 그 항공권·조회에 원래 없는 값은 `not_applicable_fields()` 로 키째 뺀다.
 """
 
 import re
-from collections.abc import Callable
+from collections.abc import (
+    Callable,
+    Sequence,
+)
 from datetime import (
     timedelta,
     timezone,
@@ -56,6 +59,8 @@ SellerType = Literal['항공사', '여행사']
 CABIN_CLASSES: tuple[CabinClass, ...] = ('일반석', '프리미엄일반석', '비즈니스석', '일등석')
 
 IATA_CODE_PATTERN: re.Pattern[str] = re.compile(r'^[A-Za-z]{3}$')
+# IATA 가 아닌 4글자 코드 (스카이스캐너 도시 코드 CJUA·CYNT, ICAO 공항 코드 RKSI). 대문자로 준 것만 코드로 본다 (Jeju·Rome 같은 이름은 이름이다)
+OTHER_CODE_PATTERN: re.Pattern[str] = re.compile(r'^[A-Z][A-Z0-9]{3}$')
 # 모호한 공항 에러에 싣는 후보 수
 MAX_CANDIDATES: int = 5
 # 항공권 ID 가 승객 수를 유형별 한 자리 숫자로 담아 조건 모델은 유형별 9명까지 받는다. 소스 요청 모델의 상한·CLI 합계 상한과는 뜻이 달라 따로 둔다
@@ -95,20 +100,48 @@ def trip_type_of(routes: list[tuple[str, str]]) -> TripType:
     return '다구간'
 
 
-def resolve_route(raw_legs: list[tuple[str, str, str]], resolve: Callable[[str], PlaceT]) -> list[tuple[PlaceT, PlaceT, str]]:
-    """(출발, 도착, YYYY-MM-DD) 구간마다 출발·도착 입력을 `resolve`(소스의 공항 해석, 요청 1회)로 장소로 바꾼다.
+def check_place_inputs(*texts: str) -> None:
+    """출발·도착지 입력에 IATA 가 아닌 대문자 4글자 코드(`OTHER_CODE_PATTERN`)가 있으면 요청을 보내기 전에 거른다.
 
+    입력만 보고 알 수 있어 자동완성 요청(스카이스캐너는 시간당 상한이 있다)을 쓰지 않는다. 비슷한 후보도 알리지 않는다
+    (스카이스캐너 'CJUA'(제주) → 후보 9곳이 청주·청두라 첫 후보 CJJ 를 권하게 된다, 2026-10-20 실측).
+    대문자로만 쓴 이름(JEJU·DOHA)도 걸리지만 전에도 찾지 못했다. 자동완성이 이름을 한글로 줘 이름이 똑같은 후보가 없고 후보는 도시·공항
+    여럿이라 `AIRPORT_AMBIGUOUS` 였다 (네이버 'JEJU' → 제주 도시·공항, 스카이스캐너 'JEJU' → 제주 공항·도시·휴훼, 2026-10-20 실측.
+    네이버 DOHA·OSLO·ROME·MALE 후보 3곳, BALI·LIMA 4곳, NICE 2곳, RKSI 0곳, 2026-10-21 실측).
+    소문자(`cjua`)는 이름(Jeju·Rome)과 가릴 수 없어 거르지 않는다. 이름으로 자동완성에 넘기고, 이름이 똑같은 후보가 없으니 후보가 하나일 때만 고른다.
+
+    Raises:
+        AirportNotFoundError: IATA 가 아닌 4글자 코드일 때.
+    """
+    for text in texts:
+        text = text.strip()
+        if OTHER_CODE_PATTERN.fullmatch(text):
+            raise AirportNotFoundError(
+                text,
+                hint='대문자 4글자(스카이스캐너 sky_code, ICAO 공항 코드, 대문자로만 쓴 이름)는 IATA 코드가 아니라 찾지 않습니다. '
+                     '한글 도시 이름(예: 제주)이나 search airports 로 찾은 3글자 IATA 코드로 다시 주세요',
+            )
+
+
+def resolve_inputs(texts: Sequence[str], resolve: Callable[[str], PlaceT]) -> list[PlaceT]:
+    """출발·도착지 입력들을 `resolve`(소스의 공항 해석, 요청 1회)로 장소로 바꾼다. 두 소스의 모든 명령이 입력을 이것으로 푼다.
+
+    쓸 수 없는 입력(`check_place_inputs`)이 하나라도 있으면 앞 입력의 요청도 보내기 전에 거른다.
     같은 입력(앞뒤 공백·대소문자 무시)은 한 번만 묻는다. 그래서 왕복 `ICN NRT` 는 해석 요청이 2회다.
     """
+    check_place_inputs(*texts)
     resolved: dict[str, PlaceT] = {}
-
-    def place(text: str) -> PlaceT:
+    for text in texts:
         key = text.strip().upper()
         if key not in resolved:
             resolved[key] = resolve(text)
-        return resolved[key]
+    return [resolved[text.strip().upper()] for text in texts]
 
-    return [(place(origin), place(destination), date) for origin, destination, date in raw_legs]
+
+def resolve_route(raw_legs: list[tuple[str, str, str]], resolve: Callable[[str], PlaceT]) -> list[tuple[PlaceT, PlaceT, str]]:
+    """(출발, 도착, YYYY-MM-DD) 구간마다 출발·도착 입력을 장소로 바꾼다 (`resolve_inputs`)."""
+    places = resolve_inputs([text for origin, destination, _ in raw_legs for text in (origin, destination)], resolve)
+    return [(places[2 * index], places[2 * index + 1], date) for index, (_, _, date) in enumerate(raw_legs)]
 
 
 class FlightConditions(RequestModel):
@@ -258,6 +291,7 @@ def pick_place(text: str, candidates: list[CandidateT], to_airport: Callable[[Ca
     - 이름이 똑같은 후보가 여럿이면 고르지 않는다 (네이버 '포틀랜드' → 도시 PDX·PWM 이 이름까지 같다, 2026-10-12 실측).
     - 3글자 입력이 어느 후보의 코드·이름과도 맞지 않으면 후보가 하나여도 쓰지 않는다. 코드로 준 것이라 다른 곳이다
       (네이버 'SEO' → 서울 SEL 하나뿐이라 서울로 찾았다, 2026-10-11 실측).
+    - 대문자 4글자 코드는 여기 오기 전에 `resolve_inputs` 가 거른다 (자동완성 요청 전에, `check_place_inputs`).
 
     Args:
         text: 사용자 입력.
