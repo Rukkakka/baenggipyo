@@ -293,7 +293,7 @@ class SkyscannerLocationModel(ResponseModel):
     ] = None
     parent_location: Annotated[
         'SkyscannerLocationModel | None',
-        Field(description='상위 위치 (도시의 나라)')
+        Field(description='상위 위치 (도시의 나라). 어디든지 결과는 2026-10-20 실측 늘 null 이고 content.parentLocation 에 온다')
     ] = Field(default=None, alias='parentLocation')
 
 
@@ -302,6 +302,10 @@ class SkyscannerEverywhereContentModel(ResponseModel):
         SkyscannerLocationModel | None,
         Field(description='목적지')
     ] = None
+    parent_location: Annotated[
+        SkyscannerLocationModel | None,
+        Field(description='목적지 도시의 나라 (skyCode 는 ISO 3166-1 alpha-2, 예 KR). 2026-10-20 실측 location 밖 여기로 온다')
+    ] = Field(default=None, alias='parentLocation')
     flight_quotes: Annotated[
         SkyscannerFlightQuotesModel | None,
         Field(description='지표 가격')

@@ -126,7 +126,8 @@ def explore(
         if quote is None or quote.raw_price is None:
             unpriced += 1
             continue
-        parent = content.location.parent_location
+        # 나라는 location 밖(content.parentLocation)에 온다. location 안에 오던 때의 응답도 읽는다 (2026-10-20 실측: 도시 100곳 모두 location 안은 null)
+        parent = content.parent_location or content.location.parent_location
         destinations.append(SkyscannerDestination(
             code=None,
             sky_code=content.location.sky_code or None,
