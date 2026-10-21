@@ -102,11 +102,20 @@ class SkyscannerItinerary(Itinerary):
         return fields | {'self_transfer'} if self.self_transfer is False else fields
 
 
+class SkyscannerOffer(Offer):
+    """판매처 하나의 운임. 스카이스캐너는 운임 이름을 주지 않아 판매처 여러 곳에서 따로 예약하는 조합의 줄에만 `fare_name` 이 있다."""
+
+    def not_applicable_fields(self) -> frozenset[str]:
+        # 조합이 아닌 운임에는 운임 이름이 없다 (모름이 아니라 해당 없음)
+        fields = super().not_applicable_fields()
+        return fields | {'fare_name'} if self.fare_name is None else fields
+
+
 class SkyscannerItineraryDetail(SkyscannerItinerary):
     """`flight` 결과: 항공권 한 건과 판매처별 가격."""
 
     offers: Annotated[
-        list[Offer],
+        list[SkyscannerOffer],
         Field(description='판매처별 가격 (싼 순)')
     ]
 
@@ -429,17 +438,17 @@ def _offers(
     result: SkyscannerItineraryModel,
     agents: dict[str, SkyscannerAgentModel],
     conditions: SkyscannerFlightConditions,
-) -> list[list[Offer]]:
+) -> list[list[SkyscannerOffer]]:
     """판매처 운임별 `offers` 줄 묶음을 운임 가격이 싼 순으로. 판매처 여러 곳에서 따로 예약하는 조합은 조합 합계로 함께 세운다.
 
     조합을 한 판매처 운임 뒤에 따로 두면, 조합이 가장 쌀 때 `--limit` 에 잘려 대표 가격(`total_price_krw`·`cheapest_seller`)의 운임이 `offers` 에 없다.
     가격이 같으면 한 판매처 운임을 앞에 둔다. 조합은 예약 단위마다 한 줄이다 (판매처·가격·링크가 단위마다 따로다). 한 줄로 내면 다른 구간의 예약 링크가 빠진다. 그래서 운임 하나가
     여러 줄일 수 있고, `--limit` 은 줄이 아니라 이 묶음으로 세어 조합의 줄을 가르지 않는다 (한 줄만 남으면 나머지 구간을 예약할 수 없다).
     """
-    def offer(agent_id: str | None, amount: float | None, url: str | None, fare_name: str | None = None) -> Offer:
+    def offer(agent_id: str | None, amount: float | None, url: str | None, fare_name: str | None = None) -> SkyscannerOffer:
         agent = agents.get(agent_id) if agent_id else None
         total = round(amount) if amount is not None else None
-        return Offer(
+        return SkyscannerOffer(
             seller=agent.name if agent else None,
             seller_type=('항공사' if agent.is_carrier else '여행사') if agent and agent.is_carrier is not None else None,
             total_price_krw=total,
@@ -448,7 +457,7 @@ def _offers(
             url=_deeplink(url),
         )
 
-    groups: list[tuple[float | None, bool, list[Offer]]] = []
+    groups: list[tuple[float | None, bool, list[SkyscannerOffer]]] = []
     for option in _priced_options(result):
         amount = option.price.amount if option.price else None
         if len(option.items) <= 1:
