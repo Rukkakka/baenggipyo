@@ -132,7 +132,7 @@ def search_flights_command(
     brief: BriefOption = False,
     pretty: PrettyOption = None,
 ) -> None:
-    """편도·왕복·다구간 항공권 (요청: 공항 해석 입력마다 1회 + 판매처 이름 1회 + 검색 1~2회. 국제선 10~20초, 국내선 수 초).
+    """편도·왕복·다구간 항공권 (요청: 공항 해석 입력마다 1회 + 판매처 이름 1회 + 검색 1~2회, 국제선 10~20초·국내선 수 초).
 
     대표 가격(price_per_adult_krw, total_price_krw)은 어떤 결제수단으로도 받을 수 있는 운임의 최저가다. 특정 카드로만 받는 더
     싼 가격은 card_discount_* 로 따로 준다. 국내선(김포↔제주 등)은 결과 모양이 다르다: 가는 편·오는 편 목록(legs[])에서
@@ -166,7 +166,7 @@ def flight_command(
     offer_urls: OfferUrlsOption = None,
     pretty: PrettyOption = None,
 ) -> None:
-    """항공권의 판매처별 가격과 예약 링크 (요청 2~3회. 검색 뒤 15분이 지났으면 같은 조건으로 다시 검색한다).
+    """항공권의 판매처별 가격과 예약 링크 (요청 2~3회, 검색 뒤 15분이 지났으면 같은 조건으로 다시 검색한다).
 
     국제선은 id 하나, 국내선은 편 하나(편도) 또는 가는 편·오는 편 둘(왕복 예약 가격)을 받는다.
 
