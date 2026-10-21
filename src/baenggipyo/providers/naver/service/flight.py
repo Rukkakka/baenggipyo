@@ -2,11 +2,7 @@
 
 import re
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-)
+from pydantic import Field
 
 from baenggipyo.core.errors import (
     BaenggipyoError,
@@ -56,6 +52,7 @@ from baenggipyo.providers.naver.service.common import (
     SORT_BY_LABEL,
     TRIP_CODE_BY_TYPE,
     NaverFlightConditions,
+    NaverFlightSearchResult,
     NaverFlightSort,
     NaverItinerary,
     NaverLeg,
@@ -108,31 +105,6 @@ class NaverItineraryDetail(NaverItinerary):
         list[NaverOffer],
         Field(description='판매처별 가격. 모든 결제수단 운임을 싼 순으로 먼저, 결제수단 조건이 있는 운임을 싼 순으로 뒤에')
     ]
-
-
-class NaverFlightSearchResult(BaseModel):
-    """`search flights` 결과."""
-
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-
-    search: Annotated[
-        SearchSummary,
-        Field(description='검색 조건')
-    ]
-    returned: Annotated[
-        int,
-        Field(description='돌려준 항공권 수')
-    ]
-    itineraries: Annotated[
-        list[NaverItinerary],
-        Field(description='항공권')
-    ]
-    notes: Annotated[
-        list[str],
-        Field(exclude=True, description='결과 안내 (emit 의 notes 로 낸다)')
-    ] = []
 
 
 def _adult_fare(fare: NaverFareModel | None) -> int | None:
@@ -365,7 +337,7 @@ def search_flights(
     conditions: NaverFlightConditions | None = None,
     sort: NaverFlightSort = '가격',
     limit: int = DEFAULT_LIMIT,
-) -> NaverFlightSearchResult:
+) -> NaverFlightSearchResult[NaverItinerary]:
     """편도·왕복·다구간 항공권을 찾는다 (판매처 이름 1회 + 검색 SSE 1회, 9~17초).
 
     서버가 건 조건(직항·좌석·항공사)과 정렬은 다시 거르거나 다시 세우지 않는다. 대표 가격은 모든 결제수단 운임(A01) 최저가다.
@@ -426,7 +398,7 @@ def search_flights(
         url=results_url(legs, adults=conditions.adults, children=conditions.children, infants=conditions.infants,
                         cabin=conditions.cabin, direct=conditions.direct),
     )
-    return NaverFlightSearchResult(search=summary, returned=len(results), itineraries=results, notes=notes)
+    return NaverFlightSearchResult[NaverItinerary](search=summary, returned=len(results), itineraries=results, notes=notes)
 
 
 def _cached_search(

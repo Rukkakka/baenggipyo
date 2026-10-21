@@ -135,8 +135,8 @@ def search_flights_command(
     """편도·왕복·다구간 항공권 (요청: 공항 해석 입력마다 1회 + 판매처 이름 1회 + 검색 1~2회, 국제선 10~20초·국내선 수 초).
 
     대표 가격(price_per_adult_krw, total_price_krw)은 어떤 결제수단으로도 받을 수 있는 운임의 최저가다. 특정 카드로만 받는 더
-    싼 가격은 card_discount_* 로 따로 준다. 국내선(김포↔제주 등)은 결과 모양이 다르다: 가는 편·오는 편 목록(legs[])에서
-    하나씩 고른다. 국내선 다구간과 국내·국제가 섞인 노선은 찾지 않는다.
+    싼 가격은 card_discount_* 로 따로 준다. 국내선 왕복(김포↔제주 등)은 결과 모양이 다르다: itineraries 대신 가는 편·오는 편
+    목록(legs[])에서 하나씩 고른다. 국내선 다구간과 국내·국제가 섞인 노선은 찾지 않는다.
 
     예: baenggipyo naver search flights ICN NRT --depart 2026-11-15 --return 2026-11-20
     """

@@ -17,6 +17,7 @@ from baenggipyo.core.flight import (
     FlightConditions,
     Itinerary,
     Offer,
+    SearchSummary,
     SellerType,
     TripType,
 )
@@ -36,12 +37,14 @@ from baenggipyo.providers.naver.api.response.common import NaverGraphQLResponseM
 
 from typing import (
     Annotated,
+    Generic,
     Literal,
     TypeVar,
 )
 
 
 T = TypeVar('T')
+ItineraryT = TypeVar('ItineraryT', bound='NaverItinerary')
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +246,31 @@ class NaverOffer(Offer):
     def not_applicable_fields(self) -> frozenset[str]:
         fields = super().not_applicable_fields()
         return fields | {'payment_condition'} if self.payment_condition is None else fields
+
+
+class NaverFlightSearchResult(BaseModel, Generic[ItineraryT]):
+    """`search flights` 결과. 국제선은 `NaverItinerary`, 국내선 편도는 `NaverDomesticItinerary` 로 매긴다 (같은 모양)."""
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+
+    search: Annotated[
+        SearchSummary,
+        Field(description='검색 조건')
+    ]
+    returned: Annotated[
+        int,
+        Field(description='돌려준 항공권 수')
+    ]
+    itineraries: Annotated[
+        list[ItineraryT],
+        Field(description='항공권 (정렬 순서대로)')
+    ]
+    notes: Annotated[
+        list[str],
+        Field(exclude=True, description='결과 안내 (emit 의 notes 로 낸다)')
+    ] = []
 
 
 def cut_short(completed: bool | None) -> bool:

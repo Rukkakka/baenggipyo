@@ -1,7 +1,9 @@
 """국내선 항공권 검색과 판매처별 가격 (`search flights`, `flight` 의 국내선).
 
 국내선은 국제선과 API·화면 구조가 다르다. 왕복이어도 가는 편과 오는 편을 따로 고르고(목록 두 개), 운임도 편마다 따로다.
-그래서 결과는 방향(`legs[]`)마다 편 목록이고, `flight` 는 고른 편 하나(편도) 또는 둘(가는 편 + 오는 편)을 받는다.
+그래서 왕복 결과는 방향(`legs[]`)마다 편 목록이고, `flight` 는 고른 편 하나(편도) 또는 둘(가는 편 + 오는 편)을 받는다.
+편도는 목록이 하나라 국제선과 같은 모양(`itineraries`)으로 낸다. 모양이 다른 결과는 국내선 왕복 하나뿐이어야 에이전트가
+결과를 읽는 경로를 틀리지 않는다.
 """
 
 import re
@@ -55,6 +57,7 @@ from baenggipyo.providers.naver.service.common import (
     MAX_OFFER_LIMIT,
     SITE_URL,
     NaverFlightConditions,
+    NaverFlightSearchResult,
     NaverFlightSort,
     NaverItinerary,
     NaverLeg,
@@ -139,7 +142,7 @@ class NaverDomesticItinerary(NaverItinerary):
     ] = None
 
     def brief_omitted_fields(self) -> frozenset[str]:
-        # 방향은 legs[].direction 에 있다
+        # 방향은 왕복이면 legs[].direction 에 있고, 편도는 늘 가는 편이다
         return super().brief_omitted_fields() | {'direction'}
 
 
@@ -176,8 +179,8 @@ class NaverDomesticLegResult(BaseModel):
     ]
 
 
-class NaverDomesticSearchResult(BaseModel):
-    """국내선 `search flights` 결과."""
+class NaverDomesticRoundTripResult(BaseModel):
+    """국내선 왕복 `search flights` 결과."""
 
     model_config = ConfigDict(
         extra='forbid',
@@ -189,12 +192,16 @@ class NaverDomesticSearchResult(BaseModel):
     ]
     legs: Annotated[
         list[NaverDomesticLegResult],
-        Field(description='방향마다 편 목록 (왕복은 가는 편·오는 편에서 하나씩 고른다)')
+        Field(description='방향마다 편 목록 (가는 편·오는 편에서 하나씩 고른다)')
     ]
     notes: Annotated[
         list[str],
         Field(exclude=True, description='결과 안내')
     ] = []
+
+
+class NaverDomesticOneWayResult(NaverFlightSearchResult[NaverDomesticItinerary]):
+    """국내선 편도 `search flights` 결과. 국제선 결과와 같은 모양이고 항공권이 국내선 편이다."""
 
 
 class NaverDomesticBooking(BaseModel):
@@ -479,10 +486,10 @@ def search_domestic_flights(
     conditions: NaverFlightConditions | None = None,
     sort: NaverFlightSort = '가격',
     limit: int = DEFAULT_LIMIT,
-) -> NaverDomesticSearchResult:
+) -> NaverDomesticOneWayResult | NaverDomesticRoundTripResult:
     """국내선 편도·왕복 편 목록 (판매처 이름 1회 + 검색 SSE 1회, 왕복이면 오는 편 캐시 조회 1회 더).
 
-    좌석 등급·항공사·정렬은 서버가 건다. 국내선은 모두 직항이다.
+    좌석 등급·항공사·정렬은 서버가 건다. 국내선은 모두 직항이다. 편도는 국제선과 같은 모양, 왕복은 방향마다 목록이다.
     """
     conditions = conditions or NaverFlightConditions()
     check_domestic_conditions(conditions)
@@ -510,8 +517,9 @@ def search_domestic_flights(
         # 오는 편은 같은 검색의 version 으로 묻는다. __v 가 없으면 None(가장 새 캐시)으로 묻는다. version 0 은 인기 노선에서 먼저
         # 만료돼 다시 검색하게 된다 (김포→제주가 v32 일 때 v0 은 isExpired, 생략하면 v32, 2026-10-11 실측)
         version = status.version
-        # 방향마다 따로 끊길 수 있어 어느 목록이 덜 받았는지 붙인다 (flight 와 같다)
-        notes += [f'{DIRECTION_LABELS[direction]}: {note}' for note in _search_note(event.status)]
+        # 왕복은 방향마다 따로 끊길 수 있어 어느 목록이 덜 받았는지 붙인다 (flight 와 같다). 편도는 목록이 하나다
+        label = f'{DIRECTION_LABELS[direction]}: ' if len(legs) == 2 else ''
+        notes += [f'{label}{note}' for note in _search_note(event.status)]
         leg = legs[index]
         itineraries = [
             _itinerary(flight, status, partners, legs=legs, conditions=conditions, direction=direction)
@@ -526,14 +534,18 @@ def search_domestic_flights(
             itineraries=itineraries,
         ))
         if len(event.flights) >= limit:
-            notes.append(f'{DIRECTION_LABELS[direction]}이 더 있을 수 있습니다. 정렬 순서 앞의 {limit}편만 받았습니다 (--limit 최대 {MAX_LIMIT})')
+            what = DIRECTION_LABELS[direction] if len(legs) == 2 else '조건에 맞는 편'
+            notes.append(f'{what}이 더 있을 수 있습니다. 정렬 순서 앞의 {limit}편만 받았습니다 (--limit 최대 {MAX_LIMIT})')
     if len(legs) == 2:
         notes.append(
             '국내선 왕복은 가는 편과 오는 편을 하나씩 고릅니다. 가격은 편마다 따로이고, 두 편의 id 를 함께 flight 에 넣으면 왕복 예약 가격이 나옵니다'
         )
     if conditions.infants:
         notes.append('유아 운임은 네이버가 계산에 넣지 않아 total_price_krw 가 null 입니다')
-    return NaverDomesticSearchResult(search=_summary(legs, conditions), legs=results, notes=notes)
+    summary = _summary(legs, conditions)
+    if len(legs) == 1:
+        return NaverDomesticOneWayResult(search=summary, returned=results[0].returned, itineraries=results[0].itineraries, notes=notes)
+    return NaverDomesticRoundTripResult(search=summary, legs=results, notes=notes)
 
 
 def _find_flight(
