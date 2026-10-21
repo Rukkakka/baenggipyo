@@ -52,6 +52,11 @@ LegOption = Annotated[
     list[str] | None,
     typer.Option('--leg', help='다구간 구간 출발-도착-YYYY-MM-DD. 구간마다 반복 (예: --leg ICN-NRT-2026-11-01 --leg KIX-ICN-2026-11-05)'),
 ]
+DepartTimeOption = Annotated[
+    str | None,
+    typer.Option('--depart-time', help='가는 편(다구간은 첫 구간) 출발 시각대 시작시-끝시. 경계는 0·6·9·12·15·18·21·24 (예: 06-12, 18-24)'),
+]
+ReturnTimeOption = Annotated[str | None, typer.Option('--return-time', help='오는 편 출발 시각대 시작시-끝시 (왕복만, 경계는 --depart-time 과 같다)')]
 AirlineOption = Annotated[list[str] | None, typer.Option('--airline', help='항공사 IATA 코드만 (예: KE,OZ). 반복하거나 쉼표로 구분')]
 SortOption = Annotated[str, typer.Option('--sort', help='정렬: 가격(price), 출발시각(departure), 소요시간(duration)')]
 AirportQueryArgument = Annotated[str, typer.Argument(help='공항·도시 이름 또는 코드 (예: 도쿄, 나리타, OSA)')]

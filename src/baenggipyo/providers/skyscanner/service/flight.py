@@ -20,6 +20,7 @@ from baenggipyo.core.flight import (
     SearchLeg,
     SearchSummary,
     Segment,
+    in_hours,
     shown_offers,
     url_omitted_notes,
 )
@@ -83,7 +84,7 @@ LEG_ID_PARTS: re.Pattern[str] = re.compile(r'(\d+)\.([A-Z0-9]{3,5})\.(\d+)\.([A-
 
 
 class SkyscannerFlightConditions(FlightConditions):
-    """스카이스캐너 검색 조건. 직항·항공사는 스카이스캐너가 받지 않아 받은 뒤 거른다."""
+    """스카이스캐너 검색 조건. 직항·항공사·출발 시각대는 스카이스캐너가 받지 않아 받은 뒤 거른다."""
 
 
 SELF_TRANSFER_WARNING: str = '표를 따로 사서 갈아타는 셀프 환승이라 연결편을 놓쳐도 보호받지 못하고 짐을 찾아 다시 부쳐야 할 수 있습니다'
@@ -321,15 +322,21 @@ def _carrier_code(segment: SkyscannerSegmentModel) -> str | None:
 
 
 def _verifiable(result: SkyscannerItineraryModel, conditions: SkyscannerFlightConditions) -> bool:
-    """서버가 받지 않는 조건(직항·항공사)을 판정할 값(경유 수·판매 항공사 코드)이 응답에 있는지."""
+    """서버가 받지 않는 조건(직항·항공사·출발 시각대)을 판정할 값(경유 수·판매 항공사 코드·출발 시각)이 응답에 있는지."""
     if conditions.direct and any(leg.stop_count is None for leg in result.legs):
+        return False
+    hours = conditions.leg_hours(len(result.legs))
+    if any(in_hours(_local_minute(leg.departure), leg_hours) is None for leg, leg_hours in zip(result.legs, hours)):
         return False
     return not conditions.airlines or all(_carrier_code(segment) for leg in result.legs for segment in leg.segments)
 
 
 def _matches(result: SkyscannerItineraryModel, conditions: SkyscannerFlightConditions) -> bool:
-    """직항·항공사 조건을 응답 값으로 판정한다. 판정할 값이 있는 항공권(`_verifiable`)만 넣는다."""
+    """직항·항공사·출발 시각대 조건을 응답 값으로 판정한다. 판정할 값이 있는 항공권(`_verifiable`)만 넣는다."""
     if conditions.direct and any(leg.stop_count != 0 for leg in result.legs):
+        return False
+    hours = conditions.leg_hours(len(result.legs))
+    if not all(in_hours(_local_minute(leg.departure), leg_hours) for leg, leg_hours in zip(result.legs, hours)):
         return False
     return not conditions.airlines or all(_carrier_code(segment) in conditions.airlines for leg in result.legs for segment in leg.segments)
 
@@ -382,11 +389,17 @@ def search_flights(
         notes.append(f'여정 정보가 응답에 없는 항공권 {len(found) - len(routed)}개는 뺐습니다')
     if len(priced) < len(routed):
         notes.append(f'판매처 운임이 모두 가격 없음으로 온 항공권 {len(routed) - len(priced)}개는 뺐습니다')
-    filters = [label for label, on in (('직항', conditions.direct), ('항공사', bool(conditions.airlines))) if on]
+    filters = [
+        label for label, on in (
+            ('직항', conditions.direct),
+            ('항공사', bool(conditions.airlines)),
+            ('출발 시각', conditions.depart_hours is not None or conditions.return_hours is not None),
+        ) if on
+    ]
     if filters:
         notes.append(f"{'·'.join(filters)} 조건은 스카이스캐너가 받지 않아 받은 {len(found)}개에서 걸렀습니다 ({len(matched)}개 남음)")
     if len(verifiable) < len(priced):
-        notes.append(f"{'·'.join(filters)} 여부를 판정할 값(경유 수·판매 항공사)이 응답에 없는 항공권 {len(priced) - len(verifiable)}개도 뺐습니다")
+        notes.append(f"{'·'.join(filters)} 여부를 판정할 값(경유 수·판매 항공사·출발 시각)이 응답에 없는 항공권 {len(priced) - len(verifiable)}개도 뺐습니다")
     if len(matched) > limit:
         notes.append(f'조건에 맞는 항공권 {len(matched)}개 중 앞의 {limit}개만 보여 줍니다 (--limit 최대 {MAX_LIMIT})')
     if not conditions.only_one_adult:

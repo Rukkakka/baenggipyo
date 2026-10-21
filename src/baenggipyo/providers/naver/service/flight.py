@@ -62,6 +62,7 @@ from baenggipyo.providers.naver.service.common import (
     NaverOffer,
     cut_short,
     flight_number_of,
+    hour_slots,
     incomplete_note,
     partner_names,
     results_url,
@@ -301,6 +302,9 @@ def _search_payload(
     flight_filter: dict[str, object] = {}
     if conditions.airlines:
         flight_filter['airlines'] = conditions.airlines
+    leg_hours = conditions.leg_hours(len(legs))
+    if any(leg_hours):
+        flight_filter['departureTime'] = [hour_slots(hours) for hours in leg_hours]
     if selected:
         flight_filter['selectedItineraries'] = selected
     return NaverFlightInternationalSearchFlightsRequestPayloadModel(

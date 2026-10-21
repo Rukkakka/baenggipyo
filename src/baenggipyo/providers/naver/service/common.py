@@ -13,6 +13,7 @@ from pydantic import (
 
 from baenggipyo.core.errors import BaenggipyoError
 from baenggipyo.core.flight import (
+    DEPART_HOUR_BOUNDARIES,
     CabinClass,
     FlightConditions,
     Itinerary,
@@ -153,6 +154,18 @@ def results_url(
     if selected:
         query['selectedFlight'] = selected
     return f'{SITE_URL}/flights/international/{routes}?{urlencode(query)}'
+
+
+def hour_slots(hours: tuple[int, int] | None) -> list[str]:
+    """출발 시각대를 사이트 출발 시각 칸 이름(`06:00-09:00`) 목록으로. 조건이 없으면 빈 목록이다 (그 구간은 거르지 않는다).
+
+    국제선 `filter.departureTime`(구간마다 목록)과 국내선 `filter.segment__departure__time`(방향마다 목록)이 같은 칸 이름을 받는다
+    (사이트 번들의 출발시각 필터, 2026-10-21 실측: 국제선 ICN→NRT 06~12시 50건 모두 06:10~11:20, 국내선 김포→제주 18~24시 50편 모두 18:20~21:00).
+    """
+    if hours is None:
+        return []
+    bounds = [hour for hour in DEPART_HOUR_BOUNDARIES if hours[0] <= hour <= hours[1]]
+    return [f'{start:02d}:00-{end:02d}:00' for start, end in zip(bounds, bounds[1:])]
 
 
 def unwrap_graphql(response: NaverGraphQLResponseModel, value: T | None, what: str) -> T:

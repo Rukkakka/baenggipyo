@@ -64,6 +64,9 @@ MAX_PASSENGERS_PER_TYPE: int = 9
 BRIEF_CONTEXT_KEY: str = 'brief'
 # 달력 결과 맨 위 `cheapest_days` 에 싼 순으로 올리는 날 수
 CHEAPEST_DAY_COUNT: int = 3
+# 출발 시각대 조건(--depart-time·--return-time)이 받는 경계 (시). 네이버 사이트의 출발 시각 칸(00-06·06-09·…·21-24, 서버 필터 값)에 맞춰
+# 두 소스가 같은 값을 받는다. 시작 시는 넣고 끝 시는 뺀다 (네이버 국내선 09-12 칸이 09:00 출발을 넣었다, 2026-10-21 실측)
+DEPART_HOUR_BOUNDARIES: tuple[int, ...] = (0, 6, 9, 12, 15, 18, 21, 24)
 
 COMPACT_DATE_PATTERN: re.Pattern[str] = re.compile(r'^(\d{4})(\d{2})(\d{2})$')
 COMPACT_DATETIME_PATTERN: re.Pattern[str] = re.compile(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$')
@@ -171,6 +174,14 @@ class FlightConditions(RequestModel):
         list[str],
         Field(description='항공사 IATA 코드')
     ] = []
+    depart_hours: Annotated[
+        tuple[int, int] | None,
+        Field(description='가는 편(다구간은 첫 구간) 출발 시각대 (시작 시, 끝 시). 항공권 ID 에는 담지 않는다 (항공사 조건과 같다)')
+    ] = None
+    return_hours: Annotated[
+        tuple[int, int] | None,
+        Field(description='오는 편(구간이 둘인 검색의 둘째 구간) 출발 시각대 (시작 시, 끝 시). 항공권 ID 에는 담지 않는다')
+    ] = None
 
     @field_validator('infants')
     @classmethod
@@ -185,6 +196,20 @@ class FlightConditions(RequestModel):
     @property
     def only_one_adult(self) -> bool:
         return self.adults == 1 and self.children == 0 and self.infants == 0
+
+    def leg_hours(self, leg_count: int) -> list[tuple[int, int] | None]:
+        """구간마다 출발 시각대 (첫 구간은 `depart_hours`, 둘째 구간은 `return_hours`, 나머지는 조건 없음)."""
+        return [(self.depart_hours, self.return_hours)[index] if index < 2 else None for index in range(leg_count)]
+
+
+def in_hours(local_datetime: str | None, hours: tuple[int, int] | None) -> bool | None:
+    """현지 시각 `YYYY-MM-DDTHH:MM` 이 출발 시각대 (시작 시 이상, 끝 시 미만) 안인지. 조건이 없으면 True, 시각을 모르면 None."""
+    if hours is None:
+        return True
+    if not local_datetime or len(local_datetime) < 16:
+        return None
+    hour = int(local_datetime[11:13])
+    return hours[0] <= hour < hours[1]
 
 
 class FlightModel(BaseModel):

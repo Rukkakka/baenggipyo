@@ -14,6 +14,7 @@ from baenggipyo.cli.options import (
     CabinOption,
     ChildrenOption,
     DepartOption,
+    DepartTimeOption,
     DestinationArgument,
     DirectOption,
     InfantsOption,
@@ -23,6 +24,7 @@ from baenggipyo.cli.options import (
     OriginArgument,
     PrettyOption,
     ReturnOption,
+    ReturnTimeOption,
     SortOption,
     TripDaysOption,
 )
@@ -31,6 +33,7 @@ from baenggipyo.cli.output import (
     handle_errors,
     one_of,
     parse_airlines,
+    parse_leg_hours,
     parse_legs,
     parse_month,
     validate_passengers,
@@ -102,6 +105,7 @@ def _conditions(
     cabin: str,
     direct: bool,
     airline: list[str] | None,
+    hours: tuple[tuple[int, int] | None, tuple[int, int] | None] = (None, None),
 ) -> NaverFlightConditions:
     validate_passengers(adults, children, infants)
     return NaverFlightConditions(
@@ -111,6 +115,8 @@ def _conditions(
         cabin=one_of(cabin, CABIN_CLASSES, '--cabin', CABIN_ALIASES),
         direct=direct,
         airlines=parse_airlines(airline),
+        depart_hours=hours[0],
+        return_hours=hours[1],
     )
 
 
@@ -127,6 +133,8 @@ def search_flights_command(
     cabin: CabinOption = '일반석',
     direct: DirectOption = False,
     airline: AirlineOption = None,
+    depart_time: DepartTimeOption = None,
+    return_time: ReturnTimeOption = None,
     sort: SortOption = '가격',
     limit: Annotated[
         int,
@@ -144,9 +152,10 @@ def search_flights_command(
     예: baenggipyo naver search flights ICN NRT --depart 2026-11-15 --return 2026-11-20
     """
     raw_legs = parse_legs(origin, destination, depart, return_, leg)
+    hours = parse_leg_hours(raw_legs, depart_time, return_time)
     sort_by = one_of(sort, FLIGHT_SORTS, '--sort', SORT_ALIASES)
     with handle_errors(SOURCE), NaverClient() as client:
-        conditions = _conditions(adults, children, infants, cabin, direct, airline)
+        conditions = _conditions(adults, children, infants, cabin, direct, airline, hours)
         legs = resolve_legs(client, raw_legs)
         if route_kind(legs) == 'domestic':
             domestic = search_domestic_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)

@@ -66,6 +66,7 @@ from baenggipyo.providers.naver.service.common import (
     NaverOffer,
     cut_short,
     flight_number_of,
+    hour_slots,
     incomplete_note,
     partner_names,
     seller_type_of,
@@ -367,6 +368,9 @@ def _search_payload(
     flight_filter: dict[str, object] = {'type': direction, 'seatClass': seat_classes or SEAT_FILTER_BY_CABIN[conditions.cabin]}
     if airlines:
         flight_filter['segment__airlineCode'] = airlines
+    hours = conditions.depart_hours if direction == 'departure' else conditions.return_hours
+    if hours is not None:
+        flight_filter['segment__departure__time'] = hour_slots(hours)
     return NaverFlightDomesticSearchFlightsRequestPayloadModel(
         itineraries=[
             NaverDomesticItineraryModel(departure_airport=leg.origin.code, arrival_airport=leg.destination.code, departure_date=leg.compact_date)

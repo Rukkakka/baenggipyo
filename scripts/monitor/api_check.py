@@ -3,7 +3,8 @@
 명령마다 셋으로 나눈다 (references/development.md '매일 API 감시').
 
 - 정상: exit 0 이고 결과가 1건 이상
-- 고장: 응답 형식 오류·서버 거절(4xx·500)·내부 오류 같은 에러, 결과 0건, JSON 이 아닌 출력. 인기 노선이라 0건이면 사이트가 바뀐 것으로 본다
+- 고장: 응답 형식 오류·서버 거절(4xx·500)·내부 오류 같은 에러, 결과 0건, JSON 이 아닌 출력. 인기 노선이라 0건이면 사이트가 바뀐 것으로 본다.
+  출발 시각대 조건을 건 검색은 그 시각대 밖 항공권이 섞여도 고장이다 (네이버가 필터를 말없이 무시하게 된 것)
 - 확인 못 함: 봇 차단·요청 제한·네트워크 오류·서버 일시 오류(502·503 등)·검색 시간 초과·검색 직후 매진, 판매처가 모두 빠진 상세.
   사이트가 바뀐 것인지 알 수 없다
 
@@ -33,11 +34,13 @@ class Step:
         command: CLI 명령 경로 (예: `('naver', 'search', 'flights')`).
         args: 인자. `{depart}`(오늘부터 DAYS_AHEAD 일 뒤), `{return}`(그 TRIP_DAYS 일 뒤), `{month}`(출발 달), `{id}`(바로 앞 검색 결과의
             첫 항공권 ID), `{return_id}`(바로 앞 네이버 국내선 왕복 검색의 오는 편 첫 ID)를 채운다.
+        hours: `--depart-time`·`--return-time` 으로 건 출발 시각대 (시작 시, 끝 시). 차례로 첫·둘째 구간이고, 결과가 모두 그 안이어야 정상이다.
     """
 
     label: str
     command: tuple[str, ...]
     args: tuple[str, ...]
+    hours: tuple[tuple[int, int], ...] = ()
 
 
 DAYS_AHEAD: int = 30
@@ -66,6 +69,12 @@ GROUPS: dict[str, tuple[Step, ...]] = {
         Step('국내선 상세', ('naver', 'flight'), FLIGHT),
         Step('국내선 왕복 검색 김포↔제주', ('naver', 'search', 'flights'), ('GMP', 'CJU', *ROUND_TRIP_SEARCH)),
         Step('국내선 왕복 상세', ('naver', 'flight'), ROUND_TRIP_FLIGHT),
+        # 출발 시각대는 네이버 서버 필터다 (국제선 filter.departureTime, 국내선 filter.segment__departure__time). 필터 키가 바뀌어 무시되면
+        # 결과는 그대로 나와 위 검색으로는 모른다. 스카이스캐너는 받은 결과를 baenggipyo 가 걸러 API 변화와 상관없어 부르지 않는다
+        Step('국제선 검색 출발 06~12시 인천→도쿄', ('naver', 'search', 'flights'),
+             ('ICN', 'NRT', '--depart', '{depart}', '--depart-time', '06-12', '--limit', '5', '--brief'), hours=((6, 12),)),
+        Step('국내선 왕복 검색 가는 편 06~12시·오는 편 18~24시', ('naver', 'search', 'flights'),
+             ('GMP', 'CJU', *ROUND_TRIP_SEARCH, '--depart-time', '06-12', '--return-time', '18-24'), hours=((6, 12), (18, 24))),
         Step('국제선 달력 인천→도쿄', ('naver', 'calendar'), ('ICN', 'NRT', '--month', '{month}')),
         Step('국내선 달력 김포→제주', ('naver', 'calendar'), ('GMP', 'CJU', '--month', '{month}')),
         # 네이버 어디든지는 국제선 목적지만 준다
@@ -170,6 +179,28 @@ def _first_id(directions: list[list[object]], index: int) -> str:
     return value if isinstance(value, str) else ''
 
 
+def _outside_hours(data: dict[str, object], hours: tuple[tuple[int, int], ...]) -> int:
+    """출발 시각대 밖 항공권 수. 방향이 둘(네이버 국내선 왕복 `legs[]`)이면 방향마다, 하나면 항공권의 여정(`journeys`)마다 차례로 맞춘다.
+
+    끝 시 정각(12:00) 출발은 밖으로 세지 않는다. 네이버 칸의 끝 시각 포함 여부는 정각 출발 편이 없어 재지 못했다 (references/providers/naver.md).
+    """
+    directions = _directions(data)
+    outside = 0
+    for index, items in enumerate(directions):
+        for item in items:
+            journeys = item.get('journeys') if isinstance(item, dict) else None
+            for order, journey in enumerate(journeys if isinstance(journeys, list) else []):
+                position = index if len(directions) > 1 else order
+                departure = journey.get('departure_at') if isinstance(journey, dict) else None
+                if position >= len(hours) or not isinstance(departure, str) or len(departure) < 16:
+                    continue
+                start, end = hours[position]
+                hour, minute = int(departure[11:13]), int(departure[14:16])
+                if not (start <= hour < end or (hour == end and minute == 0)):
+                    outside += 1
+    return outside
+
+
 def _run_step(step: Step, values: dict[str, str], *, disguise: bool = False) -> tuple[str, str, dict[str, object] | None]:
     """(판정, 내용, stdout JSON). `disguise` 면 스카이스캐너 명령을 disguise.py 로 부른다."""
     command = [*step.command, *(arg.format(**values) for arg in step.args)]
@@ -194,6 +225,9 @@ def _run_step(step: Step, values: dict[str, str], *, disguise: bool = False) -> 
         if not isinstance(data, dict):
             return BROKEN, 'stdout 이 JSON 객체가 아님', None
         count = _count(data)
+        outside = _outside_hours(data, step.hours) if step.hours else 0
+        if outside:
+            return BROKEN, f'출발 시각대 밖 항공권 {outside}건 (시간 필터가 무시됨)', data
         if count:
             return OK, f'{count}건', data
         notes = data.get('notes')

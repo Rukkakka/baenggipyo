@@ -29,6 +29,7 @@ from typer._click.globals import get_current_context
 from baenggipyo.core.errors import BaenggipyoError
 from baenggipyo.core.flight import (
     BRIEF_CONTEXT_KEY,
+    DEPART_HOUR_BOUNDARIES,
     KST,
 )
 from baenggipyo.core.schema import is_request_validation_error
@@ -60,6 +61,7 @@ DATE_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 MONTH_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^\d{4}-\d{2}$')
 LEG_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^(?P<origin>[^-\s]+)-(?P<destination>[^-\s]+)-(?P<date>\d{4}-\d{2}-\d{2})$')
 AIRLINE_CODE_PATTERN: re.Pattern[str] = re.compile(r'^[A-Z0-9]{2}$')
+HOURS_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^(?P<start>\d{1,2})-(?P<end>\d{1,2})$')
 # CLI 가 받는 승객 합계 상한 (validate_passengers). 소스 요청 모델의 유형별 상한(api/request/common.py)과는 따로 둔다
 MAX_PASSENGERS: int = 9
 
@@ -344,6 +346,34 @@ def parse_legs(
     if dates != sorted(dates):
         raise typer.BadParameter('구간 날짜가 앞 구간보다 이릅니다', param_hint='--return / --leg')
     return legs
+
+
+def parse_hours(value: str | None, option: str) -> tuple[int, int] | None:
+    """출발 시각대 `시작시-끝시` (`06-12`) 를 검증한다. 경계는 `DEPART_HOUR_BOUNDARIES` 만, 자정을 넘는 시각대는 받지 않는다."""
+    if value is None:
+        return None
+    boundaries = '·'.join(str(hour) for hour in DEPART_HOUR_BOUNDARIES)
+    match = HOURS_INPUT_PATTERN.fullmatch(value.strip())
+    if match is None:
+        raise typer.BadParameter(f'출발 시각대는 시작시-끝시 로 주세요 (예: 06-12, 경계 {boundaries}시): {value}', param_hint=option)
+    start, end = int(match['start']), int(match['end'])
+    if start not in DEPART_HOUR_BOUNDARIES or end not in DEPART_HOUR_BOUNDARIES:
+        raise typer.BadParameter(f'시각대 경계는 {boundaries}시만 받습니다 (네이버 출발 시각 칸): {value}', param_hint=option)
+    if start >= end:
+        raise typer.BadParameter(f'시작 시가 끝 시보다 앞서야 합니다 (자정을 넘는 시각대는 둘로 나눠 찾으세요): {value}', param_hint=option)
+    return start, end
+
+
+def parse_leg_hours(
+    legs: list[tuple[str, str, str]],
+    depart_time: str | None,
+    return_time: str | None,
+) -> tuple[tuple[int, int] | None, tuple[int, int] | None]:
+    """`--depart-time`(첫 구간)·`--return-time`(둘째 구간) 을 검증한다. 오는 편 시각대는 구간이 둘인 검색(왕복)에서만 받는다."""
+    return_hours = parse_hours(return_time, '--return-time')
+    if return_hours is not None and len(legs) != 2:
+        raise typer.BadParameter('오는 편 시각대는 왕복(구간이 둘인 검색)에서만 씁니다', param_hint='--return-time')
+    return parse_hours(depart_time, '--depart-time'), return_hours
 
 
 def validate_passengers(adults: int, children: int, infants: int) -> None:

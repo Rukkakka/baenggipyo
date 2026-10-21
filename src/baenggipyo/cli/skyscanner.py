@@ -15,6 +15,7 @@ from baenggipyo.cli.options import (
     CabinOption,
     ChildrenOption,
     DepartOption,
+    DepartTimeOption,
     DestinationArgument,
     DirectOption,
     FlightIdArgument,
@@ -25,6 +26,7 @@ from baenggipyo.cli.options import (
     OriginArgument,
     PrettyOption,
     ReturnOption,
+    ReturnTimeOption,
     SortOption,
 )
 from baenggipyo.cli.output import (
@@ -32,6 +34,7 @@ from baenggipyo.cli.output import (
     handle_errors,
     one_of,
     parse_airlines,
+    parse_leg_hours,
     parse_legs,
     parse_month,
     validate_passengers,
@@ -130,6 +133,8 @@ def search_flights_command(
     cabin: CabinOption = '일반석',
     direct: DirectOption = False,
     airline: AirlineOption = None,
+    depart_time: DepartTimeOption = None,
+    return_time: ReturnTimeOption = None,
     sort: SortOption = '가격',
     limit: Annotated[
         int,
@@ -140,11 +145,12 @@ def search_flights_command(
 ) -> None:
     """편도·왕복·다구간 항공권, 국내선 포함 (요청: 공항 해석 입력마다 1회 + 검색 1회 + 폴링, 보통 5~15초).
 
-    가격은 모든 승객 합계다 (성인 1명이면 1인 요금과 같다). 직항·항공사 조건과 정렬은 받은 결과에서 baenggipyo 가 한다.
+    가격은 모든 승객 합계다 (성인 1명이면 1인 요금과 같다). 직항·항공사·출발 시각대 조건과 정렬은 받은 결과에서 baenggipyo 가 한다.
 
     예: baenggipyo skyscanner search flights GMP CJU --depart 2026-11-15 --return 2026-11-17
     """
     raw_legs = parse_legs(origin, destination, depart, return_, leg)
+    depart_hours, return_hours = parse_leg_hours(raw_legs, depart_time, return_time)
     validate_passengers(adults, children, infants)
     sort_by = one_of(sort, FLIGHT_SORTS, '--sort', SORT_ALIASES)
     with handle_errors(SOURCE), SkyscannerClient() as client:
@@ -155,6 +161,8 @@ def search_flights_command(
             cabin=one_of(cabin, CABIN_CLASSES, '--cabin', CABIN_ALIASES),
             direct=direct,
             airlines=parse_airlines(airline),
+            depart_hours=depart_hours,
+            return_hours=return_hours,
         )
         legs = resolve_legs(client, raw_legs)
         result = search_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
