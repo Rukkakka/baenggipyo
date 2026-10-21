@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import sys
 from collections.abc import (
@@ -41,9 +42,19 @@ from typing import (
 
 ChoiceT = TypeVar('ChoiceT', bound=str)
 
+# 이 환경 변수가 1 이면 터미널이어도 파이프처럼 쓴다 (한 줄 JSON, Click 평문 도움말). 명령을 가짜 터미널(PTY)에서 돌리는 LLM 에이전트용이다
+# (VS Code Copilot·Gemini CLI 대화형 셸 등). PTY 에서는 도움말이 3배, JSON 이 1.6배 길었고 NO_COLOR·TERM=dumb 로는 거의 줄지 않았다 (2026-10-21 실측)
+PLAIN_ENV: str = 'BAENGGIPYO_PLAIN'
+
+
+def is_terminal(stream: Any) -> bool:
+    """사람이 보는 터미널인지. `BAENGGIPYO_PLAIN=1` 이면 터미널이어도 아니라고 본다."""
+    return stream.isatty() and os.environ.get(PLAIN_ENV) != '1'
+
+
 # 도움말 모양 (최상위 Typer 의 rich_markup_mode, 하위 명령도 따른다). 터미널이면 Rich 상자로, 파이프(LLM 에이전트)면 Click 평문으로 쓴다.
 # 파이프의 Rich 상자는 80칸 안에 테두리·여백을 넣느라 같은 도움말이 두 배 넘게 길고, 좁은 칸에서 설명을 … 로 자른다 (2026-10-15 실측)
-HELP_MARKUP_MODE: Literal['rich'] | None = 'rich' if sys.stdout.isatty() else None
+HELP_MARKUP_MODE: Literal['rich'] | None = 'rich' if is_terminal(sys.stdout) else None
 
 DATE_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 MONTH_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^\d{4}-\d{2}$')
@@ -55,7 +66,7 @@ MAX_PASSENGERS: int = 9
 
 def _dumps(data: Any, pretty: bool | None) -> str:
     if pretty is None:
-        pretty = sys.stdout.isatty()
+        pretty = is_terminal(sys.stdout)
     return json.dumps(
         data,
         ensure_ascii=False,
@@ -99,7 +110,7 @@ def emit_error(code: str, message: str, hint: str | None = None, **extra: Any) -
         error['hint'] = hint
     error.update({key: value for key, value in extra.items() if value is not None})
     # 들여쓰기는 stdout 이 아니라 에러를 쓰는 stderr 가 터미널인지로 정한다 (`baenggipyo ... | jq` 도 에러는 터미널에 보인다)
-    typer.echo(_dumps({'error': error}, sys.stderr.isatty()), err=True)
+    typer.echo(_dumps({'error': error}, is_terminal(sys.stderr)), err=True)
 
 
 def _validation_message(error: Any) -> str:

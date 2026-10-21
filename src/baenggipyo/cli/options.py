@@ -29,7 +29,7 @@ DEFAULT_OFFER_URLS: int = 1
 
 PrettyOption = Annotated[
     bool | None,
-    typer.Option('--pretty/--compact', help='JSON 들여쓰기. 기본값은 터미널이면 pretty, 파이프면 compact'),
+    typer.Option('--pretty/--compact', help='JSON 들여쓰기. 기본값은 터미널이면 pretty, 파이프나 BAENGGIPYO_PLAIN=1 이면 compact'),
 ]
 AdultsOption = Annotated[int, typer.Option('--adults', min=1, max=9, help='성인 수 (만 12세 이상)')]
 ChildrenOption = Annotated[int, typer.Option('--children', min=0, max=8, help='소아 수 (만 2~11세)')]
