@@ -74,7 +74,7 @@ def test_flight_price_comes_from_listed_sellers_and_cut_search_is_noted(monkeypa
     with NaverClient() as client:
         detail, notes = get_flight(client, flight_id(legs, NaverFlightConditions(), itinerary_id))
     assert [offer.seller for offer in detail.offers] == ['판매처1']
-    assert (detail.price_per_adult_krw, detail.cheapest_seller, detail.offer_count) == (100000, '판매처1', 1)
+    assert (detail.price_per_adult_krw, detail.cheapest_seller, detail.seller_count) == (100000, '판매처1', 1)
     assert any('3/20곳' in note and '시간 상한' in note for note in notes)
 
 

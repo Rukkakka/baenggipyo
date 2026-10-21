@@ -526,9 +526,9 @@ class Itinerary(FlightModel):
         int | None,
         Field(description='성인 1인 요금 (세금·유류할증료 포함, 원)')
     ] = None
-    offer_count: Annotated[
+    seller_count: Annotated[
         int | None,
-        Field(description='판매처 수')
+        Field(description='판매처 수. 판매처 여러 곳에서 따로 예약하는 조합은 하나로 센다')
     ] = None
     cheapest_seller: Annotated[
         str | None,

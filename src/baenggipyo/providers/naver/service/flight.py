@@ -388,7 +388,7 @@ def search_flights(
         results.append(NaverItinerary.model_validate({
             **fields,
             **price_fields,
-            'offer_count': len({fare.partner_code for fare in mapping.fares}),
+            'seller_count': len({fare.partner_code for fare in mapping.fares}),
             'cheapest_seller': _cheapest_seller(general, mapping.fares, partners, conditions),
         }))
     missing = len(event.fare_mappings) - len(results)
@@ -488,7 +488,7 @@ def get_flight(
         notes += incomplete_note(cut.is_completed, cut.completed_partner_count, cut.requested_partner_count, missing='더 싼 판매처 운임')
     status = event.status or NaverSearchStatusModel()
     itineraries = {itinerary.itinerary_id: itinerary for itinerary in event.itineraries}
-    # 판매처 이름표(partner_names)는 받지 않는다 (요청 1회를 아낀다). 판매처 필드(cheapest_seller·offer_count)는 아래 판매처 조회로 채운다
+    # 판매처 이름표(partner_names)는 받지 않는다 (요청 1회를 아낀다). 판매처 필드(cheapest_seller·seller_count)는 아래 판매처 조회로 채운다
     fields = _itinerary_fields(mapping, itineraries, status, legs=legs, conditions=conditions)
     if fields is None:
         raise FareUnavailableError('naver', value, reason='NO_ITINERARY')
@@ -506,16 +506,17 @@ def get_flight(
     if not_realtime:
         notes.append(
             f'실시간 가격을 주지 않는 판매처 {not_realtime}곳은 사이트처럼 뺐습니다. 대표 가격도 남은 판매처로 정해 '
-            'search flights 의 가격·offer_count 와 다를 수 있습니다'
+            'search flights 의 가격·seller_count 와 다를 수 있습니다'
         )
     if len(offers) > offer_limit:
-        notes.append(f'판매처 운임 {len(offers)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
-    # offer_count 는 offers 에 낸 판매처 수다. 판매처마다 운임(A01·카드)이 여럿이라 offers 행 수와 다르다 (ZE605 판매처 19곳 운임 116개).
+        # 판매처 수와 운임 수를 함께 쓴다. 운임 수만 쓰면 seller_count 와 다른 수(판매처 23곳, 운임 133개)라 둘을 섞어 말하기 쉽다
+        notes.append(f'판매처 {len(sellers)}곳의 운임 {len(offers)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
+    # seller_count 는 offers 에 낸 판매처 수다. 판매처마다 운임(A01·카드)이 여럿이라 offers 행 수와 다르다 (ZE605 판매처 19곳 운임 116개).
     # search flights 는 실시간 여부를 몰라 운임 묶음의 판매처를 모두 세므로 실시간이 아닌 판매처만큼 크다 (TW241 24곳 중 실시간 23곳, 2026-10-11)
     detail = NaverItineraryDetail.model_validate({
         **fields,
         **price_fields,
-        'offer_count': len(sellers),
+        'seller_count': len(sellers),
         'cheapest_seller': sellers.get(general.partner_code) if general else None,
         'offers': shown_offers([[offer] for offer in offers], offer_limit, url_limit),
     })

@@ -294,7 +294,7 @@ def _itinerary_fields(
         'price_per_adult_krw': total if conditions.only_one_adult else None,
         # 한 판매처 운임은 판매처마다 하나라 가격을 준 운임 수가 판매처 수다 (ICN→BCN 203건 모두 같았다, 2026-10-11).
         # 판매처 여러 곳에서 따로 예약하는 조합은 운임 하나로 센다
-        'offer_count': len(_priced_options(result)),
+        'seller_count': len(_priced_options(result)),
         'cheapest_seller': ' + '.join(name for name in sellers if name) or None,
         'baggage_included': None,
         'self_transfer': result.is_self_transfer,

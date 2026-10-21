@@ -224,9 +224,9 @@ class NaverDomesticBooking(BaseModel):
         int | None,
         Field(description='고른 편 전부의 대표 가격 합계 (모든 승객)')
     ] = None
-    offer_count: Annotated[
+    seller_count: Annotated[
         int,
-        Field(description='판매처 운임 수 (따로 예약하는 조합의 두 줄은 하나로 센다)')
+        Field(description='판매처 수. 판매처마다 운임이 하나이고, 따로 예약하는 조합(두 줄)은 하나로 센다')
     ]
     offers: Annotated[
         list[NaverOffer],
@@ -426,7 +426,7 @@ def _itinerary(
         journeys=[journey],
         total_price_krw=fare_total(general, conditions) if general else None,
         price_per_adult_krw=fare_per_person(general)[0] if general else None,
-        offer_count=len({fare.agt_code for fare in flight.fares}),
+        seller_count=len({fare.agt_code for fare in flight.fares}),
         cheapest_seller=partners.get(general.agt_code) if general else None,
         # 수하물 유료 특가석만 알 수 있다. 나머지는 운임 정보에 수하물이 없다
         baggage_included=False if flight.seat_class == 'NB' else None,
@@ -770,7 +770,8 @@ def get_domestic_flights(
         url=domestic_results_url(legs, conditions),
         flights=itineraries,
         total_price_krw=None if any(total is None for total in totals) else sum(total or 0 for total in totals),
-        offer_count=len(fares),
+        # 따로 예약하는 조합은 판매처가 둘이어도(그 둘이 한 판매처 운임에도 있어도) 운임 하나로 센다 (필드 description, docs/common.md)
+        seller_count=len(fares),
         offers=shown_offers(fares, offer_limit, url_limit),
     )
     return booking, notes
