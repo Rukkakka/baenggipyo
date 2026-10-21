@@ -68,6 +68,9 @@ def test_hourly_budget_refuses_when_hour_is_full() -> None:
     assert exc.value.reason == 'budget'
     assert '시간당' in exc.value.message
     assert exc.value.details['retry_after_seconds'] >= 3500
+    # limits 와 스카이스캐너 결과 notes 가 남은 요청과 한 칸이 비는 때를 같은 셈으로 알린다
+    status = hourly.status()
+    assert status['requests_remaining_hour'] == 0 and status['hour_slot_wait_seconds'] >= 3500
 
 
 def test_repeated_blocks_double_cooldown_up_to_cap(monkeypatch: pytest.MonkeyPatch) -> None:

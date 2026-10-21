@@ -3,7 +3,8 @@
 명령마다 셋으로 나눈다 (references/development.md '매일 API 감시').
 
 - 정상: exit 0 이고 결과가 1건 이상
-- 고장: 응답 형식 오류·서버 거절(4xx·500)·내부 오류 같은 에러, 결과 0건, JSON 이 아닌 출력. 인기 노선이라 0건이면 사이트가 바뀐 것으로 본다
+- 고장: 응답 형식 오류·서버 거절(4xx·500)·내부 오류 같은 에러, 결과 0건, JSON 이 아닌 출력. 인기 노선이라 0건이면 사이트가 바뀐 것으로 본다.
+  출발 시각대 조건을 건 검색은 그 시각대 밖 항공권이 섞여도 고장이다 (네이버가 필터를 말없이 무시하게 된 것)
 - 확인 못 함: 봇 차단·요청 제한·네트워크 오류·서버 일시 오류(502·503 등)·검색 시간 초과·검색 직후 매진, 판매처가 모두 빠진 상세.
   사이트가 바뀐 것인지 알 수 없다
 
@@ -31,25 +32,34 @@ class Step:
     Args:
         label: 결과 표에 쓰는 이름.
         command: CLI 명령 경로 (예: `('naver', 'search', 'flights')`).
-        args: 인자. `{depart}`(오늘부터 DAYS_AHEAD 일 뒤), `{month}`(그 달), `{id}`(바로 앞 검색 결과의 첫 항공권 ID)를 채운다.
+        args: 인자. `{depart}`(오늘부터 DAYS_AHEAD 일 뒤), `{return}`(그 TRIP_DAYS 일 뒤), `{month}`(출발 달), `{id}`(바로 앞 검색 결과의
+            첫 항공권 ID), `{return_id}`(바로 앞 네이버 국내선 왕복 검색의 오는 편 첫 ID)를 채운다.
+        hours: `--depart-time`·`--return-time` 으로 건 출발 시각대 (시작 시, 끝 시). 차례로 첫·둘째 구간이고, 결과가 모두 그 안이어야 정상이다.
     """
 
     label: str
     command: tuple[str, ...]
     args: tuple[str, ...]
+    hours: tuple[tuple[int, int], ...] = ()
 
 
 DAYS_AHEAD: int = 30
+# 왕복 검색의 여행 일수
+TRIP_DAYS: int = 3
 # 스카이스캐너 검색은 폴링 60초에 요청 제한 대기(최대 60초)가 붙을 수 있다
 COMMAND_TIMEOUT_SECONDS: int = 300
 SEARCH: tuple[str, ...] = ('--depart', '{depart}', '--limit', '2', '--brief')
 FLIGHT: tuple[str, ...] = ('{id}', '--limit', '3', '--offer-urls', '0')
+# 네이버 국내선 왕복은 가는 편·오는 편을 따로 찾아(`legs[]`) 상세도 두 편 ID 로 왕복 예약 가격을 묻는다
+ROUND_TRIP_SEARCH: tuple[str, ...] = ('--depart', '{depart}', '--return', '{return}', '--limit', '2', '--brief')
+ROUND_TRIP_FLIGHT: tuple[str, ...] = ('{id}', '{return_id}', '--limit', '3', '--offer-urls', '0')
 # `run --disguise` 면 스카이스캐너 명령을 이것으로 부른다 (접속 버릇만 크롬처럼, curl_cffi 필요)
 DISGUISE: Path = Path(__file__).with_name('disguise.py')
 
 # 러너 하나가 묶음 하나를 돈다. 스카이스캐너 명령을 모두 부르면 요청이 40번 남짓이라 한 러너로는 시간당 상한(30회)에 막혀 한 시간 넘게
 # 기다리므로 국제선·국내선을 나눈다 (한 묶음 15~25번). 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (막힌 날은 확인 못 함으로 남긴다).
-# 모두 편도다: 국내선 왕복은 스카이스캐너 결과가 8천 건·100MB 를 넘는다. 노선은 결과가 0건일 리 없는 인기 노선으로 고른다 (0건이면 고장으로 본다)
+# 왕복은 네이버 국내선만 부른다. 네이버 국내선 왕복만 결과 모양(`legs[]`)과 요청(오는 편 검색, 두 편 예약 가격)이 편도와 다르다. 스카이스캐너
+# 국내선 왕복은 결과가 8천 건·100MB 를 넘는다. 노선은 결과가 0건일 리 없는 인기 노선으로 고른다 (0건이면 고장으로 본다)
 GROUPS: dict[str, tuple[Step, ...]] = {
     'naver': (
         Step('공항 찾기', ('naver', 'search', 'airports'), ('인천',)),
@@ -57,6 +67,14 @@ GROUPS: dict[str, tuple[Step, ...]] = {
         Step('국제선 상세', ('naver', 'flight'), FLIGHT),
         Step('국내선 검색 김포→제주', ('naver', 'search', 'flights'), ('GMP', 'CJU', *SEARCH)),
         Step('국내선 상세', ('naver', 'flight'), FLIGHT),
+        Step('국내선 왕복 검색 김포↔제주', ('naver', 'search', 'flights'), ('GMP', 'CJU', *ROUND_TRIP_SEARCH)),
+        Step('국내선 왕복 상세', ('naver', 'flight'), ROUND_TRIP_FLIGHT),
+        # 출발 시각대는 네이버 서버 필터다 (국제선 filter.departureTime, 국내선 filter.segment__departure__time). 필터 키가 바뀌어 무시되면
+        # 결과는 그대로 나와 위 검색으로는 모른다. 스카이스캐너는 받은 결과를 baenggipyo 가 걸러 API 변화와 상관없어 부르지 않는다
+        Step('국제선 검색 출발 06~12시 인천→도쿄', ('naver', 'search', 'flights'),
+             ('ICN', 'NRT', '--depart', '{depart}', '--depart-time', '06-12', '--limit', '5', '--brief'), hours=((6, 12),)),
+        Step('국내선 왕복 검색 가는 편 06~12시·오는 편 18~24시', ('naver', 'search', 'flights'),
+             ('GMP', 'CJU', *ROUND_TRIP_SEARCH, '--depart-time', '06-12', '--return-time', '18-24'), hours=((6, 12), (18, 24))),
         Step('국제선 달력 인천→도쿄', ('naver', 'calendar'), ('ICN', 'NRT', '--month', '{month}')),
         Step('국내선 달력 김포→제주', ('naver', 'calendar'), ('GMP', 'CJU', '--month', '{month}')),
         # 네이버 어디든지는 국제선 목적지만 준다
@@ -83,7 +101,7 @@ UNKNOWN: str = 'unknown'
 STATUS_LABELS: dict[str, str] = {OK: '✅ 정상', BROKEN: '❌ 고장', UNKNOWN: '⚠️ 확인 못 함'}
 # 사이트가 바뀐 것인지 알 수 없는 에러. 그 밖의 에러 코드(PARSE_ERROR, INTERNAL_ERROR, NOT_FOUND, AIRPORT_NOT_FOUND 등)는 고장이다
 UNKNOWN_CODES: frozenset[str] = frozenset({'RATE_LIMITED', 'NETWORK_ERROR', 'FARE_UNAVAILABLE'})
-# 결과 수를 셀 키. 국내선 네이버 검색만 `legs[].itineraries` 다
+# 결과 수를 셀 키. 네이버 국내선 왕복 검색만 `legs[].itineraries` 다
 COUNT_KEYS: tuple[str, ...] = ('offers', 'itineraries', 'airports', 'days', 'destinations')
 
 BROKEN_LABEL: str = 'api-broken'
@@ -127,13 +145,19 @@ def _is_unknown(error: dict[str, object]) -> bool:
     return error.get('reason') == 'SEARCH_INCOMPLETE' or (isinstance(status, int) and status > 500)
 
 
-def _itineraries(data: dict[str, object]) -> list[object]:
-    """검색 결과의 항공권. 국내선 네이버 검색만 `legs[].itineraries` 로 방향마다 나눠 준다."""
+def _directions(data: dict[str, object]) -> list[list[object]]:
+    """검색 결과의 항공권을 방향마다. 네이버 국내선 왕복 검색만 `legs[].itineraries` 로 가는 편·오는 편을 나눠 주고, 다른 검색은 방향 하나다."""
     itineraries = data.get('itineraries')
     if isinstance(itineraries, list):
-        return itineraries
+        return [itineraries]
     legs = data.get('legs')
-    return [item for leg in legs if isinstance(leg, dict) for item in leg.get('itineraries') or []] if isinstance(legs, list) else []
+    if not isinstance(legs, list):
+        return []
+    directions: list[list[object]] = []
+    for leg in legs:
+        items = leg.get('itineraries') if isinstance(leg, dict) else None
+        directions.append(items if isinstance(items, list) else [])
+    return directions
 
 
 def _count(data: dict[str, object]) -> int:
@@ -141,14 +165,40 @@ def _count(data: dict[str, object]) -> int:
         value = data.get(key)
         if isinstance(value, list):
             return len(value)
-    return len(_itineraries(data))
+    return sum(len(items) for items in _directions(data))
 
 
-def _first_id(data: dict[str, object]) -> str | None:
-    itineraries = _itineraries(data)
-    first = itineraries[0] if itineraries else None
+def _first_id(directions: list[list[object]], index: int) -> str:
+    """`index` 번째 방향(0 가는 편, 1 오는 편)의 첫 항공권 ID. 그 방향이 없거나 비었으면 빈 문자열.
+
+    방향을 섞어 고르면 가는 편이 0건일 때 오는 편 ID 가 `{id}`·`{return_id}` 둘 다에 들어가 상세가 같은 방향 두 편(INVALID_ARGUMENT)으로 고장 난다.
+    """
+    items = directions[index] if index < len(directions) else []
+    first = items[0] if items else None
     value = first.get('id') if isinstance(first, dict) else None
-    return value if isinstance(value, str) else None
+    return value if isinstance(value, str) else ''
+
+
+def _outside_hours(data: dict[str, object], hours: tuple[tuple[int, int], ...]) -> int:
+    """출발 시각대 밖 항공권 수. 방향이 둘(네이버 국내선 왕복 `legs[]`)이면 방향마다, 하나면 항공권의 여정(`journeys`)마다 차례로 맞춘다.
+
+    끝 시 정각(12:00) 출발은 밖으로 세지 않는다. 네이버 칸의 끝 시각 포함 여부는 정각 출발 편이 없어 재지 못했다 (references/providers/naver.md).
+    """
+    directions = _directions(data)
+    outside = 0
+    for index, items in enumerate(directions):
+        for item in items:
+            journeys = item.get('journeys') if isinstance(item, dict) else None
+            for order, journey in enumerate(journeys if isinstance(journeys, list) else []):
+                position = index if len(directions) > 1 else order
+                departure = journey.get('departure_at') if isinstance(journey, dict) else None
+                if position >= len(hours) or not isinstance(departure, str) or len(departure) < 16:
+                    continue
+                start, end = hours[position]
+                hour, minute = int(departure[11:13]), int(departure[14:16])
+                if not (start <= hour < end or (hour == end and minute == 0)):
+                    outside += 1
+    return outside
 
 
 def _run_step(step: Step, values: dict[str, str], *, disguise: bool = False) -> tuple[str, str, dict[str, object] | None]:
@@ -175,6 +225,9 @@ def _run_step(step: Step, values: dict[str, str], *, disguise: bool = False) -> 
         if not isinstance(data, dict):
             return BROKEN, 'stdout 이 JSON 객체가 아님', None
         count = _count(data)
+        outside = _outside_hours(data, step.hours) if step.hours else 0
+        if outside:
+            return BROKEN, f'출발 시각대 밖 항공권 {outside}건 (시간 필터가 무시됨)', data
         if count:
             return OK, f'{count}건', data
         notes = data.get('notes')
@@ -193,16 +246,24 @@ def _run_step(step: Step, values: dict[str, str], *, disguise: bool = False) -> 
 def run_group(name: str, *, disguise: bool = False) -> dict[str, object]:
     """묶음 하나의 명령을 차례로 부른다. 상세는 바로 앞 검색 결과의 첫 항공권 ID 로 부르고, 그 검색이 실패했으면 건너뛴다."""
     depart = _today() + datetime.timedelta(days=DAYS_AHEAD)
-    values = {'depart': depart.isoformat(), 'month': depart.strftime('%Y-%m'), 'id': ''}
+    values = {
+        'depart': depart.isoformat(),
+        'return': (depart + datetime.timedelta(days=TRIP_DAYS)).isoformat(),
+        'month': depart.strftime('%Y-%m'),
+        'id': '',
+        'return_id': '',
+    }
     steps: list[dict[str, str]] = []
     for step in GROUPS[name]:
         line = ' '.join(step.command)
-        if '{id}' in step.args and not values['id']:
+        if any(f'{{{key}}}' in step.args and not values[key] for key in ('id', 'return_id')):
             steps.append({'label': step.label, 'command': line, 'status': UNKNOWN, 'detail': '앞 검색이 결과를 주지 않아 건너뜀'})
             continue
         status, detail, data = _run_step(step, values, disguise=disguise)
         if step.command[-1] == 'flights':
-            values['id'] = (_first_id(data) if data else None) or ''
+            directions = _directions(data) if data else []
+            values['id'] = _first_id(directions, 0)
+            values['return_id'] = _first_id(directions, 1)
         steps.append({'label': step.label, 'command': line, 'status': status, 'detail': detail})
     return {'group': name, 'date': _today().isoformat(), 'status': _overall([step['status'] for step in steps]), 'steps': steps}
 

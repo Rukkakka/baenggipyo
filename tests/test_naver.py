@@ -2,6 +2,9 @@ import httpx
 import pytest
 
 from baenggipyo.providers.naver.api.client import NaverClient
+from baenggipyo.providers.naver.api.request.flight import (
+    NaverFlightInternationalSearchFlightsRequestPayloadModel,
+)
 from baenggipyo.providers.naver.api.response.domestic import (
     NaverDomesticFareModel,
     NaverDomesticFlightModel,
@@ -29,6 +32,7 @@ from baenggipyo.providers.naver.service.flight import (
     general_fare,
     get_flight,
     parse_flight_id,
+    search_flights,
 )
 
 
@@ -74,8 +78,46 @@ def test_flight_price_comes_from_listed_sellers_and_cut_search_is_noted(monkeypa
     with NaverClient() as client:
         detail, notes = get_flight(client, flight_id(legs, NaverFlightConditions(), itinerary_id))
     assert [offer.seller for offer in detail.offers] == ['판매처1']
-    assert (detail.price_per_adult_krw, detail.cheapest_seller, detail.offer_count) == (100000, '판매처1', 1)
+    assert (detail.price_per_adult_krw, detail.cheapest_seller, detail.seller_count) == (100000, '판매처1', 1)
     assert any('3/20곳' in note and '시간 상한' in note for note in notes)
+
+
+def test_price_sort_keeps_cheap_fare_without_card_discount(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 서버 가격순은 카드 할인 포함 최저가라 카드 할인 없는 싼 항공권(ZE0607)이 뒤로 밀린다 (2026-10-21 ICN↔TYO: 대표 가격 2~4위가 11·13·14번째).
+    # 더 받아 대표 가격 순으로 세운 뒤 잘라야 남는다. 서버가 주는 순서는 실제 API 로 골라 재현할 수 없어 가짜 응답으로 본다
+    point = {'airportCode': 'ICN', 'dateTime': '202611150800'}
+    prices = {'ZE0605': (300000, 200000), 'ZE0609': (280000, 210000), 'ZE0607': (250000, None)}
+    event = NaverFlightInternationalSearchFlightsResponseModel.model_validate({
+        'itineraries': [
+            {'itineraryId': f'20261115ICNNRT{number}', 'segments': [
+                {'departure': point, 'arrival': point | {'airportCode': 'NRT'}, 'marketingCarrier': {'airlineCode': 'ZE', 'flightNumber': number[2:]}},
+            ]}
+            for number in prices
+        ],
+        'fareMappings': [
+            {'itineraryIds': f'20261115ICNNRT{number}', 'fares': [
+                {'partnerCode': 'P1', 'fareType': 'A01', 'adult': {'totalFare': general}},
+                *([{'partnerCode': 'P1', 'fareType': 'A01/B80', 'adult': {'totalFare': card}}] if card else []),
+            ]}
+            for number, (general, card) in prices.items()
+        ],
+    })
+    limits: list[int] = []
+
+    def search(
+        self: NaverClient,
+        payload: NaverFlightInternationalSearchFlightsRequestPayloadModel,
+    ) -> NaverFlightInternationalSearchFlightsResponseModel:
+        limits.append(payload.flight_filter.limit)
+        return event
+
+    monkeypatch.setattr(NaverClient, 'run_request_flight_international_search_flights', search)
+    monkeypatch.setattr('baenggipyo.providers.naver.service.flight.partner_names', lambda client: {})
+    legs = [NaverLeg(origin=NaverLocation(code='ICN', type='airport'), destination=NaverLocation(code='NRT', type='airport'), date='2026-11-15')]
+    with NaverClient() as client:
+        result = search_flights(client, legs, limit=2)
+    assert limits == [6]
+    assert [itinerary.price_per_adult_krw for itinerary in result.itineraries] == [250000, 280000]
 
 
 # --- 항공권 ID ---

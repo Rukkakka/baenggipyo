@@ -3,6 +3,9 @@
 import typer
 
 from baenggipyo.cli.options import (
+    CABIN_ALIASES,
+    DEFAULT_OFFER_URLS,
+    SORT_ALIASES,
     AdultsOption,
     AirlineOption,
     AirportLimitOption,
@@ -11,6 +14,7 @@ from baenggipyo.cli.options import (
     CabinOption,
     ChildrenOption,
     DepartOption,
+    DepartTimeOption,
     DestinationArgument,
     DirectOption,
     InfantsOption,
@@ -20,6 +24,7 @@ from baenggipyo.cli.options import (
     OriginArgument,
     PrettyOption,
     ReturnOption,
+    ReturnTimeOption,
     SortOption,
     TripDaysOption,
 )
@@ -28,6 +33,7 @@ from baenggipyo.cli.output import (
     handle_errors,
     one_of,
     parse_airlines,
+    parse_leg_hours,
     parse_legs,
     parse_month,
     validate_passengers,
@@ -36,7 +42,7 @@ from baenggipyo.core.flight import CABIN_CLASSES
 from baenggipyo.providers.naver.api.client import NaverClient
 from baenggipyo.providers.naver.service.airport import (
     resolve_legs,
-    resolve_location,
+    resolve_locations,
     route_kind,
     search_airports,
 )
@@ -99,15 +105,18 @@ def _conditions(
     cabin: str,
     direct: bool,
     airline: list[str] | None,
+    hours: tuple[tuple[int, int] | None, tuple[int, int] | None] = (None, None),
 ) -> NaverFlightConditions:
     validate_passengers(adults, children, infants)
     return NaverFlightConditions(
         adults=adults,
         children=children,
         infants=infants,
-        cabin=one_of(cabin, CABIN_CLASSES, '--cabin'),
+        cabin=one_of(cabin, CABIN_CLASSES, '--cabin', CABIN_ALIASES),
         direct=direct,
         airlines=parse_airlines(airline),
+        depart_hours=hours[0],
+        return_hours=hours[1],
     )
 
 
@@ -124,33 +133,36 @@ def search_flights_command(
     cabin: CabinOption = '일반석',
     direct: DirectOption = False,
     airline: AirlineOption = None,
+    depart_time: DepartTimeOption = None,
+    return_time: ReturnTimeOption = None,
     sort: SortOption = '가격',
     limit: Annotated[
         int,
         typer.Option('--limit', min=1, max=MAX_LIMIT, help='돌려줄 항공권 수')
     ] = DEFAULT_LIMIT,
-    brief: BriefOption = False,
+    brief: BriefOption = True,
     pretty: PrettyOption = None,
 ) -> None:
-    """편도·왕복·다구간 항공권 (요청: 공항 해석 입력마다 1회 + 판매처 이름 1회 + 검색 1~2회. 국제선 10~20초, 국내선 수 초).
+    """편도·왕복·다구간 항공권 (요청: 공항 해석 입력마다 1회 + 판매처 이름 1회 + 검색 1~2회, 국제선 10~20초·국내선 수 초).
 
     대표 가격(price_per_adult_krw, total_price_krw)은 어떤 결제수단으로도 받을 수 있는 운임의 최저가다. 특정 카드로만 받는 더
-    싼 가격은 card_discount_* 로 따로 준다. 국내선(김포↔제주 등)은 결과 모양이 다르다: 가는 편·오는 편 목록(legs[])에서
-    하나씩 고른다. 국내선 다구간과 국내·국제가 섞인 노선은 찾지 않는다.
+    싼 가격은 card_discount_* 로 따로 준다. 국내선 왕복(김포↔제주 등)은 결과 모양이 다르다: itineraries 대신 가는 편·오는 편
+    목록(legs[])에서 하나씩 고른다. 국내선 다구간과 국내·국제가 섞인 노선은 찾지 않는다.
 
     예: baenggipyo naver search flights ICN NRT --depart 2026-11-15 --return 2026-11-20
     """
     raw_legs = parse_legs(origin, destination, depart, return_, leg)
-    sort_by = one_of(sort, FLIGHT_SORTS, '--sort')
+    hours = parse_leg_hours(raw_legs, depart_time, return_time)
+    sort_by = one_of(sort, FLIGHT_SORTS, '--sort', SORT_ALIASES)
     with handle_errors(SOURCE), NaverClient() as client:
-        conditions = _conditions(adults, children, infants, cabin, direct, airline)
+        conditions = _conditions(adults, children, infants, cabin, direct, airline, hours)
         legs = resolve_legs(client, raw_legs)
         if route_kind(legs) == 'domestic':
             domestic = search_domestic_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
-            emit(domestic, pretty, notice=True, notes=domestic.notes, brief=brief)
+            emit(domestic, pretty, notes=domestic.notes, brief=brief)
             return
         result = search_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
-        emit(result, pretty, notice=True, notes=result.notes, brief=brief)
+        emit(result, pretty, notes=result.notes, brief=brief)
 
 
 @app.command('flight')
@@ -163,10 +175,10 @@ def flight_command(
         int,
         typer.Option('--limit', min=1, max=MAX_OFFER_LIMIT, help='판매처 운임 수 (모든 결제수단 운임이 먼저 온다)')
     ] = DEFAULT_OFFER_LIMIT,
-    offer_urls: OfferUrlsOption = None,
+    offer_urls: OfferUrlsOption = DEFAULT_OFFER_URLS,
     pretty: PrettyOption = None,
 ) -> None:
-    """항공권의 판매처별 가격과 예약 링크 (요청 2~3회. 검색 뒤 15분이 지났으면 같은 조건으로 다시 검색한다).
+    """항공권의 판매처별 가격과 예약 링크 (요청 2~3회, 검색 뒤 15분이 지났으면 같은 조건으로 다시 검색한다).
 
     국제선은 id 하나, 국내선은 편 하나(편도) 또는 가는 편·오는 편 둘(왕복 예약 가격)을 받는다.
 
@@ -182,10 +194,10 @@ def flight_command(
     with handle_errors(SOURCE), NaverClient() as client:
         if all(domestic):
             booking, booking_notes = get_domestic_flights(client, flight_ids, offer_limit=limit, url_limit=offer_urls)
-            emit(booking, pretty, notice=True, notes=booking_notes)
+            emit(booking, pretty, notes=booking_notes)
             return
         detail, notes = get_flight(client, flight_ids[0], offer_limit=limit, url_limit=offer_urls)
-        emit(detail, pretty, notice=True, notes=notes)
+        emit(detail, pretty, notes=notes)
 
 
 @app.command('calendar')
@@ -211,10 +223,9 @@ def calendar_command(
     """
     month_value = parse_month(month, '--month')
     with handle_errors(SOURCE), NaverClient() as client:
-        origin_location = resolve_location(client, origin)
-        destination_location = resolve_location(client, destination)
+        origin_location, destination_location = resolve_locations(client, origin, destination)
         result = get_calendar(client, origin_location, destination_location, month=month_value, trip_days=trip_days, direct=direct)
-        emit(result, pretty, notice=True, notes=result.notes)
+        emit(result, pretty, notes=result.notes)
 
 
 @app.command('explore')
@@ -241,6 +252,6 @@ def explore_command(
     """
     month_value = parse_month(month, '--month') if month is not None else None
     with handle_errors(SOURCE), NaverClient() as client:
-        origin_location = resolve_location(client, origin)
+        [origin_location] = resolve_locations(client, origin)
         result = explore(client, origin_location.code, month=month_value, trip_days=trip_days, direct=direct, limit=limit)
-        emit(result, pretty, notice=True, notes=result.notes)
+        emit(result, pretty, notes=result.notes)

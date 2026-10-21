@@ -1,8 +1,12 @@
 """`baenggipyo skyscanner` 하위 명령. 사용법은 docs/skyscanner.md, 구현 메모는 references/providers/skyscanner.md."""
 
 import typer
+from pydantic import BaseModel
 
 from baenggipyo.cli.options import (
+    CABIN_ALIASES,
+    DEFAULT_OFFER_URLS,
+    SORT_ALIASES,
     AdultsOption,
     AirlineOption,
     AirportLimitOption,
@@ -11,6 +15,7 @@ from baenggipyo.cli.options import (
     CabinOption,
     ChildrenOption,
     DepartOption,
+    DepartTimeOption,
     DestinationArgument,
     DirectOption,
     FlightIdArgument,
@@ -21,6 +26,7 @@ from baenggipyo.cli.options import (
     OriginArgument,
     PrettyOption,
     ReturnOption,
+    ReturnTimeOption,
     SortOption,
 )
 from baenggipyo.cli.output import (
@@ -28,6 +34,7 @@ from baenggipyo.cli.output import (
     handle_errors,
     one_of,
     parse_airlines,
+    parse_leg_hours,
     parse_legs,
     parse_month,
     validate_passengers,
@@ -36,7 +43,7 @@ from baenggipyo.core.flight import CABIN_CLASSES
 from baenggipyo.providers.skyscanner.api.client import SkyscannerClient
 from baenggipyo.providers.skyscanner.service.airport import (
     resolve_legs,
-    resolve_place,
+    resolve_places,
     search_airports,
 )
 from baenggipyo.providers.skyscanner.service.calendar import get_calendar
@@ -60,6 +67,8 @@ from typing import Annotated
 
 
 SOURCE: str = 'skyscanner'
+# 시간당 상한까지 남은 요청이 이보다 적으면 결과 notes 로 알린다. 검색 한 번이 보통 4~7회, 큰 검색은 10회까지 들어 큰 쪽에 맞춘다
+LOW_BUDGET_REQUESTS: int = 10
 
 app = typer.Typer(
     help='스카이스캐너 (skyscanner.co.kr) 항공권 조회 (국내선 포함). 금액은 원, 시각은 각 공항 현지 시각.',
@@ -67,6 +76,34 @@ app = typer.Typer(
 )
 search_app = typer.Typer(help='공항·도시 코드 또는 항공권을 찾는다', no_args_is_help=True)
 app.add_typer(search_app, name='search')
+
+
+def budget_notes(client: SkyscannerClient) -> list[str]:
+    """시간당 상한까지 남은 요청이 검색 한 번 분량(`LOW_BUDGET_REQUESTS`)보다 적으면 알린다.
+
+    에이전트가 `limits` 를 따로 부르지 않아도 다음 조회를 네이버로 돌리게 한다. 상한에 닿으면 한 칸이 `max_wait`(60초) 안에 비지
+    않는 한 기다리지 않고 RATE_LIMITED 라, 모르고 검색을 이어 부르면 결과 없이 요청만 쓴다.
+    """
+    limiter = client.rate_limiter
+    if not limiter.policy.enabled or limiter.policy.max_per_hour is None:
+        return []
+    try:
+        status = limiter.status()
+    except OSError:
+        # 결과는 이미 받았다. 안내 하나 때문에 결과를 버리지 않는다
+        return []
+    remaining = status['requests_remaining_hour']
+    if remaining >= LOW_BUDGET_REQUESTS:
+        return []
+    note = f'스카이스캐너 요청이 이번 1시간에 {remaining}회 남았습니다 (시간당 {limiter.policy.max_per_hour}회, 검색 한 번에 보통 4~7회)'
+    if not remaining:
+        note += f". {status['hour_slot_wait_seconds']}초 뒤에 한 칸이 빕니다"
+    return [f'{note}. 모자라면 같은 조회를 네이버로 하세요']
+
+
+def emit_result(client: SkyscannerClient, data: BaseModel, pretty: bool | None, notes: list[str], *, brief: bool = False) -> None:
+    """결과를 내며 남은 요청이 적다는 안내(`budget_notes`)를 덧붙인다. 스카이스캐너 명령의 결과는 모두 이것으로 낸다."""
+    emit(data, pretty, notes=notes + budget_notes(client), brief=brief)
 
 
 @search_app.command('airports')
@@ -80,7 +117,7 @@ def search_airports_command(
     예: baenggipyo skyscanner search airports 도쿄
     """
     with handle_errors(SOURCE), SkyscannerClient() as client:
-        emit(search_airports(client, query, limit=limit), pretty)
+        emit_result(client, search_airports(client, query, limit=limit), pretty, [])
 
 
 @search_app.command('flights')
@@ -96,35 +133,40 @@ def search_flights_command(
     cabin: CabinOption = '일반석',
     direct: DirectOption = False,
     airline: AirlineOption = None,
+    depart_time: DepartTimeOption = None,
+    return_time: ReturnTimeOption = None,
     sort: SortOption = '가격',
     limit: Annotated[
         int,
         typer.Option('--limit', min=1, max=MAX_LIMIT, help='돌려줄 항공권 수')
     ] = DEFAULT_LIMIT,
-    brief: BriefOption = False,
+    brief: BriefOption = True,
     pretty: PrettyOption = None,
 ) -> None:
     """편도·왕복·다구간 항공권, 국내선 포함 (요청: 공항 해석 입력마다 1회 + 검색 1회 + 폴링, 보통 5~15초).
 
-    가격은 모든 승객 합계다 (성인 1명이면 1인 요금과 같다). 직항·항공사 조건과 정렬은 받은 결과에서 baenggipyo 가 한다.
+    가격은 모든 승객 합계다 (성인 1명이면 1인 요금과 같다). 직항·항공사·출발 시각대 조건과 정렬은 받은 결과에서 baenggipyo 가 한다.
 
     예: baenggipyo skyscanner search flights GMP CJU --depart 2026-11-15 --return 2026-11-17
     """
     raw_legs = parse_legs(origin, destination, depart, return_, leg)
+    depart_hours, return_hours = parse_leg_hours(raw_legs, depart_time, return_time)
     validate_passengers(adults, children, infants)
-    sort_by = one_of(sort, FLIGHT_SORTS, '--sort')
+    sort_by = one_of(sort, FLIGHT_SORTS, '--sort', SORT_ALIASES)
     with handle_errors(SOURCE), SkyscannerClient() as client:
         conditions = SkyscannerFlightConditions(
             adults=adults,
             children=children,
             infants=infants,
-            cabin=one_of(cabin, CABIN_CLASSES, '--cabin'),
+            cabin=one_of(cabin, CABIN_CLASSES, '--cabin', CABIN_ALIASES),
             direct=direct,
             airlines=parse_airlines(airline),
+            depart_hours=depart_hours,
+            return_hours=return_hours,
         )
         legs = resolve_legs(client, raw_legs)
         result = search_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
-        emit(result, pretty, notice=True, notes=result.notes, brief=brief)
+        emit_result(client, result, pretty, result.notes, brief=brief)
 
 
 @app.command('flight')
@@ -134,7 +176,7 @@ def flight_command(
         int,
         typer.Option('--limit', min=1, max=MAX_OFFER_LIMIT, help='판매처 운임 수 (싼 순. 판매처 여러 곳의 조합은 줄이 여럿이어도 운임 하나로 센다)')
     ] = DEFAULT_OFFER_LIMIT,
-    offer_urls: OfferUrlsOption = None,
+    offer_urls: OfferUrlsOption = DEFAULT_OFFER_URLS,
     pretty: PrettyOption = None,
 ) -> None:
     """항공권 하나의 판매처별 가격과 예약 링크. 같은 조건으로 다시 검색해 찾는다 (검색 1회 + 폴링).
@@ -143,7 +185,7 @@ def flight_command(
     """
     with handle_errors(SOURCE), SkyscannerClient() as client:
         detail, notes = get_flight(client, flight_id, offer_limit=limit, url_limit=offer_urls)
-        emit(detail, pretty, notice=True, notes=notes)
+        emit_result(client, detail, pretty, notes)
 
 
 @app.command('calendar')
@@ -165,10 +207,9 @@ def calendar_command(
     """
     month_value = parse_month(month, '--month')
     with handle_errors(SOURCE), SkyscannerClient() as client:
-        origin_place = resolve_place(client, origin)
-        destination_place = resolve_place(client, destination)
+        origin_place, destination_place = resolve_places(client, origin, destination)
         result = get_calendar(client, origin_place, destination_place, month=month_value)
-        emit(result, pretty, notice=True, notes=result.notes)
+        emit_result(client, result, pretty, result.notes)
 
 
 @app.command('explore')
@@ -198,6 +239,6 @@ def explore_command(
     """
     month_value = parse_month(month, '--month') if month is not None else None
     with handle_errors(SOURCE), SkyscannerClient() as client:
-        origin_place = resolve_place(client, origin)
+        [origin_place] = resolve_places(client, origin)
         result = explore(client, origin_place, month=month_value, round_trip=round_trip, direct=direct, limit=limit)
-        emit(result, pretty, notice=True, notes=result.notes)
+        emit_result(client, result, pretty, result.notes)

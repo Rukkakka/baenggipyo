@@ -2,11 +2,7 @@
 
 import re
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-)
+from pydantic import Field
 
 from baenggipyo.core.errors import (
     BaenggipyoError,
@@ -21,6 +17,7 @@ from baenggipyo.core.flight import (
     compact_datetime,
     seconds_to_minutes,
     shown_offers,
+    url_omitted_notes,
 )
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.naver.api.client import NaverClient
@@ -52,10 +49,12 @@ from baenggipyo.providers.naver.service.common import (
     GENERAL_FARE_TYPE,
     MAX_LIMIT,
     MAX_OFFER_LIMIT,
+    PRICE_SORT_FETCH_FACTOR,
     SEAT_CLASS_BY_CABIN,
     SORT_BY_LABEL,
     TRIP_CODE_BY_TYPE,
     NaverFlightConditions,
+    NaverFlightSearchResult,
     NaverFlightSort,
     NaverItinerary,
     NaverLeg,
@@ -63,6 +62,7 @@ from baenggipyo.providers.naver.service.common import (
     NaverOffer,
     cut_short,
     flight_number_of,
+    hour_slots,
     incomplete_note,
     partner_names,
     results_url,
@@ -108,31 +108,6 @@ class NaverItineraryDetail(NaverItinerary):
         list[NaverOffer],
         Field(description='판매처별 가격. 모든 결제수단 운임을 싼 순으로 먼저, 결제수단 조건이 있는 운임을 싼 순으로 뒤에')
     ]
-
-
-class NaverFlightSearchResult(BaseModel):
-    """`search flights` 결과."""
-
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-
-    search: Annotated[
-        SearchSummary,
-        Field(description='검색 조건')
-    ]
-    returned: Annotated[
-        int,
-        Field(description='돌려준 항공권 수')
-    ]
-    itineraries: Annotated[
-        list[NaverItinerary],
-        Field(description='항공권')
-    ]
-    notes: Annotated[
-        list[str],
-        Field(exclude=True, description='결과 안내 (emit 의 notes 로 낸다)')
-    ] = []
 
 
 def _adult_fare(fare: NaverFareModel | None) -> int | None:
@@ -327,6 +302,9 @@ def _search_payload(
     flight_filter: dict[str, object] = {}
     if conditions.airlines:
         flight_filter['airlines'] = conditions.airlines
+    leg_hours = conditions.leg_hours(len(legs))
+    if any(leg_hours):
+        flight_filter['departureTime'] = [hour_slots(hours) for hours in leg_hours]
     if selected:
         flight_filter['selectedItineraries'] = selected
     return NaverFlightInternationalSearchFlightsRequestPayloadModel(
@@ -365,15 +343,17 @@ def search_flights(
     conditions: NaverFlightConditions | None = None,
     sort: NaverFlightSort = '가격',
     limit: int = DEFAULT_LIMIT,
-) -> NaverFlightSearchResult:
+) -> NaverFlightSearchResult[NaverItinerary]:
     """편도·왕복·다구간 항공권을 찾는다 (판매처 이름 1회 + 검색 SSE 1회, 9~17초).
 
-    서버가 건 조건(직항·좌석·항공사)과 정렬은 다시 거르거나 다시 세우지 않는다. 대표 가격은 모든 결제수단 운임(A01) 최저가다.
+    서버가 건 조건(직항·좌석·항공사)은 다시 거르지 않는다. 대표 가격은 모든 결제수단 운임(A01) 최저가다. 가격순은 서버 기준(카드
+    할인 포함 최저가)이 대표 가격과 달라 `limit` 의 `PRICE_SORT_FETCH_FACTOR` 배를 받아 대표 가격 순으로 다시 세운 뒤 자른다.
     """
     conditions = conditions or NaverFlightConditions()
+    fetch_limit = limit * PRICE_SORT_FETCH_FACTOR if sort == '가격' else limit
     # 공항·도시 코드는 자동완성 응답 값이라 검증 실패는 입력 오류가 아니다 (flight 는 ID 에서 만들어 입력 오류가 맞으니 감싸지 않는다)
     with built_from_response('네이버 항공권 검색'):
-        payload = _search_payload(legs, conditions, sort=sort, limit=limit, initial=True)
+        payload = _search_payload(legs, conditions, sort=sort, limit=fetch_limit, initial=True)
     partners = partner_names(client)
     event = client.run_request_flight_international_search_flights(payload)
     status = event.status or NaverSearchStatusModel()
@@ -388,12 +368,17 @@ def search_flights(
         results.append(NaverItinerary.model_validate({
             **fields,
             **price_fields,
-            'offer_count': len({fare.partner_code for fare in mapping.fares}),
+            'seller_count': len({fare.partner_code for fare in mapping.fares}),
             'cheapest_seller': _cheapest_seller(general, mapping.fares, partners, conditions),
         }))
     missing = len(event.fare_mappings) - len(results)
     if missing:
         notes.append(f'여정 정보가 응답에 없는 항공권 {missing}개는 뺐습니다')
+    more = len(event.fare_mappings) >= fetch_limit or len(results) > limit
+    if sort == '가격':
+        # 대표 가격이 없는 항공권(카드 조건 운임만 있음 등)은 뒤로. 같은 값이면 서버 순서를 지킨다
+        results.sort(key=lambda itinerary: (itinerary.price_per_adult_krw is None, itinerary.price_per_adult_krw or 0))
+    results = results[:limit]
     no_general = [itinerary for itinerary in results if itinerary.price_per_adult_krw is None]
     card_only = sum(1 for itinerary in no_general if itinerary.card_discount_price_krw is not None)
     if card_only:
@@ -407,14 +392,8 @@ def search_flights(
             f'모든 결제수단 운임도 카드 할인 운임도 없는 항공권 {len(no_general) - card_only}개는 가격이 null 입니다. '
             '판매처별 운임은 flight 로 확인하세요'
         )
-    if sort == '가격':
-        prices = [itinerary.price_per_adult_krw for itinerary in results if itinerary.price_per_adult_krw is not None]
-        if prices != sorted(prices):
-            notes.append(
-                '가격순은 네이버 기준(카드 할인을 포함한 최저가)이라 price_per_adult_krw(모든 결제수단 최저가) 순서와 조금 다를 수 있습니다'
-            )
-    if len(event.fare_mappings) >= limit:
-        notes.append(f'조건에 맞는 항공권이 더 있을 수 있습니다. 정렬 순서 앞의 {limit}개만 받았습니다 (--limit 최대 {MAX_LIMIT})')
+    if more:
+        notes.append(f'조건에 맞는 항공권이 더 있을 수 있습니다. 정렬 순서 앞의 {limit}개만 보여 줍니다 (--limit 최대 {MAX_LIMIT})')
     summary = SearchSummary(
         trip_type=trip_type_of(legs),
         legs=[SearchLeg(origin=leg.origin.code, destination=leg.destination.code, date=leg.date) for leg in legs],
@@ -426,7 +405,7 @@ def search_flights(
         url=results_url(legs, adults=conditions.adults, children=conditions.children, infants=conditions.infants,
                         cabin=conditions.cabin, direct=conditions.direct),
     )
-    return NaverFlightSearchResult(search=summary, returned=len(results), itineraries=results, notes=notes)
+    return NaverFlightSearchResult[NaverItinerary](search=summary, returned=len(results), itineraries=results, notes=notes)
 
 
 def _cached_search(
@@ -488,7 +467,7 @@ def get_flight(
         notes += incomplete_note(cut.is_completed, cut.completed_partner_count, cut.requested_partner_count, missing='더 싼 판매처 운임')
     status = event.status or NaverSearchStatusModel()
     itineraries = {itinerary.itinerary_id: itinerary for itinerary in event.itineraries}
-    # 판매처 이름표(partner_names)는 받지 않는다 (요청 1회를 아낀다). 판매처 필드(cheapest_seller·offer_count)는 아래 판매처 조회로 채운다
+    # 판매처 이름표(partner_names)는 받지 않는다 (요청 1회를 아낀다). 판매처 필드(cheapest_seller·seller_count)는 아래 판매처 조회로 채운다
     fields = _itinerary_fields(mapping, itineraries, status, legs=legs, conditions=conditions)
     if fields is None:
         raise FareUnavailableError('naver', value, reason='NO_ITINERARY')
@@ -506,18 +485,21 @@ def get_flight(
     if not_realtime:
         notes.append(
             f'실시간 가격을 주지 않는 판매처 {not_realtime}곳은 사이트처럼 뺐습니다. 대표 가격도 남은 판매처로 정해 '
-            'search flights 의 가격·offer_count 와 다를 수 있습니다'
+            'search flights 의 가격·seller_count 와 다를 수 있습니다'
         )
+    shown = shown_offers([[offer] for offer in offers], offer_limit, url_limit)
     if len(offers) > offer_limit:
-        notes.append(f'판매처 운임 {len(offers)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
-    # offer_count 는 offers 에 낸 판매처 수다. 판매처마다 운임(A01·카드)이 여럿이라 offers 행 수와 다르다 (ZE605 판매처 19곳 운임 116개).
+        # 판매처 수와 운임 수를 함께 쓴다. 운임 수만 쓰면 seller_count 와 다른 수(판매처 23곳, 운임 133개)라 둘을 섞어 말하기 쉽다
+        notes.append(f'판매처 {len(sellers)}곳의 운임 {len(offers)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
+    notes.extend(url_omitted_notes(shown, url_limit))
+    # seller_count 는 offers 에 낸 판매처 수다. 판매처마다 운임(A01·카드)이 여럿이라 offers 행 수와 다르다 (ZE605 판매처 19곳 운임 116개).
     # search flights 는 실시간 여부를 몰라 운임 묶음의 판매처를 모두 세므로 실시간이 아닌 판매처만큼 크다 (TW241 24곳 중 실시간 23곳, 2026-10-11)
     detail = NaverItineraryDetail.model_validate({
         **fields,
         **price_fields,
-        'offer_count': len(sellers),
+        'seller_count': len(sellers),
         'cheapest_seller': sellers.get(general.partner_code) if general else None,
-        'offers': shown_offers([[offer] for offer in offers], offer_limit, url_limit),
+        'offers': shown,
     })
     return detail, notes
 

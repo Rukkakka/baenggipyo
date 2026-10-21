@@ -20,7 +20,9 @@ from baenggipyo.core.flight import (
     SearchLeg,
     SearchSummary,
     Segment,
+    in_hours,
     shown_offers,
+    url_omitted_notes,
 )
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.skyscanner.api.client import SkyscannerClient
@@ -82,7 +84,7 @@ LEG_ID_PARTS: re.Pattern[str] = re.compile(r'(\d+)\.([A-Z0-9]{3,5})\.(\d+)\.([A-
 
 
 class SkyscannerFlightConditions(FlightConditions):
-    """스카이스캐너 검색 조건. 직항·항공사는 스카이스캐너가 받지 않아 받은 뒤 거른다."""
+    """스카이스캐너 검색 조건. 직항·항공사·출발 시각대는 스카이스캐너가 받지 않아 받은 뒤 거른다."""
 
 
 SELF_TRANSFER_WARNING: str = '표를 따로 사서 갈아타는 셀프 환승이라 연결편을 놓쳐도 보호받지 못하고 짐을 찾아 다시 부쳐야 할 수 있습니다'
@@ -101,11 +103,20 @@ class SkyscannerItinerary(Itinerary):
         return fields | {'self_transfer'} if self.self_transfer is False else fields
 
 
+class SkyscannerOffer(Offer):
+    """판매처 하나의 운임. 스카이스캐너는 운임 이름을 주지 않아 판매처 여러 곳에서 따로 예약하는 조합의 줄에만 `fare_name` 이 있다."""
+
+    def not_applicable_fields(self) -> frozenset[str]:
+        # 조합이 아닌 운임에는 운임 이름이 없다 (모름이 아니라 해당 없음)
+        fields = super().not_applicable_fields()
+        return fields | {'fare_name'} if self.fare_name is None else fields
+
+
 class SkyscannerItineraryDetail(SkyscannerItinerary):
     """`flight` 결과: 항공권 한 건과 판매처별 가격."""
 
     offers: Annotated[
-        list[Offer],
+        list[SkyscannerOffer],
         Field(description='판매처별 가격 (싼 순)')
     ]
 
@@ -294,7 +305,7 @@ def _itinerary_fields(
         'price_per_adult_krw': total if conditions.only_one_adult else None,
         # 한 판매처 운임은 판매처마다 하나라 가격을 준 운임 수가 판매처 수다 (ICN→BCN 203건 모두 같았다, 2026-10-11).
         # 판매처 여러 곳에서 따로 예약하는 조합은 운임 하나로 센다
-        'offer_count': len(_priced_options(result)),
+        'seller_count': len(_priced_options(result)),
         'cheapest_seller': ' + '.join(name for name in sellers if name) or None,
         'baggage_included': None,
         'self_transfer': result.is_self_transfer,
@@ -311,15 +322,21 @@ def _carrier_code(segment: SkyscannerSegmentModel) -> str | None:
 
 
 def _verifiable(result: SkyscannerItineraryModel, conditions: SkyscannerFlightConditions) -> bool:
-    """서버가 받지 않는 조건(직항·항공사)을 판정할 값(경유 수·판매 항공사 코드)이 응답에 있는지."""
+    """서버가 받지 않는 조건(직항·항공사·출발 시각대)을 판정할 값(경유 수·판매 항공사 코드·출발 시각)이 응답에 있는지."""
     if conditions.direct and any(leg.stop_count is None for leg in result.legs):
+        return False
+    hours = conditions.leg_hours(len(result.legs))
+    if any(in_hours(_local_minute(leg.departure), leg_hours) is None for leg, leg_hours in zip(result.legs, hours)):
         return False
     return not conditions.airlines or all(_carrier_code(segment) for leg in result.legs for segment in leg.segments)
 
 
 def _matches(result: SkyscannerItineraryModel, conditions: SkyscannerFlightConditions) -> bool:
-    """직항·항공사 조건을 응답 값으로 판정한다. 판정할 값이 있는 항공권(`_verifiable`)만 넣는다."""
+    """직항·항공사·출발 시각대 조건을 응답 값으로 판정한다. 판정할 값이 있는 항공권(`_verifiable`)만 넣는다."""
     if conditions.direct and any(leg.stop_count != 0 for leg in result.legs):
+        return False
+    hours = conditions.leg_hours(len(result.legs))
+    if not all(in_hours(_local_minute(leg.departure), leg_hours) for leg, leg_hours in zip(result.legs, hours)):
         return False
     return not conditions.airlines or all(_carrier_code(segment) in conditions.airlines for leg in result.legs for segment in leg.segments)
 
@@ -372,12 +389,17 @@ def search_flights(
         notes.append(f'여정 정보가 응답에 없는 항공권 {len(found) - len(routed)}개는 뺐습니다')
     if len(priced) < len(routed):
         notes.append(f'판매처 운임이 모두 가격 없음으로 온 항공권 {len(routed) - len(priced)}개는 뺐습니다')
-    filters = [label for label, on in (('직항', conditions.direct), ('항공사', bool(conditions.airlines))) if on]
+    filters = [
+        label for label, on in (
+            ('직항', conditions.direct),
+            ('항공사', bool(conditions.airlines)),
+            ('출발 시각', conditions.depart_hours is not None or conditions.return_hours is not None),
+        ) if on
+    ]
     if filters:
         notes.append(f"{'·'.join(filters)} 조건은 스카이스캐너가 받지 않아 받은 {len(found)}개에서 걸렀습니다 ({len(matched)}개 남음)")
     if len(verifiable) < len(priced):
-        notes.append(f"{'·'.join(filters)} 여부를 판정할 값(경유 수·판매 항공사)이 응답에 없는 항공권 {len(priced) - len(verifiable)}개도 뺐습니다")
-    notes.append(f'{sort} 순으로 baenggipyo 가 세웠습니다 (스카이스캐너 기본 순서는 추천순)')
+        notes.append(f"{'·'.join(filters)} 여부를 판정할 값(경유 수·판매 항공사·출발 시각)이 응답에 없는 항공권 {len(priced) - len(verifiable)}개도 뺐습니다")
     if len(matched) > limit:
         notes.append(f'조건에 맞는 항공권 {len(matched)}개 중 앞의 {limit}개만 보여 줍니다 (--limit 최대 {MAX_LIMIT})')
     if not conditions.only_one_adult:
@@ -429,17 +451,17 @@ def _offers(
     result: SkyscannerItineraryModel,
     agents: dict[str, SkyscannerAgentModel],
     conditions: SkyscannerFlightConditions,
-) -> list[list[Offer]]:
+) -> list[list[SkyscannerOffer]]:
     """판매처 운임별 `offers` 줄 묶음을 운임 가격이 싼 순으로. 판매처 여러 곳에서 따로 예약하는 조합은 조합 합계로 함께 세운다.
 
     조합을 한 판매처 운임 뒤에 따로 두면, 조합이 가장 쌀 때 `--limit` 에 잘려 대표 가격(`total_price_krw`·`cheapest_seller`)의 운임이 `offers` 에 없다.
     가격이 같으면 한 판매처 운임을 앞에 둔다. 조합은 예약 단위마다 한 줄이다 (판매처·가격·링크가 단위마다 따로다). 한 줄로 내면 다른 구간의 예약 링크가 빠진다. 그래서 운임 하나가
     여러 줄일 수 있고, `--limit` 은 줄이 아니라 이 묶음으로 세어 조합의 줄을 가르지 않는다 (한 줄만 남으면 나머지 구간을 예약할 수 없다).
     """
-    def offer(agent_id: str | None, amount: float | None, url: str | None, fare_name: str | None = None) -> Offer:
+    def offer(agent_id: str | None, amount: float | None, url: str | None, fare_name: str | None = None) -> SkyscannerOffer:
         agent = agents.get(agent_id) if agent_id else None
         total = round(amount) if amount is not None else None
-        return Offer(
+        return SkyscannerOffer(
             seller=agent.name if agent else None,
             seller_type=('항공사' if agent.is_carrier else '여행사') if agent and agent.is_carrier is not None else None,
             total_price_krw=total,
@@ -448,7 +470,7 @@ def _offers(
             url=_deeplink(url),
         )
 
-    groups: list[tuple[float | None, bool, list[Offer]]] = []
+    groups: list[tuple[float | None, bool, list[SkyscannerOffer]]] = []
     for option in _priced_options(result):
         amount = option.price.amount if option.price else None
         if len(option.items) <= 1:
@@ -502,7 +524,7 @@ def get_flight(
     agents = {agent.id: agent for agent in response.itineraries.agents} if response.itineraries else {}
     fares = _offers(result, agents, conditions)
     shown = shown_offers(fares, offer_limit, url_limit)
-    notes = ['가격은 방금 다시 검색한 값입니다']
+    notes: list[str] = []
     if not completed:
         notes.append(f'{stopped_early(stopped)}, 판매처가 더 있을 수 있습니다')
     unpriced = len(result.pricing_options) - len(_priced_options(result))
@@ -512,6 +534,7 @@ def get_flight(
         notes.append('판매처 여러 곳에서 따로 예약하는 조합은 조합 합계 순서에 구간마다 한 줄씩 둡니다 (줄의 가격·url 은 fare_name 의 구간만이라 같은 조합의 줄을 모두 각 url 에서 따로 예약)')
     if len(fares) > offer_limit:
         notes.append(f'판매처 운임 {len(fares)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
+    notes.extend(url_omitted_notes(shown, url_limit))
     fields = _itinerary_fields(result, agents, legs=legs, conditions=conditions, shared=_shared_fields(legs, conditions))
     detail = SkyscannerItineraryDetail.model_validate({**fields, 'offers': shown})
     if detail.self_transfer:

@@ -4,6 +4,7 @@ from baenggipyo.core.flight import (
     Airport,
     AirportSearchResult,
     pick_place,
+    resolve_inputs,
     resolve_route,
 )
 from baenggipyo.providers.skyscanner.api.client import SkyscannerClient
@@ -31,9 +32,17 @@ def _is_country(place: SkyscannerAutosuggestPlaceModel) -> bool:
     return place.place_id == place.country_id
 
 
+def _iata_code(place: SkyscannerAutosuggestPlaceModel) -> str | None:
+    """IATA 코드. 도시는 스카이 ID 가 IATA 뒤에 A 를 붙인 값(SELA)이라 IataCode 를 쓰고, 그것이 없으면 None 이다. 공항은 스카이 ID 가 IATA 코드다.
+
+    IataCode 없는 도시의 스카이 ID(4글자)를 `search airports` 의 `code` 로 내면 검색에 그대로 들어가 `check_place_inputs` 에 걸린다.
+    """
+    return (place.iata_code or None) if _is_city(place) else place.place_id
+
+
 def _code(place: SkyscannerAutosuggestPlaceModel) -> str:
-    # 도시는 스카이 ID 가 IATA 뒤에 A 를 붙인 값(SELA)이라 IataCode 를 쓴다. 공항은 스카이 ID 가 IATA 코드다
-    return (place.iata_code or place.place_id) if _is_city(place) else place.place_id
+    # 검색 요약·달력의 출발·도착 표기. IataCode 없는 도시는 스카이 ID 로 대신한다
+    return _iata_code(place) or place.place_id
 
 
 def _autosuggest(client: SkyscannerClient, query: str) -> list[SkyscannerAutosuggestPlaceModel]:
@@ -53,7 +62,7 @@ def _autosuggest(client: SkyscannerClient, query: str) -> list[SkyscannerAutosug
 
 def _to_airport(place: SkyscannerAutosuggestPlaceModel) -> Airport:
     return Airport(
-        code=_code(place),
+        code=_iata_code(place),
         type='도시' if _is_city(place) else '공항',
         name=place.place_name,
         city=place.city_name,
@@ -79,19 +88,24 @@ def search_airports(client: SkyscannerClient, query: str, *, limit: int) -> Airp
     return AirportSearchResult(query=query, returned=len(airports), airports=airports)
 
 
-def resolve_place(client: SkyscannerClient, text: str) -> SkyscannerPlace:
-    """출발·도착지 입력을 검색에 넣을 공항 또는 도시로 정한다 (요청 1회). 고르는 규칙은 `core.flight.pick_place` (네이버와 같다).
-
-    Raises:
-        AirportNotFoundError: 후보가 없을 때.
-        AirportAmbiguousError: 이름에 맞는 후보가 여럿일 때.
-    """
+def _resolve_place(client: SkyscannerClient, text: str) -> SkyscannerPlace:
     return _to_place(pick_place(text, _autosuggest(client, text.strip()), _to_airport))
 
 
+def resolve_places(client: SkyscannerClient, *texts: str) -> list[SkyscannerPlace]:
+    """출발·도착지 입력들을 검색에 넣을 공항 또는 도시로 정한다 (입력마다 요청 1회, 같은 입력은 한 번).
+    고르는 규칙은 `core.flight.pick_place` (네이버와 같다).
+
+    Raises:
+        AirportNotFoundError: 후보가 없거나, IATA 가 아닌 4글자 코드일 때 (모든 입력을 요청 전에 거른다).
+        AirportAmbiguousError: 이름에 맞는 후보가 여럿일 때.
+    """
+    return resolve_inputs(texts, lambda text: _resolve_place(client, text))
+
+
 def resolve_legs(client: SkyscannerClient, raw_legs: list[tuple[str, str, str]]) -> list[SkyscannerLeg]:
-    """(출발, 도착, YYYY-MM-DD) 구간들을 해석한다. 같은 입력은 한 번만 묻는다 (입력마다 요청 1회)."""
+    """(출발, 도착, YYYY-MM-DD) 구간들을 해석한다 (`resolve_places` 와 같은 규칙)."""
     return [
         SkyscannerLeg(origin=origin, destination=destination, date=date)
-        for origin, destination, date in resolve_route(raw_legs, lambda text: resolve_place(client, text))
+        for origin, destination, date in resolve_route(raw_legs, lambda text: _resolve_place(client, text))
     ]

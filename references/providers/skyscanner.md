@@ -113,7 +113,14 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
   둘 다 `complete` 였다 (서울 출발 11월 도시 단위, 결과 102건, 2026-10-12 실측).
 - 기본은 나라 단위다. 본문 최상위에 `"targetGeoLevel": "city"` 를 주면 도시 단위가 온다 (서울 출발 11월: 도시 100곳 안팎).
 - 결과 `results[]` 중 `type: LOCATION` 만 쓴다. `ADVERT` 와 `inlineCreative`(관광청 광고)가 섞여 온다. 항목마다 `content.location`(`name`, `skyCode`
-  예 `CJUA`, `type` `City`·`Nation`, `parentLocation`)과 `flightQuotes.cheapest`·`direct`(`rawPrice`, `direct`). 날짜는 주지 않는다.
+  예 `CJUA`, `type` `City`·`Nation`), `content.parentLocation`(나라: `name`, `skyCode` 는 ISO 2글자 `KR`)과 `flightQuotes.cheapest`·`direct`(`rawPrice`,
+  `direct`, `price` 표시 문자열). 날짜와 출발 공항은 주지 않는다. 나라는 2026-10-20 실측에서 도시 100곳 모두 `location` 밖 `content.parentLocation` 에
+  왔고 `location.parentLocation` 은 null 이었다 (예전에는 `location` 안에 와서 0.3.1 까지 `country` 가 늘 null 이었다). 두 곳을 다 읽는다.
+  `skyCode` 는 IATA 가 아니고 규칙으로 바꿀 수도 없다 (`CJUA` 제주, `CYNT` 옌타이 YNT, `JHSG` 사가 HSG). 자동완성에 넣어도 그 도시가 나오지 않아
+  (`CJUA` → 청주·청두) 출력에서는 `code` 를 null, 이 값을 `sky_code` 로 낸다.
+- 지표 가격은 그 기간 어느 날의 최저가다. 인천 출발 11월 제주 26,928원은 달력의 11/9·11/23(26,913원) 같은 날의 값이었고, 11/15 는 달력 315,865원,
+  검색 315,470원(직항 없이 경유)이었다 (2026-10-20 실측). 버그가 아니라 날짜를 주지 않는 값이라 `notes` 로 `calendar` 를 먼저 쓰게 안내한다.
+  `--round-trip` 은 `calendar` 가 편도만 되어 그 달 날짜로 `search flights` 하게 안내한다.
   지표 가격이 없는 도시(`--direct` 면 직항 지표 가격이 없는 도시)는 싼 순으로 세울 수 없어 빼고 그 수를 `notes` 로 알린다.
 - 가격은 달력처럼 지표 가격(indicative)이다.
 
@@ -121,6 +128,8 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
 
 - **장소**: 자동완성 후보에서 `PlaceId == CityId` 면 도시, `PlaceId == CountryId` 면 나라(쓰지 않음), 나머지는 공항이다. 도시 코드는 `IataCode`(SEL),
   스카이 ID 는 `PlaceId`(SELA)다. 해석 규칙은 네이버와 같은 `core.flight.pick_place` 다 (코드는 공항 먼저, 이름은 도시 먼저).
+  `IataCode` 가 빈 도시는 `search airports` 의 `code` 를 null 로 낸다 (`_iata_code`). 스카이 ID 를 내면 4글자라 그대로 검색에 넣었을 때
+  `check_place_inputs` 에 걸린다. 그런 도시를 실측으로 본 적은 아직 없고 응답 모델상 빈 값이 올 수 있어 막아 둔 것이다.
   - **예외: `CityId` 가 빈 도시 후보가 있다** (2026-10-12 실측). '부산' 자동완성의 도시 후보는 `PlaceId: PUSA`, `IataCode: PUS`, `CityId: ""`,
     `Tags: ["GENERAL_SEARCH_V2"]` 이고 가까운 다른 공항(`AirportInformation`, 울산)을 함께 준다. 위 규칙만으로는 공항(code `PUSA`)이 됐다.
     같은 응답의 `PUS` 공항 후보는 `CityId: PUSA` 이고, 어디든지 결과도 부산을 `PUSA` 도시로 준다. 도시 후보는 `GeoId == GeoContainerId` 다
@@ -137,7 +146,7 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
   셸에서 그대로라 바꾸지 않고 `FLIGHT_ID_PATTERN` 이 받는다 (2026-10-11). `flight_id()` 는
   검색 조건(엔티티 ID·스카이 ID·날짜·승객·좌석)을 함께 담고, `flight` 는 매번 같은 조건으로 다시 검색해 그 ID 를 찾는다. 1시간 지난 `sessionId` 도
   결과를 줬지만 세션 ID 가 200자쯤이라 ID 에 넣지 않았다.
-- **어디든지 왕복**은 두 번째 구간(`everywhere` → 출발지, 같은 달)을 넣으면 된다. 도시 결과에 `parentLocation`(나라)이 빠지기도 해 그때 `country` 는 null.
+- **어디든지 왕복**은 두 번째 구간(`everywhere` → 출발지, 같은 달)을 넣으면 된다. 도시 결과에 `parentLocation`(나라)이 빠지면 `country` 는 null.
   `type: City` 만 쓰고 광고(`ADVERT`)와 나라 항목(관광청 광고 등)은 뺀다.
 - **다구간**: `legs` 를 늘리면 된다. ICN→NRT 11/15 + KIX→ICN 11/20 은 1,860건, 25초였고 최저가 조합(TW241+TW318)이 네이버 다구간 1위와
   같았다 (2026-10-11). 결과 페이지는 `/transport/d/{출발 스카이 ID}/{YYYY-MM-DD}/{도착 스카이 ID}/…/` 이고 `rtn` 등은 붙이지 않는다.
@@ -148,10 +157,10 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
   1~2KB 라 `flight --limit`(기본 10)으로 자른다.
 - **가격 없는 판매처 운임**: `pricingOptions[]` 중 `unpricedType`(`itinerary_not_returned`·`partner_not_selected`)이 있는 운임은 `price.amount` 가 0 이다
   (ICN→LHR 1,312개 중 31개, 부산↔후쿠오카 3,375개 중 175개 모두. 대표 가격으로 쓰인 것은 없었다, 2026-10-11). 살 수 있는 가격이 아니라 `flight` 의
-  `offers` 와 `offer_count` 에서 빼고 뺀 수를 `notes` 로 알린다 (`_priced_options`). 전에는 `버진애틀랜틱항공 0원` 이 맨 앞에 나왔다.
+  `offers` 와 `seller_count` 에서 빼고 뺀 수를 `notes` 로 알린다 (`_priced_options`). 전에는 `버진애틀랜틱항공 0원` 이 맨 앞에 나왔다.
   판매처 운임이 **모두** 가격 없음인 항공권은 살 수 있는 가격이 없어 `search flights` 가 빼고 그 수를 `notes` 로 알리며, `flight` 는 결과에 없는 것
   (`NOT_IN_RESULTS`)으로 낸다. ICN→BCN 203건에는 없었고(일부 운임만 가격 없음 36건) 대표 가격이 가격 없음 운임인 것도 없었다 (2026-10-11).
-- **판매처 수**: `offer_count` 는 가격을 준 운임 수다. 한 판매처 운임은 판매처마다 하나라 판매처 수와 같다 (ICN→BCN 203건 모두, 2026-10-11).
+- **판매처 수**: `seller_count` 는 가격을 준 운임 수다. 한 판매처 운임은 판매처마다 하나라 판매처 수와 같다 (ICN→BCN 203건 모두, 2026-10-11).
   판매처 여러 곳에서 따로 예약하는 조합(아래)은 운임 하나로 센다.
 - **대표 가격의 판매처**: `cheapest_seller` 는 `price.pricingOptionId` 와 운임 ID 가 같은 판매처 운임의 판매처다. 대표 가격에 운임 ID 가 없으면 어느
   운임인지 모르므로 `null` 이다 (ID 가 없는 운임과 짝지으면 다른 판매처를 낸다, `_cheapest_option`).
@@ -190,9 +199,10 @@ KRW 를 요청하면 원으로 온다 (`price.raw` 는 `175500.0` 처럼 실수,
 
 - 검색은 폴링이 끝난 결과를 한 번에 준다 (`filterStats.total` = 결과 수). 페이지가 없으므로 정렬 뒤 앞에서 `--limit` 개를 자른다
   ([개수 상한](../output-contract.md#개수-상한)).
-- 직항·항공사 조건을 받는 요청 필드를 번들에서 찾지 못했다. 그래서 받은 결과에서 직접 거른다
+- 직항·항공사·출발 시각대 조건을 받는 요청 필드를 번들에서 찾지 못했다. 그래서 받은 결과에서 직접 거른다
   ([서버 필터 없는 대체 조회](../provider-conventions.md#서버-필터-없는-대체-조회)): 직항은 모든 여정의 `stopCount == 0`, 항공사는 모든 구간의 판매
-  항공사(`marketingCarrier.displayCode`)가 준 코드 안에 있을 때만 통과. 값이 없으면 통과시키지 않는다. 거른 사실과 남은 수를 `notes` 로 알리고, 판정할
+  항공사(`marketingCarrier.displayCode`)가 준 코드 안에 있을 때만 통과. 출발 시각대는 첫 여정(`--depart-time`)·둘째 여정(`--return-time`)의 현지
+  출발 시각(`legs[].departure`)의 시가 시작 시 이상 끝 시 미만일 때만 통과 (경계는 네이버 칸에 맞춘 `core.flight.DEPART_HOUR_BOUNDARIES`). 값이 없으면 통과시키지 않는다. 거른 사실과 남은 수를 `notes` 로 알리고, 판정할
   값이 없어 뺀 항공권은 그 수를 따로 알린다 (실측 202·999건에는 `stopCount`·`displayCode` 가 빠진 것이 없었다, 2026-10-11).
 - 정렬(가격·출발시각·소요시간)도 받은 결과를 baenggipyo 가 세운다. 결과가 이미 전부라 세운 뒤 잘라도 빠지는 항공권이 없다. 원본 값(`price.raw`,
   첫 여정 `departure`, 여정 `durationInMinutes` 합)으로 세운 뒤 앞의 `--limit` 개만 출력 모델로 바꾼다. 전부 바꾸면 8,484건에서 0.8초를 더 쓴다

@@ -1,11 +1,14 @@
-"""항공권 공통 정의: 소스·여정·좌석 등급 이름, 출력 안내 문구, 검색 조건 베이스, 소스와 상관없는 출력 모델, 구간 공항 해석 묶기와 후보 고르기.
+"""항공권 공통 정의: 소스·여정·좌석 등급 이름, 검색 조건 베이스, 소스와 상관없는 출력 모델, 입력 공항 해석 묶기와 후보 고르기.
 
 출력 규칙은 references/output-contract.md '항공권 출력' 을 따른다. 금액은 원 정수(`*_krw`), 시각은 각 공항의 현지 시각
 `YYYY-MM-DDTHH:MM`, 소요 시간은 분이다. 그 항공권·조회에 원래 없는 값은 `not_applicable_fields()` 로 키째 뺀다.
 """
 
 import re
-from collections.abc import Callable
+from collections.abc import (
+    Callable,
+    Sequence,
+)
 from datetime import (
     timedelta,
     timezone,
@@ -42,11 +45,6 @@ OfferT = TypeVar('OfferT', bound='Offer')
 
 KST: timezone = timezone(timedelta(hours=9), 'KST')
 
-NOTICE: str = (
-    '가격은 조회 시점 기준이며 예약 단계에서 바뀔 수 있습니다. '
-    '예약·결제는 각 url 의 원 사이트에서 하세요. baenggipyo 는 탐색용입니다.'
-)
-
 Source = Literal['naver', 'skyscanner']
 TripType = Literal['편도', '왕복', '다구간']
 CabinClass = Literal['일반석', '프리미엄일반석', '비즈니스석', '일등석']
@@ -56,12 +54,19 @@ SellerType = Literal['항공사', '여행사']
 CABIN_CLASSES: tuple[CabinClass, ...] = ('일반석', '프리미엄일반석', '비즈니스석', '일등석')
 
 IATA_CODE_PATTERN: re.Pattern[str] = re.compile(r'^[A-Za-z]{3}$')
+# IATA 가 아닌 4글자 코드 (스카이스캐너 도시 코드 CJUA·CYNT, ICAO 공항 코드 RKSI). 대문자로 준 것만 코드로 본다 (Jeju·Rome 같은 이름은 이름이다)
+OTHER_CODE_PATTERN: re.Pattern[str] = re.compile(r'^[A-Z][A-Z0-9]{3}$')
 # 모호한 공항 에러에 싣는 후보 수
 MAX_CANDIDATES: int = 5
 # 항공권 ID 가 승객 수를 유형별 한 자리 숫자로 담아 조건 모델은 유형별 9명까지 받는다. 소스 요청 모델의 상한·CLI 합계 상한과는 뜻이 달라 따로 둔다
 MAX_PASSENGERS_PER_TYPE: int = 9
 # 요약 출력(`--brief`)을 출력 모델에 알리는 직렬화 context 키 (`FlightModel.brief_omitted_fields`)
 BRIEF_CONTEXT_KEY: str = 'brief'
+# 달력 결과 맨 위 `cheapest_days` 에 싼 순으로 올리는 날 수
+CHEAPEST_DAY_COUNT: int = 3
+# 출발 시각대 조건(--depart-time·--return-time)이 받는 경계 (시). 네이버 사이트의 출발 시각 칸(00-06·06-09·…·21-24, 서버 필터 값)에 맞춰
+# 두 소스가 같은 값을 받는다. 시작 시는 넣고 끝 시는 뺀다 (네이버 국내선 09-12 칸이 09:00 출발을 넣었다, 2026-10-21 실측)
+DEPART_HOUR_BOUNDARIES: tuple[int, ...] = (0, 6, 9, 12, 15, 18, 21, 24)
 
 COMPACT_DATE_PATTERN: re.Pattern[str] = re.compile(r'^(\d{4})(\d{2})(\d{2})$')
 COMPACT_DATETIME_PATTERN: re.Pattern[str] = re.compile(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$')
@@ -95,20 +100,48 @@ def trip_type_of(routes: list[tuple[str, str]]) -> TripType:
     return '다구간'
 
 
-def resolve_route(raw_legs: list[tuple[str, str, str]], resolve: Callable[[str], PlaceT]) -> list[tuple[PlaceT, PlaceT, str]]:
-    """(출발, 도착, YYYY-MM-DD) 구간마다 출발·도착 입력을 `resolve`(소스의 공항 해석, 요청 1회)로 장소로 바꾼다.
+def check_place_inputs(*texts: str) -> None:
+    """출발·도착지 입력에 IATA 가 아닌 대문자 4글자 코드(`OTHER_CODE_PATTERN`)가 있으면 요청을 보내기 전에 거른다.
 
+    입력만 보고 알 수 있어 자동완성 요청(스카이스캐너는 시간당 상한이 있다)을 쓰지 않는다. 비슷한 후보도 알리지 않는다
+    (스카이스캐너 'CJUA'(제주) → 후보 9곳이 청주·청두라 첫 후보 CJJ 를 권하게 된다, 2026-10-20 실측).
+    대문자로만 쓴 이름(JEJU·DOHA)도 걸리지만 전에도 찾지 못했다. 자동완성이 이름을 한글로 줘 이름이 똑같은 후보가 없고 후보는 도시·공항
+    여럿이라 `AIRPORT_AMBIGUOUS` 였다 (네이버 'JEJU' → 제주 도시·공항, 스카이스캐너 'JEJU' → 제주 공항·도시·휴훼, 2026-10-20 실측.
+    네이버 DOHA·OSLO·ROME·MALE 후보 3곳, BALI·LIMA 4곳, NICE 2곳, RKSI 0곳, 2026-10-21 실측).
+    소문자(`cjua`)는 이름(Jeju·Rome)과 가릴 수 없어 거르지 않는다. 이름으로 자동완성에 넘기고, 이름이 똑같은 후보가 없으니 후보가 하나일 때만 고른다.
+
+    Raises:
+        AirportNotFoundError: IATA 가 아닌 4글자 코드일 때.
+    """
+    for text in texts:
+        text = text.strip()
+        if OTHER_CODE_PATTERN.fullmatch(text):
+            raise AirportNotFoundError(
+                text,
+                hint='대문자 4글자(스카이스캐너 sky_code, ICAO 공항 코드, 대문자로만 쓴 이름)는 IATA 코드가 아니라 찾지 않습니다. '
+                     '한글 도시 이름(예: 제주)이나 search airports 로 찾은 3글자 IATA 코드로 다시 주세요',
+            )
+
+
+def resolve_inputs(texts: Sequence[str], resolve: Callable[[str], PlaceT]) -> list[PlaceT]:
+    """출발·도착지 입력들을 `resolve`(소스의 공항 해석, 요청 1회)로 장소로 바꾼다. 두 소스의 모든 명령이 입력을 이것으로 푼다.
+
+    쓸 수 없는 입력(`check_place_inputs`)이 하나라도 있으면 앞 입력의 요청도 보내기 전에 거른다.
     같은 입력(앞뒤 공백·대소문자 무시)은 한 번만 묻는다. 그래서 왕복 `ICN NRT` 는 해석 요청이 2회다.
     """
+    check_place_inputs(*texts)
     resolved: dict[str, PlaceT] = {}
-
-    def place(text: str) -> PlaceT:
+    for text in texts:
         key = text.strip().upper()
         if key not in resolved:
             resolved[key] = resolve(text)
-        return resolved[key]
+    return [resolved[text.strip().upper()] for text in texts]
 
-    return [(place(origin), place(destination), date) for origin, destination, date in raw_legs]
+
+def resolve_route(raw_legs: list[tuple[str, str, str]], resolve: Callable[[str], PlaceT]) -> list[tuple[PlaceT, PlaceT, str]]:
+    """(출발, 도착, YYYY-MM-DD) 구간마다 출발·도착 입력을 장소로 바꾼다 (`resolve_inputs`)."""
+    places = resolve_inputs([text for origin, destination, _ in raw_legs for text in (origin, destination)], resolve)
+    return [(places[2 * index], places[2 * index + 1], date) for index, (_, _, date) in enumerate(raw_legs)]
 
 
 class FlightConditions(RequestModel):
@@ -141,6 +174,14 @@ class FlightConditions(RequestModel):
         list[str],
         Field(description='항공사 IATA 코드')
     ] = []
+    depart_hours: Annotated[
+        tuple[int, int] | None,
+        Field(description='가는 편(다구간은 첫 구간) 출발 시각대 (시작 시, 끝 시). 항공권 ID 에는 담지 않는다 (항공사 조건과 같다)')
+    ] = None
+    return_hours: Annotated[
+        tuple[int, int] | None,
+        Field(description='오는 편(구간이 둘인 검색의 둘째 구간) 출발 시각대 (시작 시, 끝 시). 항공권 ID 에는 담지 않는다')
+    ] = None
 
     @field_validator('infants')
     @classmethod
@@ -155,6 +196,20 @@ class FlightConditions(RequestModel):
     @property
     def only_one_adult(self) -> bool:
         return self.adults == 1 and self.children == 0 and self.infants == 0
+
+    def leg_hours(self, leg_count: int) -> list[tuple[int, int] | None]:
+        """구간마다 출발 시각대 (첫 구간은 `depart_hours`, 둘째 구간은 `return_hours`, 나머지는 조건 없음)."""
+        return [(self.depart_hours, self.return_hours)[index] if index < 2 else None for index in range(leg_count)]
+
+
+def in_hours(local_datetime: str | None, hours: tuple[int, int] | None) -> bool | None:
+    """현지 시각 `YYYY-MM-DDTHH:MM` 이 출발 시각대 (시작 시 이상, 끝 시 미만) 안인지. 조건이 없으면 True, 시각을 모르면 None."""
+    if hours is None:
+        return True
+    if not local_datetime or len(local_datetime) < 16:
+        return None
+    hour = int(local_datetime[11:13])
+    return hours[0] <= hour < hours[1]
 
 
 class FlightModel(BaseModel):
@@ -191,8 +246,8 @@ class Airport(FlightModel):
     """공항·도시 후보 하나 (`search airports`)."""
 
     code: Annotated[
-        str,
-        Field(description='IATA 공항·도시 코드')
+        str | None,
+        Field(description='IATA 공항·도시 코드. 소스가 IATA 코드를 주지 않은 도시면 null 이다 (검색에는 이름으로 넣는다)')
     ]
     type: Annotated[
         LocationType,
@@ -258,6 +313,7 @@ def pick_place(text: str, candidates: list[CandidateT], to_airport: Callable[[Ca
     - 이름이 똑같은 후보가 여럿이면 고르지 않는다 (네이버 '포틀랜드' → 도시 PDX·PWM 이 이름까지 같다, 2026-10-12 실측).
     - 3글자 입력이 어느 후보의 코드·이름과도 맞지 않으면 후보가 하나여도 쓰지 않는다. 코드로 준 것이라 다른 곳이다
       (네이버 'SEO' → 서울 SEL 하나뿐이라 서울로 찾았다, 2026-10-11 실측).
+    - 대문자 4글자 코드는 여기 오기 전에 `resolve_inputs` 가 거른다 (자동완성 요청 전에, `check_place_inputs`).
 
     Args:
         text: 사용자 입력.
@@ -497,9 +553,9 @@ class Itinerary(FlightModel):
         int | None,
         Field(description='성인 1인 요금 (세금·유류할증료 포함, 원)')
     ] = None
-    offer_count: Annotated[
+    seller_count: Annotated[
         int | None,
-        Field(description='판매처 수')
+        Field(description='판매처 수. 판매처 여러 곳에서 따로 예약하는 조합은 하나로 센다')
     ] = None
     cheapest_seller: Annotated[
         str | None,
@@ -569,6 +625,17 @@ def shown_offers(fares: list[list[OfferT]], limit: int, url_limit: int | None = 
     ]
 
 
+def url_omitted_notes(offers: list[OfferT], url_limit: int | None) -> list[str]:
+    """`shown_offers` 가 예약 링크를 뺀 운임이 있으면 알린다. `--offer-urls 0` 은 링크를 모두 빼 달라고 한 것이라 알리지 않는다.
+
+    뺀 링크는 키가 없어 출력 규약대로 읽으면 '해당 없음' 이다. `flight` 는 기본으로 링크를 앞 운임 하나에만 붙여, 알리지 않으면
+    가이드를 읽지 않은 에이전트가 나머지 판매처엔 예약 링크가 없다고 여긴다.
+    """
+    if not url_limit or not any(offer.url_omitted for offer in offers):
+        return []
+    return [f'예약 링크(url)는 앞의 운임 {url_limit}개에만 붙였습니다. 다른 판매처는 맨 위 url(원 사이트)에서 고르거나 --offer-urls 를 늘려 다시 부르세요']
+
+
 class CalendarDay(FlightModel):
     """날짜별 최저가 한 칸 (`calendar`)."""
 
@@ -584,10 +651,6 @@ class CalendarDay(FlightModel):
         int | None,
         Field(description='그날 최저가 (원, 추정가)')
     ] = None
-    direct: Annotated[
-        bool | None,
-        Field(description='최저가가 직항인지 (모르면 null)')
-    ] = None
     round_trip: Annotated[
         bool,
         Field(exclude=True, description='왕복 달력인지 (출력하지 않음)')
@@ -597,12 +660,28 @@ class CalendarDay(FlightModel):
         return frozenset() if self.round_trip else frozenset({'return_date'})
 
 
+def cheapest_days(days: list[CalendarDay]) -> list[CalendarDay]:
+    """달력 결과 맨 위에 올릴 싼 날 (`CHEAPEST_DAY_COUNT` 일, 같은 값이면 이른 날 먼저).
+
+    `days` 는 날짜 순이라 에이전트가 수십 개 값에서 최저가를 직접 골라야 한다. 고르다 틀리기 쉬워 싼 날을 따로 준다.
+    """
+    priced = [day for day in days if day.min_price_krw is not None]
+    return sorted(priced, key=lambda day: (day.min_price_krw or 0, day.date))[:CHEAPEST_DAY_COUNT]
+
+
+# 두 소스 달력 결과의 `cheapest_days` 필드. 설명의 날 수를 `CHEAPEST_DAY_COUNT` 에서 만든다
+CheapestDays = Annotated[
+    list[CalendarDay],
+    Field(description=f'days 중 싼 순 앞의 {CHEAPEST_DAY_COUNT}일 (같은 값이면 이른 날 먼저)')
+]
+
+
 class Destination(FlightModel):
     """어디든지 결과의 목적지 하나 (`explore`)."""
 
     code: Annotated[
         str | None,
-        Field(description='목적지 코드 (네이버는 IATA 공항 코드, 스카이스캐너는 자체 도시 코드). 모르면 null')
+        Field(description='목적지 IATA 공항·도시 코드. 소스가 주지 않으면 null (스카이스캐너는 sky_code 만 준다)')
     ]
     city: Annotated[
         str | None,

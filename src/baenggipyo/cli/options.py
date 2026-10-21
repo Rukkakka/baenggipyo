@@ -2,17 +2,42 @@
 
 import typer
 
+from baenggipyo.core.flight import CabinClass
+
 from typing import Annotated
 
 
+# 옵션 값의 다른 이름 → 한국어 허용값. 대소문자·띄어쓰기·끝의 class 는 `cli.output._alias_key` 가 가린다. 출력 값은 한국어 그대로다.
+# 소스의 허용값(CABIN_CLASSES, 각 소스 FLIGHT_SORTS)에 없는 값을 가리키는 별칭은 그 소스에서 받지 않는다 (`cli.output._choice_table`)
+CABIN_ALIASES: dict[str, CabinClass] = {
+    'economy': '일반석',
+    'premium_economy': '프리미엄일반석',
+    'business': '비즈니스석',
+    'first': '일등석',
+    '이코노미': '일반석',
+    '프리미엄이코노미': '프리미엄일반석',
+    '비즈니스': '비즈니스석',
+    '퍼스트': '일등석',
+}
+SORT_ALIASES: dict[str, str] = {
+    'price': '가격',
+    'departure': '출발시각',
+    'duration': '소요시간',
+}
+# flight 가 기본으로 예약 링크를 붙이는 판매처 운임 수. 링크 하나가 수백~천 자라 최저가 운임에만 붙인다
+DEFAULT_OFFER_URLS: int = 1
+
 PrettyOption = Annotated[
     bool | None,
-    typer.Option('--pretty/--compact', help='JSON 들여쓰기. 기본값은 터미널이면 pretty, 파이프면 compact'),
+    typer.Option('--pretty/--compact', help='JSON 들여쓰기. 기본값은 터미널이면 pretty, 파이프나 BAENGGIPYO_PLAIN=1 이면 compact'),
 ]
 AdultsOption = Annotated[int, typer.Option('--adults', min=1, max=9, help='성인 수 (만 12세 이상)')]
 ChildrenOption = Annotated[int, typer.Option('--children', min=0, max=8, help='소아 수 (만 2~11세)')]
 InfantsOption = Annotated[int, typer.Option('--infants', min=0, max=8, help='유아 수 (만 2세 미만, 성인 수 이하)')]
-CabinOption = Annotated[str, typer.Option('--cabin', help='좌석 등급: 일반석, 프리미엄일반석, 비즈니스석, 일등석')]
+CabinOption = Annotated[
+    str,
+    typer.Option('--cabin', help='좌석 등급: 일반석(economy), 프리미엄일반석(premium_economy), 비즈니스석(business), 일등석(first)'),
+]
 DirectOption = Annotated[bool, typer.Option('--direct', help='직항만')]
 MonthOption = Annotated[str | None, typer.Option('--month', help='출발 달 YYYY-MM (기본: 이번 달)')]
 TripDaysOption = Annotated[
@@ -27,20 +52,28 @@ LegOption = Annotated[
     list[str] | None,
     typer.Option('--leg', help='다구간 구간 출발-도착-YYYY-MM-DD. 구간마다 반복 (예: --leg ICN-NRT-2026-11-01 --leg KIX-ICN-2026-11-05)'),
 ]
+DepartTimeOption = Annotated[
+    str | None,
+    typer.Option('--depart-time', help='가는 편(다구간은 첫 구간) 출발 시각대 시작시-끝시. 경계는 0·6·9·12·15·18·21·24 (예: 06-12, 18-24)'),
+]
+ReturnTimeOption = Annotated[str | None, typer.Option('--return-time', help='오는 편 출발 시각대 시작시-끝시 (왕복만, 경계는 --depart-time 과 같다)')]
 AirlineOption = Annotated[list[str] | None, typer.Option('--airline', help='항공사 IATA 코드만 (예: KE,OZ). 반복하거나 쉼표로 구분')]
-SortOption = Annotated[str, typer.Option('--sort', help='정렬: 가격, 출발시각, 소요시간')]
+SortOption = Annotated[str, typer.Option('--sort', help='정렬: 가격(price), 출발시각(departure), 소요시간(duration)')]
 AirportQueryArgument = Annotated[str, typer.Argument(help='공항·도시 이름 또는 코드 (예: 도쿄, 나리타, OSA)')]
 AirportLimitOption = Annotated[int, typer.Option('--limit', min=1, max=20, help='후보 수')]
 FlightIdArgument = Annotated[str, typer.Argument(metavar='ID', help='search flights 결과의 id')]
 BriefOption = Annotated[
     bool,
-    typer.Option('--brief', help='요약: 항공권마다 고르는 데 필요한 값만 (구간별 공항·시각·기종, 항공권 url 등을 뺀다. 결과 모양은 같다)'),
+    typer.Option(
+        '--brief/--full',
+        help='기본은 요약: 항공권마다 고르는 데 필요한 값만 낸다. --full 이면 구간별 공항·시각·기종, 항공권 url 까지 (결과 모양은 같다)',
+    ),
 ]
 OfferUrlsOption = Annotated[
-    int | None,
+    int,
     typer.Option(
         '--offer-urls',
         min=0,
-        help='예약 링크를 붙일 판매처 운임 수. 앞에서부터 세고 뒤 운임은 url 키가 없다 (기본: 모두, 0 이면 링크 없이)',
+        help='예약 링크를 붙일 판매처 운임 수. 앞에서부터 세고 뒤 운임은 url 키가 없다 (기본 1: 맨 앞 운임만, 0 이면 링크 없이)',
     ),
 ]
