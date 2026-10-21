@@ -1,6 +1,7 @@
 """`baenggipyo skyscanner` 하위 명령. 사용법은 docs/skyscanner.md, 구현 메모는 references/providers/skyscanner.md."""
 
 import typer
+from pydantic import BaseModel
 
 from baenggipyo.cli.options import (
     CABIN_ALIASES,
@@ -63,6 +64,8 @@ from typing import Annotated
 
 
 SOURCE: str = 'skyscanner'
+# 시간당 상한까지 남은 요청이 이보다 적으면 결과 notes 로 알린다. 검색 한 번이 보통 4~7회, 큰 검색은 10회까지 들어 큰 쪽에 맞춘다
+LOW_BUDGET_REQUESTS: int = 10
 
 app = typer.Typer(
     help='스카이스캐너 (skyscanner.co.kr) 항공권 조회 (국내선 포함). 금액은 원, 시각은 각 공항 현지 시각.',
@@ -70,6 +73,34 @@ app = typer.Typer(
 )
 search_app = typer.Typer(help='공항·도시 코드 또는 항공권을 찾는다', no_args_is_help=True)
 app.add_typer(search_app, name='search')
+
+
+def budget_notes(client: SkyscannerClient) -> list[str]:
+    """시간당 상한까지 남은 요청이 검색 한 번 분량(`LOW_BUDGET_REQUESTS`)보다 적으면 알린다.
+
+    에이전트가 `limits` 를 따로 부르지 않아도 다음 조회를 네이버로 돌리게 한다. 상한에 닿으면 한 칸이 `max_wait`(60초) 안에 비지
+    않는 한 기다리지 않고 RATE_LIMITED 라, 모르고 검색을 이어 부르면 결과 없이 요청만 쓴다.
+    """
+    limiter = client.rate_limiter
+    if not limiter.policy.enabled or limiter.policy.max_per_hour is None:
+        return []
+    try:
+        status = limiter.status()
+    except OSError:
+        # 결과는 이미 받았다. 안내 하나 때문에 결과를 버리지 않는다
+        return []
+    remaining = status['requests_remaining_hour']
+    if remaining >= LOW_BUDGET_REQUESTS:
+        return []
+    note = f'스카이스캐너 요청이 이번 1시간에 {remaining}회 남았습니다 (시간당 {limiter.policy.max_per_hour}회, 검색 한 번에 보통 4~7회)'
+    if not remaining:
+        note += f". {status['hour_slot_wait_seconds']}초 뒤에 한 칸이 빕니다"
+    return [f'{note}. 모자라면 같은 조회를 네이버로 하세요']
+
+
+def emit_result(client: SkyscannerClient, data: BaseModel, pretty: bool | None, notes: list[str], *, brief: bool = False) -> None:
+    """결과를 내며 남은 요청이 적다는 안내(`budget_notes`)를 덧붙인다. 스카이스캐너 명령의 결과는 모두 이것으로 낸다."""
+    emit(data, pretty, notes=notes + budget_notes(client), brief=brief)
 
 
 @search_app.command('airports')
@@ -83,7 +114,7 @@ def search_airports_command(
     예: baenggipyo skyscanner search airports 도쿄
     """
     with handle_errors(SOURCE), SkyscannerClient() as client:
-        emit(search_airports(client, query, limit=limit), pretty)
+        emit_result(client, search_airports(client, query, limit=limit), pretty, [])
 
 
 @search_app.command('flights')
@@ -127,7 +158,7 @@ def search_flights_command(
         )
         legs = resolve_legs(client, raw_legs)
         result = search_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
-        emit(result, pretty, notes=result.notes, brief=brief)
+        emit_result(client, result, pretty, result.notes, brief=brief)
 
 
 @app.command('flight')
@@ -146,7 +177,7 @@ def flight_command(
     """
     with handle_errors(SOURCE), SkyscannerClient() as client:
         detail, notes = get_flight(client, flight_id, offer_limit=limit, url_limit=offer_urls)
-        emit(detail, pretty, notes=notes)
+        emit_result(client, detail, pretty, notes)
 
 
 @app.command('calendar')
@@ -170,7 +201,7 @@ def calendar_command(
     with handle_errors(SOURCE), SkyscannerClient() as client:
         origin_place, destination_place = resolve_places(client, origin, destination)
         result = get_calendar(client, origin_place, destination_place, month=month_value)
-        emit(result, pretty, notes=result.notes)
+        emit_result(client, result, pretty, result.notes)
 
 
 @app.command('explore')
@@ -202,4 +233,4 @@ def explore_command(
     with handle_errors(SOURCE), SkyscannerClient() as client:
         [origin_place] = resolve_places(client, origin)
         result = explore(client, origin_place, month=month_value, round_trip=round_trip, direct=direct, limit=limit)
-        emit(result, pretty, notes=result.notes)
+        emit_result(client, result, pretty, result.notes)

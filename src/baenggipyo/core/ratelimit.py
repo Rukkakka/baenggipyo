@@ -411,7 +411,11 @@ class RateLimiter:
             state.clear()
 
     def status(self) -> dict[str, Any]:
-        """현재 쿨다운·최근 60초(시간당 상한이 있으면 1시간도) 요청 수를 돌려준다. 읽기만 해서 잠그지 않고, 상태 디렉터리에 쓸 권한이 없어도 된다."""
+        """현재 쿨다운·최근 60초(시간당 상한이 있으면 1시간도) 요청 수를 돌려준다. 읽기만 해서 잠그지 않고, 상태 디렉터리에 쓸 권한이 없어도 된다.
+
+        시간당 상한이 있으면 남은 요청 수(`requests_remaining_hour`)와, 다 썼을 때 한 칸이 비기까지 남은 초(`hour_slot_wait_seconds`,
+        남았으면 0)도 준다. 명령마다 드는 요청 수가 달라(스카이스캐너 검색 보통 4~7회, 큰 검색 10회까지) 명령 몇 번이 남았는지는 세지 않는다.
+        """
         state = self._read_state()
         now = time.time()
         blocked_until = state['blocked_until']
@@ -423,7 +427,12 @@ class RateLimiter:
         }
         if self.policy.max_per_hour is not None:
             # 시간당 상한이 없으면 1시간치 기록을 남기지 않아 셀 수 없다 (해당 없음이라 키를 뺀다)
+            remaining = max(self.policy.max_per_hour - len(recent), 0)
+            # 상한이 찼으면 오래된 슬롯부터 (슬롯 수 - 상한 + 1)개가 1시간 창을 벗어나야 한 칸이 빈다. 그 마지막 슬롯이 빠지는 때를 센다
+            freeing = recent[len(recent) - self.policy.max_per_hour] if not remaining else None
             status['requests_last_hour'] = len(recent)
+            status['requests_remaining_hour'] = remaining
+            status['hour_slot_wait_seconds'] = max(int(freeing + HOUR_SECONDS - now + 0.999), 0) if freeing is not None else 0
         status['policy'] = self.policy.model_dump()
         return status
 
