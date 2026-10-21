@@ -21,6 +21,7 @@ from baenggipyo.core.flight import (
     SearchSummary,
     Segment,
     shown_offers,
+    url_omitted_notes,
 )
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.skyscanner.api.client import SkyscannerClient
@@ -511,6 +512,7 @@ def get_flight(
         notes.append('판매처 여러 곳에서 따로 예약하는 조합은 조합 합계 순서에 구간마다 한 줄씩 둡니다 (줄의 가격·url 은 fare_name 의 구간만이라 같은 조합의 줄을 모두 각 url 에서 따로 예약)')
     if len(fares) > offer_limit:
         notes.append(f'판매처 운임 {len(fares)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
+    notes.extend(url_omitted_notes(shown, url_limit))
     fields = _itinerary_fields(result, agents, legs=legs, conditions=conditions, shared=_shared_fields(legs, conditions))
     detail = SkyscannerItineraryDetail.model_validate({**fields, 'offers': shown})
     if detail.self_transfer:

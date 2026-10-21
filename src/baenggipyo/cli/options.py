@@ -24,6 +24,8 @@ SORT_ALIASES: dict[str, str] = {
     'departure': '출발시각',
     'duration': '소요시간',
 }
+# flight 가 기본으로 예약 링크를 붙이는 판매처 운임 수. 링크 하나가 수백~천 자라 최저가 운임에만 붙인다
+DEFAULT_OFFER_URLS: int = 1
 
 PrettyOption = Annotated[
     bool | None,
@@ -57,13 +59,16 @@ AirportLimitOption = Annotated[int, typer.Option('--limit', min=1, max=20, help=
 FlightIdArgument = Annotated[str, typer.Argument(metavar='ID', help='search flights 결과의 id')]
 BriefOption = Annotated[
     bool,
-    typer.Option('--brief', help='요약: 항공권마다 고르는 데 필요한 값만 (구간별 공항·시각·기종, 항공권 url 등을 뺀다. 결과 모양은 같다)'),
+    typer.Option(
+        '--brief/--full',
+        help='기본은 요약: 항공권마다 고르는 데 필요한 값만 낸다. --full 이면 구간별 공항·시각·기종, 항공권 url 까지 (결과 모양은 같다)',
+    ),
 ]
 OfferUrlsOption = Annotated[
-    int | None,
+    int,
     typer.Option(
         '--offer-urls',
         min=0,
-        help='예약 링크를 붙일 판매처 운임 수. 앞에서부터 세고 뒤 운임은 url 키가 없다 (기본: 모두, 0 이면 링크 없이)',
+        help='예약 링크를 붙일 판매처 운임 수. 앞에서부터 세고 뒤 운임은 url 키가 없다 (기본 1: 맨 앞 운임만, 0 이면 링크 없이)',
     ),
 ]

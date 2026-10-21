@@ -27,6 +27,7 @@ from baenggipyo.core.flight import (
     TripType,
     compact_datetime,
     shown_offers,
+    url_omitted_notes,
 )
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.naver.api.client import NaverClient
@@ -774,6 +775,8 @@ def get_domestic_flights(
         notes.append(f'실시간 가격을 주지 않는 판매처 {len(hidden)}곳은 사이트처럼 뺐습니다' + (' (남은 판매처가 없어 offers 가 비었습니다)' if not fares else ''))
     if len(fares) > offer_limit:
         notes.append(f'판매처 운임 {len(fares)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
+    shown = shown_offers(fares, offer_limit, url_limit)
+    notes.extend(url_omitted_notes(shown, url_limit))
     totals = [itinerary.total_price_krw for itinerary in itineraries]
     if conditions.infants:
         notes.append('유아 운임은 네이버가 주지 않아 total_price_krw 가 null 입니다 (price_per_adult_krw 는 성인 1인 요금)')
@@ -784,6 +787,6 @@ def get_domestic_flights(
         total_price_krw=None if any(total is None for total in totals) else sum(total or 0 for total in totals),
         # 따로 예약하는 조합은 판매처가 둘이어도(그 둘이 한 판매처 운임에도 있어도) 운임 하나로 센다 (필드 description, docs/common.md)
         seller_count=len(fares),
-        offers=shown_offers(fares, offer_limit, url_limit),
+        offers=shown,
     )
     return booking, notes

@@ -4,6 +4,7 @@ import typer
 
 from baenggipyo.cli.options import (
     CABIN_ALIASES,
+    DEFAULT_OFFER_URLS,
     SORT_ALIASES,
     AdultsOption,
     AirlineOption,
@@ -131,7 +132,7 @@ def search_flights_command(
         int,
         typer.Option('--limit', min=1, max=MAX_LIMIT, help='돌려줄 항공권 수')
     ] = DEFAULT_LIMIT,
-    brief: BriefOption = False,
+    brief: BriefOption = True,
     pretty: PrettyOption = None,
 ) -> None:
     """편도·왕복·다구간 항공권 (요청: 공항 해석 입력마다 1회 + 판매처 이름 1회 + 검색 1~2회, 국제선 10~20초·국내선 수 초).
@@ -165,7 +166,7 @@ def flight_command(
         int,
         typer.Option('--limit', min=1, max=MAX_OFFER_LIMIT, help='판매처 운임 수 (모든 결제수단 운임이 먼저 온다)')
     ] = DEFAULT_OFFER_LIMIT,
-    offer_urls: OfferUrlsOption = None,
+    offer_urls: OfferUrlsOption = DEFAULT_OFFER_URLS,
     pretty: PrettyOption = None,
 ) -> None:
     """항공권의 판매처별 가격과 예약 링크 (요청 2~3회, 검색 뒤 15분이 지났으면 같은 조건으로 다시 검색한다).

@@ -600,6 +600,17 @@ def shown_offers(fares: list[list[OfferT]], limit: int, url_limit: int | None = 
     ]
 
 
+def url_omitted_notes(offers: list[OfferT], url_limit: int | None) -> list[str]:
+    """`shown_offers` 가 예약 링크를 뺀 운임이 있으면 알린다. `--offer-urls 0` 은 링크를 모두 빼 달라고 한 것이라 알리지 않는다.
+
+    뺀 링크는 키가 없어 출력 규약대로 읽으면 '해당 없음' 이다. `flight` 는 기본으로 링크를 앞 운임 하나에만 붙여, 알리지 않으면
+    가이드를 읽지 않은 에이전트가 나머지 판매처엔 예약 링크가 없다고 여긴다.
+    """
+    if not url_limit or not any(offer.url_omitted for offer in offers):
+        return []
+    return [f'예약 링크(url)는 앞의 운임 {url_limit}개에만 붙였습니다. 다른 판매처는 맨 위 url(원 사이트)에서 고르거나 --offer-urls 를 늘려 다시 부르세요']
+
+
 class CalendarDay(FlightModel):
     """날짜별 최저가 한 칸 (`calendar`)."""
 

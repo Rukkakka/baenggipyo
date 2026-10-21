@@ -17,6 +17,7 @@ from baenggipyo.core.flight import (
     compact_datetime,
     seconds_to_minutes,
     shown_offers,
+    url_omitted_notes,
 )
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.naver.api.client import NaverClient
@@ -480,9 +481,11 @@ def get_flight(
             f'실시간 가격을 주지 않는 판매처 {not_realtime}곳은 사이트처럼 뺐습니다. 대표 가격도 남은 판매처로 정해 '
             'search flights 의 가격·seller_count 와 다를 수 있습니다'
         )
+    shown = shown_offers([[offer] for offer in offers], offer_limit, url_limit)
     if len(offers) > offer_limit:
         # 판매처 수와 운임 수를 함께 쓴다. 운임 수만 쓰면 seller_count 와 다른 수(판매처 23곳, 운임 133개)라 둘을 섞어 말하기 쉽다
         notes.append(f'판매처 {len(sellers)}곳의 운임 {len(offers)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
+    notes.extend(url_omitted_notes(shown, url_limit))
     # seller_count 는 offers 에 낸 판매처 수다. 판매처마다 운임(A01·카드)이 여럿이라 offers 행 수와 다르다 (ZE605 판매처 19곳 운임 116개).
     # search flights 는 실시간 여부를 몰라 운임 묶음의 판매처를 모두 세므로 실시간이 아닌 판매처만큼 크다 (TW241 24곳 중 실시간 23곳, 2026-10-11)
     detail = NaverItineraryDetail.model_validate({
@@ -490,7 +493,7 @@ def get_flight(
         **price_fields,
         'seller_count': len(sellers),
         'cheapest_seller': sellers.get(general.partner_code) if general else None,
-        'offers': shown_offers([[offer] for offer in offers], offer_limit, url_limit),
+        'offers': shown,
     })
     return detail, notes
 
