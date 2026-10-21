@@ -26,7 +26,6 @@ from baenggipyo.core.errors import BaenggipyoError
 from baenggipyo.core.flight import (
     BRIEF_CONTEXT_KEY,
     KST,
-    NOTICE,
 )
 from baenggipyo.core.schema import is_request_validation_error
 
@@ -65,7 +64,6 @@ def _dumps(data: Any, pretty: bool | None) -> str:
 def emit(
     data: BaseModel | list[BaseModel] | dict[str, Any],
     pretty: bool | None = None,
-    notice: bool = False,
     notes: list[str] | None = None,
     brief: bool = False,
 ) -> None:
@@ -73,9 +71,9 @@ def emit(
 
     값을 모르는 필드는 `null` 로 남기고, 그 항공권에 해당 없는 필드는 출력 모델이 키째 뺀다.
 
-    `notice` 가 True 면 맨 앞에 "가격은 조회 시점 기준, 예약은 원 사이트에서" 안내를 붙인다.
-    항공권·가격을 내보내는 명령은 모두 켠다. `notes` 가 있으면 그 바로 아래에 붙이고,
-    없으면 키를 뺀다 (모호한 공항 안내, 일부만 돌려준 안내 등). `brief` 면 출력 모델이 요약에서 빼는 필드도 뺀다 (`--brief`).
+    `notes` 가 있으면 맨 앞에 붙이고, 없으면 키를 뺀다 (모호한 공항 안내, 일부만 돌려준 안내 등). `brief` 면 출력 모델이
+    요약에서 빼는 필드도 뺀다 (`--brief`). "가격은 조회 시점 값이고 예약은 원 사이트에서" 같은 늘 같은 안내는 결과마다 붙이지
+    않고 `baenggipyo guide` 와 `--help` 에 둔다 (에이전트 대화에 같은 문장이 결과마다 쌓인다).
     """
     context = {BRIEF_CONTEXT_KEY: True} if brief else None
     if isinstance(data, BaseModel):
@@ -84,12 +82,10 @@ def emit(
         payload = [item.model_dump(mode='json', context=context) for item in data]
     else:
         payload = data
-    if not isinstance(payload, dict) and (notice or notes):
-        payload = {'items': payload}
     if notes:
+        if not isinstance(payload, dict):
+            payload = {'items': payload}
         payload = {'notes': notes, **payload}
-    if notice:
-        payload = {'notice': NOTICE, **payload}
     typer.echo(_dumps(payload, pretty))
 
 

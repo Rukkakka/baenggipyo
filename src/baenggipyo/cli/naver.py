@@ -147,10 +147,10 @@ def search_flights_command(
         legs = resolve_legs(client, raw_legs)
         if route_kind(legs) == 'domestic':
             domestic = search_domestic_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
-            emit(domestic, pretty, notice=True, notes=domestic.notes, brief=brief)
+            emit(domestic, pretty, notes=domestic.notes, brief=brief)
             return
         result = search_flights(client, legs, conditions=conditions, sort=sort_by, limit=limit)
-        emit(result, pretty, notice=True, notes=result.notes, brief=brief)
+        emit(result, pretty, notes=result.notes, brief=brief)
 
 
 @app.command('flight')
@@ -182,10 +182,10 @@ def flight_command(
     with handle_errors(SOURCE), NaverClient() as client:
         if all(domestic):
             booking, booking_notes = get_domestic_flights(client, flight_ids, offer_limit=limit, url_limit=offer_urls)
-            emit(booking, pretty, notice=True, notes=booking_notes)
+            emit(booking, pretty, notes=booking_notes)
             return
         detail, notes = get_flight(client, flight_ids[0], offer_limit=limit, url_limit=offer_urls)
-        emit(detail, pretty, notice=True, notes=notes)
+        emit(detail, pretty, notes=notes)
 
 
 @app.command('calendar')
@@ -213,7 +213,7 @@ def calendar_command(
     with handle_errors(SOURCE), NaverClient() as client:
         origin_location, destination_location = resolve_locations(client, origin, destination)
         result = get_calendar(client, origin_location, destination_location, month=month_value, trip_days=trip_days, direct=direct)
-        emit(result, pretty, notice=True, notes=result.notes)
+        emit(result, pretty, notes=result.notes)
 
 
 @app.command('explore')
@@ -242,4 +242,4 @@ def explore_command(
     with handle_errors(SOURCE), NaverClient() as client:
         [origin_location] = resolve_locations(client, origin)
         result = explore(client, origin_location.code, month=month_value, trip_days=trip_days, direct=direct, limit=limit)
-        emit(result, pretty, notice=True, notes=result.notes)
+        emit(result, pretty, notes=result.notes)

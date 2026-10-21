@@ -20,7 +20,6 @@ from baenggipyo.core.errors import (
     BaenggipyoError,
 )
 from baenggipyo.core.flight import (
-    NOTICE,
     Airport,
     Offer,
     check_place_inputs,
@@ -159,12 +158,11 @@ def test_request_built_from_response_fails_as_parse_error(capsys: pytest.Capture
     assert exited.value.exit_code == 1 and stderr_error(capsys)['code'] == 'PARSE_ERROR'
 
 
-def test_notes_sit_under_notice_and_vanish_when_empty(capsys: pytest.CaptureFixture[str]) -> None:
-    emit({'returned': 0}, pretty=False, notice=True, notes=['안내'])
-    payload = json.loads(capsys.readouterr().out)
-    assert list(payload) == ['notice', 'notes', 'returned'] and payload['notice'] == NOTICE
-    emit({'returned': 0}, pretty=False, notice=True, notes=[])
-    assert list(json.loads(capsys.readouterr().out)) == ['notice', 'returned']
+def test_notes_come_first_and_vanish_when_empty(capsys: pytest.CaptureFixture[str]) -> None:
+    emit({'returned': 0}, pretty=False, notes=['안내'])
+    assert list(json.loads(capsys.readouterr().out)) == ['notes', 'returned']
+    emit({'returned': 0}, pretty=False, notes=[])
+    assert list(json.loads(capsys.readouterr().out)) == ['returned']
 
 
 def test_four_letter_code_is_rejected_before_any_request() -> None:

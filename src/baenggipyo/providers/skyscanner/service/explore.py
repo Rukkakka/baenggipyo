@@ -19,7 +19,6 @@ from baenggipyo.providers.skyscanner.api.request.common import (
     SkyscannerSearchLegModel,
 )
 from baenggipyo.providers.skyscanner.service.common import (
-    ESTIMATE_NOTE,
     SkyscannerPlace,
     run_search,
     stopped_early,
@@ -139,11 +138,14 @@ def explore(
             round_trip=round_trip,
         ))
     destinations.sort(key=lambda destination: destination.min_price_krw or 0)
-    notes = [
-        ESTIMATE_NOTE,
-        'sky_code 는 스카이스캐너 도시 코드라 IATA 가 아니고 검색에 쓸 수 없습니다 (예: CJUA). 검색에는 city 이름이나 search airports 의 code 를 쓰세요',
-        '스카이스캐너 어디든지는 날짜를 주지 않습니다 (departure_date·return_date 는 null). calendar 로 날짜를 고르세요',
-    ]
+    # 결과마다 붙는 안내라 하나로 짧게 둔다 (references/output-contract.md '항공권 출력'). sky_code 를 검색에 넣으면 요청 없이
+    # AIRPORT_NOT_FOUND 와 hint 가 가니 따로 알리지 않는다. 지표 가격은 그 달 어느 날의 최저가다. 인천→제주 26,928원은 11/9·11/23 같은 날의
+    # 값이고 11/15 는 315,865원이었다 (2026-10-20 실측 달력). 스카이스캐너 calendar 는 편도만 돼 왕복은 날짜를 찾는 명령이 없다
+    find_dates = (
+        'calendar 는 편도만 돼 왕복 날짜는 찾을 수 없으니 그 달 날짜로 search flights 해 확인하세요' if round_trip
+        else 'calendar 로 그 가격의 날짜를 찾은 뒤 search flights 로 확인하세요'
+    )
+    notes = [f'이 가격은 실시간이 아닌 추정가이고, 날짜를 주지 않아 그 기간 어느 날의 최저가라 다른 날은 몇 배 비쌀 수 있습니다. {find_dates}']
     if not completed:
         notes.append(f'{stopped_early(stopped)} 받은 데까지만 보여 줍니다. 더 싼 목적지가 빠졌을 수 있습니다')
     if unpriced:

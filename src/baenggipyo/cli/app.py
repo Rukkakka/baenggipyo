@@ -48,6 +48,7 @@ app = typer.Typer(
     help=(
         '항공권 조회 CLI (네이버 항공권·스카이스캐너). 결과는 JSON 으로 stdout 에, 에러는 '
         '{"error": {...}} JSON 으로 stderr 에 쓴다. 금액은 모두 원 단위. '
+        '가격은 조회 시점 기준이며 예약 단계에서 바뀔 수 있고, 예약·결제는 결과 url 의 원 사이트에서 한다. '
         'LLM 에이전트는 처음 쓰기 전에 `baenggipyo guide` 를 읽는다.'
     ),
     no_args_is_help=True,

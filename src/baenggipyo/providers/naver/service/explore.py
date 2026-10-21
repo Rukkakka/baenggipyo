@@ -111,7 +111,8 @@ def explore(
         )
         for row in rows[:limit]
     ]
-    notes = [ESTIMATE_NOTE, '나라 이름은 주지 않습니다 (country 는 null, country_code 를 보세요)']
+    # 결과마다 붙는 안내는 가격의 뜻(추정가) 하나만 둔다. 나라 이름이 없는 것은 country: null 과 country_code 로 보인다 (docs/naver.md)
+    notes = [ESTIMATE_NOTE]
     if len(rows) < len(found):
         # 가격순으로 세울 수 없어 뺀다. 알리지 않으면 인기 목적지가 말없이 빠진다
         notes.append(f'최저가를 주지 않은 목적지 {len(found) - len(rows)}곳은 뺐습니다')

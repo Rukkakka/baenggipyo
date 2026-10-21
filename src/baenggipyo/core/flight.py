@@ -1,4 +1,4 @@
-"""항공권 공통 정의: 소스·여정·좌석 등급 이름, 출력 안내 문구, 검색 조건 베이스, 소스와 상관없는 출력 모델, 입력 공항 해석 묶기와 후보 고르기.
+"""항공권 공통 정의: 소스·여정·좌석 등급 이름, 검색 조건 베이스, 소스와 상관없는 출력 모델, 입력 공항 해석 묶기와 후보 고르기.
 
 출력 규칙은 references/output-contract.md '항공권 출력' 을 따른다. 금액은 원 정수(`*_krw`), 시각은 각 공항의 현지 시각
 `YYYY-MM-DDTHH:MM`, 소요 시간은 분이다. 그 항공권·조회에 원래 없는 값은 `not_applicable_fields()` 로 키째 뺀다.
@@ -44,11 +44,6 @@ CandidateT = TypeVar('CandidateT')
 OfferT = TypeVar('OfferT', bound='Offer')
 
 KST: timezone = timezone(timedelta(hours=9), 'KST')
-
-NOTICE: str = (
-    '가격은 조회 시점 기준이며 예약 단계에서 바뀔 수 있습니다. '
-    '예약·결제는 각 url 의 원 사이트에서 하세요. baenggipyo 는 탐색용입니다.'
-)
 
 Source = Literal['naver', 'skyscanner']
 TripType = Literal['편도', '왕복', '다구간']

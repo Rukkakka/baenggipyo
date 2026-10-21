@@ -377,7 +377,6 @@ def search_flights(
         notes.append(f"{'·'.join(filters)} 조건은 스카이스캐너가 받지 않아 받은 {len(found)}개에서 걸렀습니다 ({len(matched)}개 남음)")
     if len(verifiable) < len(priced):
         notes.append(f"{'·'.join(filters)} 여부를 판정할 값(경유 수·판매 항공사)이 응답에 없는 항공권 {len(priced) - len(verifiable)}개도 뺐습니다")
-    notes.append(f'{sort} 순으로 baenggipyo 가 세웠습니다 (스카이스캐너 기본 순서는 추천순)')
     if len(matched) > limit:
         notes.append(f'조건에 맞는 항공권 {len(matched)}개 중 앞의 {limit}개만 보여 줍니다 (--limit 최대 {MAX_LIMIT})')
     if not conditions.only_one_adult:
@@ -502,7 +501,7 @@ def get_flight(
     agents = {agent.id: agent for agent in response.itineraries.agents} if response.itineraries else {}
     fares = _offers(result, agents, conditions)
     shown = shown_offers(fares, offer_limit, url_limit)
-    notes = ['가격은 방금 다시 검색한 값입니다']
+    notes: list[str] = []
     if not completed:
         notes.append(f'{stopped_early(stopped)}, 판매처가 더 있을 수 있습니다')
     unpriced = len(result.pricing_options) - len(_priced_options(result))
