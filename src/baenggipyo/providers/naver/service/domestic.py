@@ -115,6 +115,12 @@ CARD_DISCOUNT_TYPE_LABELS: dict[str, str] = {
 }
 # 판매처 조회에서 편 하나를 찾을 때 받을 편 수 (같은 항공사·좌석 등급 안에서 찾는다)
 DETAIL_FETCH_LIMIT: int = 100
+# 국내선 편 ID 는 좌석 등급마다 다르고(끝의 .L·.D), 한 등급만 팔려도 같은 편의 다른 등급은 남아 있기도 하다 (2026-10-21 CJU→GMP
+# RS6306 11/17: 특가석 L 이 결과에서 빠졌고 할인석 D 는 100원 비싸게 남았다). 기본 hint(이 항공권은 빼고)대로면 그 편을 통째로 버린다
+SEAT_CLASS_GONE_HINT: str = (
+    '이 좌석 등급의 운임은 팔렸거나 바뀌었습니다. 같은 편의 다른 좌석 등급(id 끝 글자가 다른 것)이 남아 있을 수 있으니 '
+    'search flights 로 다시 찾으세요'
+)
 
 # 국제선 ID 의 구간(service/flight.py 의 LEG_ID_PATTERN, 공항·도시 구분 글자 포함)과 모양이 달라 DOMESTIC_ 을 붙여 구분한다
 DOMESTIC_LEG_ID_PATTERN: str = r'[A-Z]{3}[A-Z]{3}\d{8}'
@@ -499,6 +505,7 @@ def search_domestic_flights(
     directions: list[DomesticDirection] = ['departure', 'arrival'] if len(legs) == 2 else ['departure']
     notes: list[str] = []
     results: list[NaverDomesticLegResult] = []
+    cut: list[str] = []
     version: int | None = None
     for index, direction in enumerate(directions):
         # 공항 코드는 자동완성 응답 값이라 검증 실패는 입력 오류가 아니다 (flight 는 ID 에서 만들어 입력 오류가 맞으니 감싸지 않는다)
@@ -535,8 +542,10 @@ def search_domestic_flights(
             itineraries=itineraries,
         ))
         if len(event.flights) >= limit:
-            what = DIRECTION_LABELS[direction] if len(legs) == 2 else '조건에 맞는 편'
-            notes.append(f'{what}이 더 있을 수 있습니다. 정렬 순서 앞의 {limit}편만 받았습니다 (--limit 최대 {MAX_LIMIT})')
+            cut.append(DIRECTION_LABELS[direction] if len(legs) == 2 else '조건에 맞는 편')
+    if cut:
+        # 왕복은 두 방향이 다 잘리는 일이 많아 한 줄로 낸다 (방향마다 같은 문장 두 줄이었다)
+        notes.append(f"{'·'.join(cut)}이 더 있을 수 있습니다. 정렬 순서 앞의 {limit}편만 받았습니다 (--limit 최대 {MAX_LIMIT})")
     if len(legs) == 2:
         notes.append(
             '국내선 왕복은 가는 편과 오는 편을 하나씩 고릅니다. 가격은 편마다 따로이고, 두 편의 id 를 함께 flight 에 넣으면 왕복 예약 가격이 나옵니다'
@@ -586,7 +595,9 @@ def _find_flight(
     if flight is None:
         # 시간 상한에 끊긴 검색에 없는 것은 매진이 아니다 (국제선 get_flight 와 같다)
         incomplete = event.status is not None and cut_short(event.status.is_complete)
-        raise fare_missing_error('naver', value, cut_short=incomplete, reason='NOT_IN_RESULTS', alternative='skyscanner')
+        raise fare_missing_error(
+            'naver', value, cut_short=incomplete, reason='NOT_IN_RESULTS', alternative='skyscanner', unavailable_hint=SEAT_CLASS_GONE_HINT,
+        )
     return flight, event.status or NaverDomesticStatusModel(), researched
 
 

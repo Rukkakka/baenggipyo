@@ -90,6 +90,7 @@ class FareUnavailableError(BaenggipyoError):
         itinerary_id: 항공권 ID.
         status: 소스가 알려준 상태값. 모르면 None.
         reason: 판매 불가 사유 (예: SOLD_OUT, SEARCH_EXPIRED). 모르면 None.
+        hint: 기본 hint(후보에서 빼고 다시 검색) 대신 쓸 문구. Defaults to None.
     """
 
     def __init__(
@@ -97,13 +98,14 @@ class FareUnavailableError(BaenggipyoError):
         source: str,
         itinerary_id: str,
         status: str | None = None,
-        reason: str | None = None
+        reason: str | None = None,
+        hint: str | None = None
     ) -> None:
         detail = ', '.join(part for part in (status and f'status={status}', reason and f'reason={reason}') if part)
         super().__init__(
             code='FARE_UNAVAILABLE',
             message=f'현재 살 수 없는 {source} 항공권입니다: {itinerary_id}' + (f' ({detail})' if detail else ' (없거나 만료된 항공권)'),
-            hint='매진됐거나 검색 결과가 만료된 항공권입니다. 이 항공권은 빼고 search flights 로 다시 찾으세요',
+            hint=hint or '매진됐거나 검색 결과가 만료된 항공권입니다. 이 항공권은 빼고 search flights 로 다시 찾으세요',
             details={'itinerary_id': itinerary_id, 'fare_status': status, 'reason': reason},
         )
 
@@ -128,7 +130,15 @@ class SearchIncompleteError(BaenggipyoError):
         )
 
 
-def fare_missing_error(source: str, itinerary_id: str, *, cut_short: bool, reason: str, alternative: str) -> BaenggipyoError:
+def fare_missing_error(
+    source: str,
+    itinerary_id: str,
+    *,
+    cut_short: bool,
+    reason: str,
+    alternative: str,
+    unavailable_hint: str | None = None,
+) -> BaenggipyoError:
     """`flight` 가 다시 받은 검색 결과에 그 항공권이 없을 때 낼 에러.
 
     끝까지 받은 검색에 없으면 `FareUnavailableError` 다. 검색이 끝나기 전에 멈췄으면 매진이 아니라 늦게 끝난 것일 수 있어
@@ -140,7 +150,8 @@ def fare_missing_error(source: str, itinerary_id: str, *, cut_short: bool, reaso
         cut_short: 검색이 끝나기 전에(시간 상한 등) 멈췄는지.
         reason: 끝까지 받은 검색에 없을 때의 판매 불가 사유 (NOT_IN_RESULTS, SEARCH_EXPIRED).
         alternative: 같은 노선을 찾을 수 있는 다른 소스 이름.
+        unavailable_hint: `FareUnavailableError` 의 기본 hint 대신 쓸 문구. Defaults to None.
     """
     if cut_short:
         return SearchIncompleteError(source, itinerary_id, alternative)
-    return FareUnavailableError(source, itinerary_id, reason=reason)
+    return FareUnavailableError(source, itinerary_id, reason=reason, hint=unavailable_hint)
