@@ -31,7 +31,8 @@ class Step:
     Args:
         label: 결과 표에 쓰는 이름.
         command: CLI 명령 경로 (예: `('naver', 'search', 'flights')`).
-        args: 인자. `{depart}`(오늘부터 DAYS_AHEAD 일 뒤), `{month}`(그 달), `{id}`(바로 앞 검색 결과의 첫 항공권 ID)를 채운다.
+        args: 인자. `{depart}`(오늘부터 DAYS_AHEAD 일 뒤), `{return}`(그 TRIP_DAYS 일 뒤), `{month}`(출발 달), `{id}`(바로 앞 검색 결과의
+            첫 항공권 ID), `{return_id}`(바로 앞 네이버 국내선 왕복 검색의 오는 편 첫 ID)를 채운다.
     """
 
     label: str
@@ -40,16 +41,22 @@ class Step:
 
 
 DAYS_AHEAD: int = 30
+# 왕복 검색의 여행 일수
+TRIP_DAYS: int = 3
 # 스카이스캐너 검색은 폴링 60초에 요청 제한 대기(최대 60초)가 붙을 수 있다
 COMMAND_TIMEOUT_SECONDS: int = 300
 SEARCH: tuple[str, ...] = ('--depart', '{depart}', '--limit', '2', '--brief')
 FLIGHT: tuple[str, ...] = ('{id}', '--limit', '3', '--offer-urls', '0')
+# 네이버 국내선 왕복은 가는 편·오는 편을 따로 찾아(`legs[]`) 상세도 두 편 ID 로 왕복 예약 가격을 묻는다
+ROUND_TRIP_SEARCH: tuple[str, ...] = ('--depart', '{depart}', '--return', '{return}', '--limit', '2', '--brief')
+ROUND_TRIP_FLIGHT: tuple[str, ...] = ('{id}', '{return_id}', '--limit', '3', '--offer-urls', '0')
 # `run --disguise` 면 스카이스캐너 명령을 이것으로 부른다 (접속 버릇만 크롬처럼, curl_cffi 필요)
 DISGUISE: Path = Path(__file__).with_name('disguise.py')
 
 # 러너 하나가 묶음 하나를 돈다. 스카이스캐너 명령을 모두 부르면 요청이 40번 남짓이라 한 러너로는 시간당 상한(30회)에 막혀 한 시간 넘게
 # 기다리므로 국제선·국내선을 나눈다 (한 묶음 15~25번). 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (막힌 날은 확인 못 함으로 남긴다).
-# 모두 편도다: 국내선 왕복은 스카이스캐너 결과가 8천 건·100MB 를 넘는다. 노선은 결과가 0건일 리 없는 인기 노선으로 고른다 (0건이면 고장으로 본다)
+# 왕복은 네이버 국내선만 부른다. 네이버 국내선 왕복만 결과 모양(`legs[]`)과 요청(오는 편 검색, 두 편 예약 가격)이 편도와 다르다. 스카이스캐너
+# 국내선 왕복은 결과가 8천 건·100MB 를 넘는다. 노선은 결과가 0건일 리 없는 인기 노선으로 고른다 (0건이면 고장으로 본다)
 GROUPS: dict[str, tuple[Step, ...]] = {
     'naver': (
         Step('공항 찾기', ('naver', 'search', 'airports'), ('인천',)),
@@ -57,6 +64,8 @@ GROUPS: dict[str, tuple[Step, ...]] = {
         Step('국제선 상세', ('naver', 'flight'), FLIGHT),
         Step('국내선 검색 김포→제주', ('naver', 'search', 'flights'), ('GMP', 'CJU', *SEARCH)),
         Step('국내선 상세', ('naver', 'flight'), FLIGHT),
+        Step('국내선 왕복 검색 김포↔제주', ('naver', 'search', 'flights'), ('GMP', 'CJU', *ROUND_TRIP_SEARCH)),
+        Step('국내선 왕복 상세', ('naver', 'flight'), ROUND_TRIP_FLIGHT),
         Step('국제선 달력 인천→도쿄', ('naver', 'calendar'), ('ICN', 'NRT', '--month', '{month}')),
         Step('국내선 달력 김포→제주', ('naver', 'calendar'), ('GMP', 'CJU', '--month', '{month}')),
         # 네이버 어디든지는 국제선 목적지만 준다
@@ -83,7 +92,7 @@ UNKNOWN: str = 'unknown'
 STATUS_LABELS: dict[str, str] = {OK: '✅ 정상', BROKEN: '❌ 고장', UNKNOWN: '⚠️ 확인 못 함'}
 # 사이트가 바뀐 것인지 알 수 없는 에러. 그 밖의 에러 코드(PARSE_ERROR, INTERNAL_ERROR, NOT_FOUND, AIRPORT_NOT_FOUND 등)는 고장이다
 UNKNOWN_CODES: frozenset[str] = frozenset({'RATE_LIMITED', 'NETWORK_ERROR', 'FARE_UNAVAILABLE'})
-# 결과 수를 셀 키. 국내선 네이버 검색만 `legs[].itineraries` 다
+# 결과 수를 셀 키. 네이버 국내선 왕복 검색만 `legs[].itineraries` 다
 COUNT_KEYS: tuple[str, ...] = ('offers', 'itineraries', 'airports', 'days', 'destinations')
 
 BROKEN_LABEL: str = 'api-broken'
@@ -127,13 +136,19 @@ def _is_unknown(error: dict[str, object]) -> bool:
     return error.get('reason') == 'SEARCH_INCOMPLETE' or (isinstance(status, int) and status > 500)
 
 
-def _itineraries(data: dict[str, object]) -> list[object]:
-    """검색 결과의 항공권. 국내선 네이버 검색만 `legs[].itineraries` 로 방향마다 나눠 준다."""
+def _directions(data: dict[str, object]) -> list[list[object]]:
+    """검색 결과의 항공권을 방향마다. 네이버 국내선 왕복 검색만 `legs[].itineraries` 로 가는 편·오는 편을 나눠 주고, 다른 검색은 방향 하나다."""
     itineraries = data.get('itineraries')
     if isinstance(itineraries, list):
-        return itineraries
+        return [itineraries]
     legs = data.get('legs')
-    return [item for leg in legs if isinstance(leg, dict) for item in leg.get('itineraries') or []] if isinstance(legs, list) else []
+    if not isinstance(legs, list):
+        return []
+    directions: list[list[object]] = []
+    for leg in legs:
+        items = leg.get('itineraries') if isinstance(leg, dict) else None
+        directions.append(items if isinstance(items, list) else [])
+    return directions
 
 
 def _count(data: dict[str, object]) -> int:
@@ -141,14 +156,18 @@ def _count(data: dict[str, object]) -> int:
         value = data.get(key)
         if isinstance(value, list):
             return len(value)
-    return len(_itineraries(data))
+    return sum(len(items) for items in _directions(data))
 
 
-def _first_id(data: dict[str, object]) -> str | None:
-    itineraries = _itineraries(data)
-    first = itineraries[0] if itineraries else None
+def _first_id(directions: list[list[object]], index: int) -> str:
+    """`index` 번째 방향(0 가는 편, 1 오는 편)의 첫 항공권 ID. 그 방향이 없거나 비었으면 빈 문자열.
+
+    방향을 섞어 고르면 가는 편이 0건일 때 오는 편 ID 가 `{id}`·`{return_id}` 둘 다에 들어가 상세가 같은 방향 두 편(INVALID_ARGUMENT)으로 고장 난다.
+    """
+    items = directions[index] if index < len(directions) else []
+    first = items[0] if items else None
     value = first.get('id') if isinstance(first, dict) else None
-    return value if isinstance(value, str) else None
+    return value if isinstance(value, str) else ''
 
 
 def _run_step(step: Step, values: dict[str, str], *, disguise: bool = False) -> tuple[str, str, dict[str, object] | None]:
@@ -193,16 +212,24 @@ def _run_step(step: Step, values: dict[str, str], *, disguise: bool = False) -> 
 def run_group(name: str, *, disguise: bool = False) -> dict[str, object]:
     """묶음 하나의 명령을 차례로 부른다. 상세는 바로 앞 검색 결과의 첫 항공권 ID 로 부르고, 그 검색이 실패했으면 건너뛴다."""
     depart = _today() + datetime.timedelta(days=DAYS_AHEAD)
-    values = {'depart': depart.isoformat(), 'month': depart.strftime('%Y-%m'), 'id': ''}
+    values = {
+        'depart': depart.isoformat(),
+        'return': (depart + datetime.timedelta(days=TRIP_DAYS)).isoformat(),
+        'month': depart.strftime('%Y-%m'),
+        'id': '',
+        'return_id': '',
+    }
     steps: list[dict[str, str]] = []
     for step in GROUPS[name]:
         line = ' '.join(step.command)
-        if '{id}' in step.args and not values['id']:
+        if any(f'{{{key}}}' in step.args and not values[key] for key in ('id', 'return_id')):
             steps.append({'label': step.label, 'command': line, 'status': UNKNOWN, 'detail': '앞 검색이 결과를 주지 않아 건너뜀'})
             continue
         status, detail, data = _run_step(step, values, disguise=disguise)
         if step.command[-1] == 'flights':
-            values['id'] = (_first_id(data) if data else None) or ''
+            directions = _directions(data) if data else []
+            values['id'] = _first_id(directions, 0)
+            values['return_id'] = _first_id(directions, 1)
         steps.append({'label': step.label, 'command': line, 'status': status, 'detail': detail})
     return {'group': name, 'date': _today().isoformat(), 'status': _overall([step['status'] for step in steps]), 'steps': steps}
 
