@@ -1,7 +1,10 @@
 import json
 import re
 import sys
-from collections.abc import Iterator
+from collections.abc import (
+    Iterator,
+    Mapping,
+)
 from contextlib import contextmanager
 from datetime import (
     date,
@@ -203,32 +206,72 @@ def handle_errors(source: str) -> Iterator[None]:
         raise typer.Exit(code=1)
 
 
-def split_csv(values: list[str] | None, allowed: tuple[ChoiceT, ...], option: str) -> list[ChoiceT]:
+def _alias_key(value: str) -> str:
+    """값·별칭 비교 키. 대소문자, 띄어쓰기·`-`·`_`, 끝의 `class`·`클래스` 를 가리지 않는다.
+
+    (`Premium Economy` → `premiumeconomy`, `business class` → `business`, `프리미엄 일반석` → `프리미엄일반석`)
+    """
+    key = re.sub(r'[\s_-]+', '', value.strip().lower())
+    return re.sub(r'(class|클래스)$', '', key) or key
+
+
+def _choice_table(allowed: tuple[ChoiceT, ...], aliases: Mapping[str, str]) -> dict[str, ChoiceT]:
+    """비교 키(`_alias_key`) → 허용값. 허용값에 없는 값을 가리키는 별칭은 뺀다.
+
+    별칭은 두 소스가 함께 쓰는 표라, 한 소스의 허용값에서 빠진 값으로 바꿔 주면 검증을 건너뛴 값이 서비스까지 간다.
+    """
+    table = {_alias_key(value): value for value in allowed}
+    for alias, target in aliases.items():
+        if target in allowed:
+            table.setdefault(_alias_key(alias), target)
+    return table
+
+
+def _choice_labels(allowed: tuple[str, ...], aliases: Mapping[str, str]) -> str:
+    """에러에 쓰는 허용값 목록. 영어 별칭이 있으면 첫 별칭을 괄호로 붙인다 (`일반석(economy), 비즈니스석(business)`)."""
+    labels = []
+    for value in allowed:
+        english = next((alias for alias, target in aliases.items() if target == value and alias.isascii()), None)
+        labels.append(f'{value}({english})' if english else value)
+    return ', '.join(labels)
+
+
+def split_csv(
+    values: list[str] | None,
+    allowed: tuple[ChoiceT, ...],
+    option: str,
+    aliases: Mapping[str, str] | None = None,
+) -> list[ChoiceT]:
     """`--cabin 일반석 --cabin 비즈니스석` 과 `--cabin 일반석,비즈니스석` 을 모두 받아 검증된 목록으로 만든다.
 
-    값의 타입은 `allowed` 를 따른다.
+    값의 타입은 `allowed` 를 따른다. `aliases`(다른 이름 → 허용값)를 주면 영어 등 다른 이름도 받아 허용값으로 바꾼다.
+    에이전트는 영어로 옵션 값을 넣기 쉬워(`--cabin economy`) 한국어 값만 받으면 한 번씩 헛걸음한다.
+    값과 별칭은 `_alias_key` 로 견주어 대소문자·띄어쓰기가 달라도 받는다 (`프리미엄 일반석`, `Business Class`).
     """
+    aliases = aliases or {}
+    table = _choice_table(allowed, aliases)
     result: list[ChoiceT] = []
     for value in values or []:
         for part in value.split(','):
             part = part.strip()
             if not part:
                 continue
-            if part not in allowed:
+            choice = table.get(_alias_key(part))
+            if choice is None:
                 raise typer.BadParameter(
-                    f"허용되지 않는 값입니다: '{part}'. 가능한 값: {', '.join(allowed)}",
+                    f"허용되지 않는 값입니다: '{part}'. 가능한 값: {_choice_labels(allowed, aliases)}",
                     param_hint=option,
                 )
-            if part not in result:
-                result.append(part)
+            if choice not in result:
+                result.append(choice)
     return result
 
 
-def one_of(value: str, allowed: tuple[ChoiceT, ...], option: str) -> ChoiceT:
-    """값 하나를 허용값으로 검증한다. 쉼표로 여러 개를 주면 사용법 오류다."""
-    values = split_csv([value], allowed, option)
+def one_of(value: str, allowed: tuple[ChoiceT, ...], option: str, aliases: Mapping[str, str] | None = None) -> ChoiceT:
+    """값 하나를 허용값으로 검증한다 (`aliases` 는 `split_csv`). 쉼표로 여러 개를 주면 사용법 오류다."""
+    values = split_csv([value], allowed, option, aliases)
     if len(values) != 1:
-        raise typer.BadParameter(f"값 하나만 주세요. 가능한 값: {', '.join(allowed)}", param_hint=option)
+        raise typer.BadParameter(f'값 하나만 주세요. 가능한 값: {_choice_labels(allowed, aliases or {})}', param_hint=option)
     return values[0]
 
 

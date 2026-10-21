@@ -48,7 +48,7 @@ def stderr_error(capsys: pytest.CaptureFixture[str]) -> dict:
         ['limits', '--foo'],                   # 없는 옵션
         ['limits', '--reset', 'zigbang'],      # split_csv 의 BadParameter
         ['naver', 'search', 'flights', 'ICN', 'NRT', '--depart', '2020-01-01'],  # 지난 날짜
-        ['naver', 'search', 'flights', 'ICN', 'NRT', '--depart', '2030-01-01', '--cabin', '이코노미'],  # 없는 좌석 등급
+        ['naver', 'search', 'flights', 'ICN', 'NRT', '--depart', '2030-01-01', '--cabin', '3등석'],  # 없는 좌석 등급
     ],
 )
 def test_usage_errors_are_json_with_exit_2(

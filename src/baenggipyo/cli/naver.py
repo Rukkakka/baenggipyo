@@ -3,6 +3,8 @@
 import typer
 
 from baenggipyo.cli.options import (
+    CABIN_ALIASES,
+    SORT_ALIASES,
     AdultsOption,
     AirlineOption,
     AirportLimitOption,
@@ -105,7 +107,7 @@ def _conditions(
         adults=adults,
         children=children,
         infants=infants,
-        cabin=one_of(cabin, CABIN_CLASSES, '--cabin'),
+        cabin=one_of(cabin, CABIN_CLASSES, '--cabin', CABIN_ALIASES),
         direct=direct,
         airlines=parse_airlines(airline),
     )
@@ -141,7 +143,7 @@ def search_flights_command(
     예: baenggipyo naver search flights ICN NRT --depart 2026-11-15 --return 2026-11-20
     """
     raw_legs = parse_legs(origin, destination, depart, return_, leg)
-    sort_by = one_of(sort, FLIGHT_SORTS, '--sort')
+    sort_by = one_of(sort, FLIGHT_SORTS, '--sort', SORT_ALIASES)
     with handle_errors(SOURCE), NaverClient() as client:
         conditions = _conditions(adults, children, infants, cabin, direct, airline)
         legs = resolve_legs(client, raw_legs)

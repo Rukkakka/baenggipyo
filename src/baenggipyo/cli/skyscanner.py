@@ -3,6 +3,8 @@
 import typer
 
 from baenggipyo.cli.options import (
+    CABIN_ALIASES,
+    SORT_ALIASES,
     AdultsOption,
     AirlineOption,
     AirportLimitOption,
@@ -112,13 +114,13 @@ def search_flights_command(
     """
     raw_legs = parse_legs(origin, destination, depart, return_, leg)
     validate_passengers(adults, children, infants)
-    sort_by = one_of(sort, FLIGHT_SORTS, '--sort')
+    sort_by = one_of(sort, FLIGHT_SORTS, '--sort', SORT_ALIASES)
     with handle_errors(SOURCE), SkyscannerClient() as client:
         conditions = SkyscannerFlightConditions(
             adults=adults,
             children=children,
             infants=infants,
-            cabin=one_of(cabin, CABIN_CLASSES, '--cabin'),
+            cabin=one_of(cabin, CABIN_CLASSES, '--cabin', CABIN_ALIASES),
             direct=direct,
             airlines=parse_airlines(airline),
         )
