@@ -4,8 +4,10 @@ from pydantic import Field
 
 from baenggipyo.core.flight import (
     CalendarDay,
+    CheapestDays,
     FlightModel,
     TripType,
+    cheapest_days,
     compact_date,
 )
 from baenggipyo.core.schema import built_from_response
@@ -45,13 +47,18 @@ class NaverCalendarResult(FlightModel):
         str,
         Field(description='조회한 달 (YYYY-MM)')
     ]
+    direct: Annotated[
+        bool,
+        Field(description='직항만 찾았는지 (--direct). 날마다의 직항 여부는 네이버가 주지 않는다')
+    ]
     returned: Annotated[
         int,
         Field(description='값이 있는 날 수')
     ]
+    cheapest_days: CheapestDays
     days: Annotated[
         list[CalendarDay],
-        Field(description='날짜별 최저가 (값이 있는 날만)')
+        Field(description='날짜별 최저가 (값이 있는 날만, 날짜 순)')
     ]
     notes: Annotated[
         list[str],
@@ -105,8 +112,6 @@ def get_calendar(
             date=date,
             return_date=compact_date(row.return_date),
             min_price_krw=row.min_price,
-            # 직항만 물었으면 직항이고, 아니면 응답에 경유 정보가 없어 모른다
-            direct=True if direct else None,
             round_trip=round_trip,
         ))
     days.sort(key=lambda day: day.date)
@@ -119,7 +124,9 @@ def get_calendar(
         trip_type='왕복' if round_trip else '편도',
         trip_days=trip_days,
         month=month,
+        direct=direct,
         returned=len(days),
+        cheapest_days=cheapest_days(days),
         days=days,
         notes=notes,
     )

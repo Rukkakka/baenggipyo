@@ -62,6 +62,8 @@ MAX_CANDIDATES: int = 5
 MAX_PASSENGERS_PER_TYPE: int = 9
 # 요약 출력(`--brief`)을 출력 모델에 알리는 직렬화 context 키 (`FlightModel.brief_omitted_fields`)
 BRIEF_CONTEXT_KEY: str = 'brief'
+# 달력 결과 맨 위 `cheapest_days` 에 싼 순으로 올리는 날 수
+CHEAPEST_DAY_COUNT: int = 3
 
 COMPACT_DATE_PATTERN: re.Pattern[str] = re.compile(r'^(\d{4})(\d{2})(\d{2})$')
 COMPACT_DATETIME_PATTERN: re.Pattern[str] = re.compile(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$')
@@ -613,10 +615,6 @@ class CalendarDay(FlightModel):
         int | None,
         Field(description='그날 최저가 (원, 추정가)')
     ] = None
-    direct: Annotated[
-        bool | None,
-        Field(description='최저가가 직항인지 (모르면 null)')
-    ] = None
     round_trip: Annotated[
         bool,
         Field(exclude=True, description='왕복 달력인지 (출력하지 않음)')
@@ -624,6 +622,22 @@ class CalendarDay(FlightModel):
 
     def not_applicable_fields(self) -> frozenset[str]:
         return frozenset() if self.round_trip else frozenset({'return_date'})
+
+
+def cheapest_days(days: list[CalendarDay]) -> list[CalendarDay]:
+    """달력 결과 맨 위에 올릴 싼 날 (`CHEAPEST_DAY_COUNT` 일, 같은 값이면 이른 날 먼저).
+
+    `days` 는 날짜 순이라 에이전트가 수십 개 값에서 최저가를 직접 골라야 한다. 고르다 틀리기 쉬워 싼 날을 따로 준다.
+    """
+    priced = [day for day in days if day.min_price_krw is not None]
+    return sorted(priced, key=lambda day: (day.min_price_krw or 0, day.date))[:CHEAPEST_DAY_COUNT]
+
+
+# 두 소스 달력 결과의 `cheapest_days` 필드. 설명의 날 수를 `CHEAPEST_DAY_COUNT` 에서 만든다
+CheapestDays = Annotated[
+    list[CalendarDay],
+    Field(description=f'days 중 싼 순 앞의 {CHEAPEST_DAY_COUNT}일 (같은 값이면 이른 날 먼저)')
+]
 
 
 class Destination(FlightModel):

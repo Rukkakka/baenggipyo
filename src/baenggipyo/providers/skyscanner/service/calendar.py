@@ -8,7 +8,9 @@ from pydantic import (
 
 from baenggipyo.core.flight import (
     CalendarDay,
+    CheapestDays,
     TripType,
+    cheapest_days,
 )
 from baenggipyo.core.schema import built_from_response
 from baenggipyo.providers.skyscanner.api.client import SkyscannerClient
@@ -50,9 +52,10 @@ class SkyscannerCalendarResult(BaseModel):
         int,
         Field(description='값이 있는 날 수')
     ]
+    cheapest_days: CheapestDays
     days: Annotated[
         list[CalendarDay],
-        Field(description='날짜별 추정 최저가 (값이 있는 날만)')
+        Field(description='날짜별 추정 최저가 (값이 있는 날만, 날짜 순)')
     ]
     notes: Annotated[
         list[str],
@@ -74,7 +77,16 @@ def get_calendar(client: SkyscannerClient, origin: SkyscannerPlace, destination:
         for day in (response.flights.days if response.flights else [])
         if day.day.startswith(month) and day.price is not None
     ]
+    days.sort(key=lambda day: day.date)
     notes = [ESTIMATE_NOTE]
     if not days:
         notes.append(f'{month} 에 값이 있는 날이 없습니다. search flights 로 찾으세요')
-    return SkyscannerCalendarResult(origin=origin.code, destination=destination.code, month=month, returned=len(days), days=days, notes=notes)
+    return SkyscannerCalendarResult(
+        origin=origin.code,
+        destination=destination.code,
+        month=month,
+        returned=len(days),
+        cheapest_days=cheapest_days(days),
+        days=days,
+        notes=notes,
+    )
