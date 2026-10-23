@@ -11,47 +11,47 @@ class NaverLocationModel(ResponseModel):
 
     typename: Annotated[
         str,
-        Field(description='SearchAirport, SearchCity, SearchCountry, SearchContinent')
-    ] = Field(alias='__typename')
+        Field(description='SearchAirport, SearchCity, SearchCountry, SearchContinent', alias='__typename')
+    ]
     airport_code: Annotated[
         str | None,
-        Field(description='공항 코드 (공항만)')
-    ] = Field(default=None, alias='airportCode')
+        Field(description='공항 코드 (공항만)', alias='airportCode')
+    ] = None
     airport_name: Annotated[
         str | None,
-        Field(description='공항 이름 (공항만)')
-    ] = Field(default=None, alias='airportName')
+        Field(description='공항 이름 (공항만)', alias='airportName')
+    ] = None
     city_code: Annotated[
         str | None,
-        Field(description='도시 코드')
-    ] = Field(default=None, alias='cityCode')
+        Field(description='도시 코드', alias='cityCode')
+    ] = None
     city_name: Annotated[
         str | None,
-        Field(description='도시 이름')
-    ] = Field(default=None, alias='cityName')
+        Field(description='도시 이름', alias='cityName')
+    ] = None
     airports: Annotated[
         list[str] | None,
         Field(description='도시에 속한 공항 코드 (도시만)')
     ] = None
     country_code: Annotated[
         str | None,
-        Field(description='나라 코드')
-    ] = Field(default=None, alias='countryCode')
+        Field(description='나라 코드', alias='countryCode')
+    ] = None
     country_name: Annotated[
         str | None,
-        Field(description='나라 이름')
-    ] = Field(default=None, alias='countryName')
+        Field(description='나라 이름', alias='countryName')
+    ] = None
     is_domestic: Annotated[
         bool | None,
-        Field(description='한국 국내인지')
-    ] = Field(default=None, alias='isDomestic')
+        Field(description='한국 국내인지', alias='isDomestic')
+    ] = None
 
 
 class NaverAutocompleteLocationsDataModel(ResponseModel):
     autocomplete_locations: Annotated[
         list[NaverLocationModel] | None,
-        Field(description='후보 (도시가 그 도시의 공항보다 먼저 온다)')
-    ] = Field(default=None, alias='autocompleteLocations')
+        Field(description='후보 (도시가 그 도시의 공항보다 먼저 온다)', alias='autocompleteLocations')
+    ] = None
 
 
 class NaverAutocompleteLocationsResponseModel(NaverGraphQLResponseModel):

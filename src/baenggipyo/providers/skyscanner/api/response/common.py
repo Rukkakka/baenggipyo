@@ -16,12 +16,12 @@ class SkyscannerSearchContextModel(ResponseModel):
     ] = None
     session_id: Annotated[
         str | None,
-        Field(description='폴링에 쓰는 세션 ID')
-    ] = Field(default=None, alias='sessionId')
+        Field(description='폴링에 쓰는 세션 ID', alias='sessionId')
+    ] = None
     total_results: Annotated[
         int | None,
-        Field(description='결과 수')
-    ] = Field(default=None, alias='totalResults')
+        Field(description='결과 수', alias='totalResults')
+    ] = None
 
 
 class SkyscannerSegmentPlaceModel(ResponseModel):
@@ -29,12 +29,12 @@ class SkyscannerSegmentPlaceModel(ResponseModel):
 
     display_code: Annotated[
         str | None,
-        Field(description='IATA 공항 코드')
-    ] = Field(default=None, alias='displayCode')
+        Field(description='IATA 공항 코드', alias='displayCode')
+    ] = None
     flight_place_id: Annotated[
         str | None,
-        Field(description='스카이 ID')
-    ] = Field(default=None, alias='flightPlaceId')
+        Field(description='스카이 ID', alias='flightPlaceId')
+    ] = None
     name: Annotated[
         str | None,
         Field(description='공항 이름')
@@ -50,12 +50,12 @@ class SkyscannerCarrierModel(ResponseModel):
     ] = None
     display_code: Annotated[
         str | None,
-        Field(description='IATA 항공사 코드 (예: RS)')
-    ] = Field(default=None, alias='displayCode')
+        Field(description='IATA 항공사 코드 (예: RS)', alias='displayCode')
+    ] = None
     alternate_id: Annotated[
         str | None,
-        Field(description='스카이스캐너 내부 코드 (예: S~)')
-    ] = Field(default=None, alias='alternateId')
+        Field(description='스카이스캐너 내부 코드 (예: S~)', alias='alternateId')
+    ] = None
 
 
 class SkyscannerSegmentModel(ResponseModel):
@@ -83,20 +83,20 @@ class SkyscannerSegmentModel(ResponseModel):
     ] = None
     duration_in_minutes: Annotated[
         int | None,
-        Field(description='비행 시간 (분)')
-    ] = Field(default=None, alias='durationInMinutes')
+        Field(description='비행 시간 (분)', alias='durationInMinutes')
+    ] = None
     flight_number: Annotated[
         str | None,
-        Field(description='편명 숫자 (항공사 코드 없이)')
-    ] = Field(default=None, alias='flightNumber')
+        Field(description='편명 숫자 (항공사 코드 없이)', alias='flightNumber')
+    ] = None
     marketing_carrier: Annotated[
         SkyscannerCarrierModel | None,
-        Field(description='판매(표기) 항공사')
-    ] = Field(default=None, alias='marketingCarrier')
+        Field(description='판매(표기) 항공사', alias='marketingCarrier')
+    ] = None
     operating_carrier: Annotated[
         SkyscannerCarrierModel | None,
-        Field(description='운항 항공사')
-    ] = Field(default=None, alias='operatingCarrier')
+        Field(description='운항 항공사', alias='operatingCarrier')
+    ] = None
 
 
 class SkyscannerLegModel(ResponseModel):
@@ -104,12 +104,12 @@ class SkyscannerLegModel(ResponseModel):
 
     duration_in_minutes: Annotated[
         int | None,
-        Field(description='경유 대기를 포함한 소요 시간 (분)')
-    ] = Field(default=None, alias='durationInMinutes')
+        Field(description='경유 대기를 포함한 소요 시간 (분)', alias='durationInMinutes')
+    ] = None
     stop_count: Annotated[
         int | None,
-        Field(description='경유 횟수')
-    ] = Field(default=None, alias='stopCount')
+        Field(description='경유 횟수', alias='stopCount')
+    ] = None
     departure: Annotated[
         str | None,
         Field(description='현지 출발 시각')
@@ -131,8 +131,8 @@ class SkyscannerOptionPriceModel(ResponseModel):
     ] = None
     update_status: Annotated[
         str | None,
-        Field(description='current 등')
-    ] = Field(default=None, alias='updateStatus')
+        Field(description='current 등', alias='updateStatus')
+    ] = None
 
 
 class SkyscannerPricingItemModel(ResponseModel):
@@ -144,8 +144,8 @@ class SkyscannerPricingItemModel(ResponseModel):
 
     agent_id: Annotated[
         str | None,
-        Field(description='판매처 ID')
-    ] = Field(default=None, alias='agentId')
+        Field(description='판매처 ID', alias='agentId')
+    ] = None
     url: Annotated[
         str | None,
         Field(description='예약 딥링크 (사이트 기준 상대 경로 /transport_deeplink/...)')
@@ -156,8 +156,8 @@ class SkyscannerPricingItemModel(ResponseModel):
     ] = None
     segment_ids: Annotated[
         list[str],
-        Field(description='이 예약 단위로 사는 구간 ID (SkyscannerSegmentModel.id)')
-    ] = Field(default=[], alias='segmentIds')
+        Field(description='이 예약 단위로 사는 구간 ID (SkyscannerSegmentModel.id)', alias='segmentIds')
+    ] = []
 
 
 class SkyscannerPricingOptionModel(ResponseModel):
@@ -165,12 +165,12 @@ class SkyscannerPricingOptionModel(ResponseModel):
 
     pricing_option_id: Annotated[
         str | None,
-        Field(description='운임 ID')
-    ] = Field(default=None, alias='pricingOptionId')
+        Field(description='운임 ID', alias='pricingOptionId')
+    ] = None
     agent_ids: Annotated[
         list[str],
-        Field(description='판매처 ID')
-    ] = Field(default=[], alias='agentIds')
+        Field(description='판매처 ID', alias='agentIds')
+    ] = []
     price: Annotated[
         SkyscannerOptionPriceModel | None,
         Field(description='가격')
@@ -181,11 +181,12 @@ class SkyscannerPricingOptionModel(ResponseModel):
     ] = []
     unpriced_type: Annotated[
         str | None,
-        Field(description=(
-            '판매처가 가격을 주지 않은 운임 (itinerary_not_returned·partner_not_selected). 이때 가격은 0 이다 '
-            '(ICN→LHR 31개·부산↔후쿠오카 175개 모두, 2026-10-11)'
-        ))
-    ] = Field(default=None, alias='unpricedType')
+        Field(
+            description='판매처가 가격을 주지 않은 운임 (itinerary_not_returned·partner_not_selected). 이때 가격은 0 이다 '
+            '(ICN→LHR 31개·부산↔후쿠오카 175개 모두, 2026-10-11)',
+            alias='unpricedType'
+        )
+    ] = None
 
 
 class SkyscannerItineraryPriceModel(ResponseModel):
@@ -195,8 +196,8 @@ class SkyscannerItineraryPriceModel(ResponseModel):
     ] = None
     pricing_option_id: Annotated[
         str | None,
-        Field(description='대표 가격의 운임 ID')
-    ] = Field(default=None, alias='pricingOptionId')
+        Field(description='대표 가격의 운임 ID', alias='pricingOptionId')
+    ] = None
 
 
 class SkyscannerItineraryModel(ResponseModel):
@@ -216,12 +217,12 @@ class SkyscannerItineraryModel(ResponseModel):
     ] = []
     pricing_options: Annotated[
         list[SkyscannerPricingOptionModel],
-        Field(description='판매처별 운임')
-    ] = Field(default=[], alias='pricingOptions')
+        Field(description='판매처별 운임', alias='pricingOptions')
+    ] = []
     is_self_transfer: Annotated[
         bool | None,
-        Field(description='직접 갈아타는(셀프 환승) 항공권인지')
-    ] = Field(default=None, alias='isSelfTransfer')
+        Field(description='직접 갈아타는(셀프 환승) 항공권인지', alias='isSelfTransfer')
+    ] = None
 
 
 class SkyscannerAgentModel(ResponseModel):
@@ -237,8 +238,8 @@ class SkyscannerAgentModel(ResponseModel):
     ] = None
     is_carrier: Annotated[
         bool | None,
-        Field(description='항공사 직판인지')
-    ] = Field(default=None, alias='isCarrier')
+        Field(description='항공사 직판인지', alias='isCarrier')
+    ] = None
 
 
 class SkyscannerItinerariesModel(ResponseModel):
@@ -255,8 +256,8 @@ class SkyscannerItinerariesModel(ResponseModel):
 class SkyscannerQuoteModel(ResponseModel):
     raw_price: Annotated[
         float | None,
-        Field(description='지표 가격 (원)')
-    ] = Field(default=None, alias='rawPrice')
+        Field(description='지표 가격 (원)', alias='rawPrice')
+    ] = None
     direct: Annotated[
         bool | None,
         Field(description='직항인지')
@@ -281,8 +282,8 @@ class SkyscannerLocationModel(ResponseModel):
     ] = None
     sky_code: Annotated[
         str | None,
-        Field(description='스카이 코드 (도시 CJUA, 나라 KR)')
-    ] = Field(default=None, alias='skyCode')
+        Field(description='스카이 코드 (도시 CJUA, 나라 KR)', alias='skyCode')
+    ] = None
     name: Annotated[
         str | None,
         Field(description='이름')
@@ -293,8 +294,8 @@ class SkyscannerLocationModel(ResponseModel):
     ] = None
     parent_location: Annotated[
         'SkyscannerLocationModel | None',
-        Field(description='상위 위치 (도시의 나라). 어디든지 결과는 2026-10-20 실측 늘 null 이고 content.parentLocation 에 온다')
-    ] = Field(default=None, alias='parentLocation')
+        Field(description='상위 위치 (도시의 나라). 어디든지 결과는 2026-10-20 실측 늘 null 이고 content.parentLocation 에 온다', alias='parentLocation')
+    ] = None
 
 
 class SkyscannerEverywhereContentModel(ResponseModel):
@@ -304,12 +305,12 @@ class SkyscannerEverywhereContentModel(ResponseModel):
     ] = None
     parent_location: Annotated[
         SkyscannerLocationModel | None,
-        Field(description='목적지 도시의 나라 (skyCode 는 ISO 3166-1 alpha-2, 예 KR). 2026-10-20 실측 location 밖 여기로 온다')
-    ] = Field(default=None, alias='parentLocation')
+        Field(description='목적지 도시의 나라 (skyCode 는 ISO 3166-1 alpha-2, 예 KR). 2026-10-20 실측 location 밖 여기로 온다', alias='parentLocation')
+    ] = None
     flight_quotes: Annotated[
         SkyscannerFlightQuotesModel | None,
-        Field(description='지표 가격')
-    ] = Field(default=None, alias='flightQuotes')
+        Field(description='지표 가격', alias='flightQuotes')
+    ] = None
 
 
 class SkyscannerEverywhereResultModel(ResponseModel):
@@ -349,8 +350,8 @@ class SkyscannerRadarWebUnifiedSearchV2ResponseModel(ResponseModel):
     ] = None
     everywhere_destination: Annotated[
         SkyscannerEverywhereDestinationModel | None,
-        Field(description='어디든지 결과')
-    ] = Field(default=None, alias='everywhereDestination')
+        Field(description='어디든지 결과', alias='everywhereDestination')
+    ] = None
 
 
 class SkyscannerRadarWebUnifiedSearchPollV2ResponseModel(SkyscannerRadarWebUnifiedSearchV2ResponseModel):

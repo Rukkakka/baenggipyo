@@ -34,28 +34,28 @@ class NaverMinPricesByDestinationRequestPayloadModel(RequestModel):
 
     departure_location_code: Annotated[
         str,
-        Field(pattern=LOCATION_CODE_PATTERN, description='출발 IATA 공항·도시 코드')
-    ] = Field(alias='departureLocationCode')
+        Field(pattern=LOCATION_CODE_PATTERN, description='출발 IATA 공항·도시 코드', alias='departureLocationCode')
+    ]
     trip_type: Annotated[
         NaverTripCode,
-        Field(description='OW 또는 RT')
-    ] = Field(alias='tripType')
+        Field(description='OW 또는 RT', alias='tripType')
+    ]
     departure_months: Annotated[
         list[str] | None,
-        Field(description='출발 달 (YYYYMM)')
-    ] = Field(default=None, alias='departureMonths')
+        Field(description='출발 달 (YYYYMM)', alias='departureMonths')
+    ] = None
     trip_days: Annotated[
         list[int] | None,
-        Field(description='여행 일수 [최소, 최대] (왕복). 가는 날과 오는 날을 모두 센다')
-    ] = Field(default=None, alias='tripDays')
+        Field(description='여행 일수 [최소, 최대] (왕복). 가는 날과 오는 날을 모두 센다', alias='tripDays')
+    ] = None
     is_nonstop: Annotated[
         bool | None,
-        Field(description='직항만')
-    ] = Field(default=None, alias='isNonstop')
+        Field(description='직항만', alias='isNonstop')
+    ] = None
     is_domestic: Annotated[
         bool | None,
-        Field(description='국내선만(True)·국제선만(False)')
-    ] = Field(default=None, alias='isDomestic')
+        Field(description='국내선만(True)·국제선만(False)', alias='isDomestic')
+    ] = None
     size: Annotated[
         int | None,
         Field(ge=1, description='목적지 수')

@@ -43,5 +43,5 @@ class NaverAutocompleteLocationsRequestPayloadModel(RequestModel):
     ]
     airport_only: Annotated[
         bool,
-        Field(description='공항만 찾을지 (도시 제외)')
-    ] = Field(default=False, alias='airportOnly')
+        Field(description='공항만 찾을지 (도시 제외)', alias='airportOnly')
+    ] = False

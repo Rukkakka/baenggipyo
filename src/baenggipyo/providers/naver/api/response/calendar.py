@@ -11,27 +11,27 @@ class NaverMinPriceByDateModel(ResponseModel):
 
     departure_date: Annotated[
         str,
-        Field(description='출발 날짜 (YYYYMMDD)')
-    ] = Field(alias='departureDate')
+        Field(description='출발 날짜 (YYYYMMDD)', alias='departureDate')
+    ]
     return_date: Annotated[
         str | None,
-        Field(description='오는 날짜 (왕복만, YYYYMMDD)')
-    ] = Field(default=None, alias='returnDate')
+        Field(description='오는 날짜 (왕복만, YYYYMMDD)', alias='returnDate')
+    ] = None
     min_price: Annotated[
         int | None,
-        Field(description='최저가 (원)')
-    ] = Field(default=None, alias='minPrice')
+        Field(description='최저가 (원)', alias='minPrice')
+    ] = None
     trip_type: Annotated[
         str | None,
-        Field(description='OW 또는 RT')
-    ] = Field(default=None, alias='tripType')
+        Field(description='OW 또는 RT', alias='tripType')
+    ] = None
 
 
 class NaverMinPricesByDateDataModel(ResponseModel):
     min_prices_by_date: Annotated[
         list[NaverMinPriceByDateModel] | None,
-        Field(description='값이 있는 날짜만 온다')
-    ] = Field(default=None, alias='minPricesByDate')
+        Field(description='값이 있는 날짜만 온다', alias='minPricesByDate')
+    ] = None
 
 
 class NaverMinPricesByDateResponseModel(NaverGraphQLResponseModel):
