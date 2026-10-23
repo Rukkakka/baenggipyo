@@ -24,12 +24,12 @@ class SkyscannerPlaceModel(RequestModel):
 
     type: Annotated[
         Literal['entity', 'everywhere'],
-        Field(description='entity 또는 everywhere')
-    ] = Field(alias='@type')
+        Field(description='entity 또는 everywhere', alias='@type')
+    ]
     entity_id: Annotated[
         str | None,
-        Field(pattern=r'^\d+$', description='엔티티 ID (예: 인천 95673659)')
-    ] = Field(default=None, alias='entityId')
+        Field(pattern=r'^\d+$', description='엔티티 ID (예: 인천 95673659)', alias='entityId')
+    ] = None
 
 
 class SkyscannerDateModel(RequestModel):
@@ -37,8 +37,8 @@ class SkyscannerDateModel(RequestModel):
 
     type: Annotated[
         Literal['date', 'month', 'anytime'],
-        Field(description='date, month, anytime')
-    ] = Field(alias='@type')
+        Field(description='date, month, anytime', alias='@type')
+    ]
     year: Annotated[
         str | None,
         Field(pattern=r'^\d{4}$', description='연도')
@@ -58,12 +58,12 @@ class SkyscannerSearchLegModel(RequestModel):
 
     leg_origin: Annotated[
         SkyscannerPlaceModel,
-        Field(description='출발')
-    ] = Field(alias='legOrigin')
+        Field(description='출발', alias='legOrigin')
+    ]
     leg_destination: Annotated[
         SkyscannerPlaceModel,
-        Field(description='도착')
-    ] = Field(alias='legDestination')
+        Field(description='도착', alias='legDestination')
+    ]
     dates: Annotated[
         SkyscannerDateModel,
         Field(description='날짜')
@@ -75,12 +75,12 @@ class SkyscannerRadarWebUnifiedSearchV2RequestPayloadModel(RequestModel):
 
     cabin_class: Annotated[
         SkyscannerCabinClass,
-        Field(description='좌석 등급')
-    ] = Field(default='ECONOMY', alias='cabinClass')
+        Field(description='좌석 등급', alias='cabinClass')
+    ] = 'ECONOMY'
     child_ages: Annotated[
         list[int],
-        Field(description='소아·유아 나이 (유아는 0~1)')
-    ] = Field(default=[], alias='childAges')
+        Field(description='소아·유아 나이 (유아는 0~1)', alias='childAges')
+    ] = []
     adults: Annotated[
         int,
         Field(ge=1, le=MAX_PASSENGERS, description='성인 수')
@@ -91,8 +91,8 @@ class SkyscannerRadarWebUnifiedSearchV2RequestPayloadModel(RequestModel):
     ]
     target_geo_level: Annotated[
         Literal['city'] | None,
-        Field(description='어디든지 결과 단위. city 면 도시, 없으면 나라')
-    ] = Field(default=None, alias='targetGeoLevel')
+        Field(description='어디든지 결과 단위. city 면 도시, 없으면 나라', alias='targetGeoLevel')
+    ] = None
 
 
 class SkyscannerRadarWebUnifiedSearchPollV2RequestParameterModel(RequestModel):
@@ -100,5 +100,5 @@ class SkyscannerRadarWebUnifiedSearchPollV2RequestParameterModel(RequestModel):
 
     session_id: Annotated[
         str,
-        Field(min_length=1, exclude=True, description='검색 POST 응답의 context.sessionId')
-    ] = Field(alias='sessionId')
+        Field(min_length=1, exclude=True, description='검색 POST 응답의 context.sessionId', alias='sessionId')
+    ]

@@ -44,24 +44,24 @@ class NaverOtaModel(ResponseModel):
 
     ota_id: Annotated[
         str,
-        Field(description='판매처 코드')
-    ] = Field(alias='otaId')
+        Field(description='판매처 코드', alias='otaId')
+    ]
     exp_name: Annotated[
         str | None,
-        Field(description='판매처 이름')
-    ] = Field(default=None, alias='expName')
+        Field(description='판매처 이름', alias='expName')
+    ] = None
     fare: Annotated[
         int | None,
         Field(description='넘긴 운임 (모든 승객 합계, 원)')
     ] = None
     fare_type: Annotated[
         str | None,
-        Field(description='운임 종류 코드')
-    ] = Field(default=None, alias='fareType')
+        Field(description='운임 종류 코드', alias='fareType')
+    ] = None
     ota_type: Annotated[
         str | None,
-        Field(description='KR_OTA, GLOBAL_OTA, KR_AIRLINE, GLOBAL_AIRLINE')
-    ] = Field(default=None, alias='otaType')
+        Field(description='KR_OTA, GLOBAL_OTA, KR_AIRLINE, GLOBAL_AIRLINE', alias='otaType')
+    ] = None
     rank: Annotated[
         int | None,
         Field(description='사이트 표시 순위')
@@ -72,26 +72,26 @@ class NaverOtaModel(ResponseModel):
     ] = None
     booking_url: Annotated[
         str | None,
-        Field(description='네이버를 거쳐 판매처로 가는 예약 링크 (tivan.naver.com)')
-    ] = Field(default=None, alias='bookingUrl')
+        Field(description='네이버를 거쳐 판매처로 가는 예약 링크 (tivan.naver.com)', alias='bookingUrl')
+    ] = None
 
 
 class NaverBookingPartnerModel(ResponseModel):
     ota_id: Annotated[
         str,
-        Field(description='판매처 코드')
-    ] = Field(alias='otaId')
+        Field(description='판매처 코드', alias='otaId')
+    ]
     exp_name: Annotated[
         str | None,
-        Field(description='판매처 이름')
-    ] = Field(default=None, alias='expName')
+        Field(description='판매처 이름', alias='expName')
+    ] = None
 
 
 class NaverBookingPartnersDataModel(ResponseModel):
     booking_partners: Annotated[
         list[NaverBookingPartnerModel] | None,
-        Field(description='판매처 코드 → 이름')
-    ] = Field(default=None, alias='bookingPartners')
+        Field(description='판매처 코드 → 이름', alias='bookingPartners')
+    ] = None
 
 
 class NaverBookingPartnersResponseModel(NaverGraphQLResponseModel):

@@ -26,8 +26,8 @@ class SkyscannerAutosuggestSearchSearchFlightV1RequestParameterModel(RequestMode
     ]
     is_destination: Annotated[
         bool,
-        Field(description='도착지로 찾는지')
-    ] = Field(default=False, alias='isDestination')
+        Field(description='도착지로 찾는지', alias='isDestination')
+    ] = False
     enable_general_search_v2: Annotated[
         bool,
         Field(description='사이트가 늘 true 로 보낸다')

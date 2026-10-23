@@ -16,8 +16,8 @@ from typing import Annotated
 class NaverDomesticPointModel(ResponseModel):
     airport_code: Annotated[
         str,
-        Field(description='공항 코드')
-    ] = Field(alias='airportCode')
+        Field(description='공항 코드', alias='airportCode')
+    ]
     date: Annotated[
         str | None,
         Field(description='현지 날짜 YYYYMMDD')
@@ -37,16 +37,16 @@ class NaverDomesticSegmentModel(ResponseModel):
 
     airline_code: Annotated[
         str,
-        Field(description='항공사 코드')
-    ] = Field(alias='airlineCode')
+        Field(description='항공사 코드', alias='airlineCode')
+    ]
     op_code: Annotated[
         str | None,
-        Field(description='운항 항공사 코드 (공동운항일 때만, 아니면 빈 문자열)')
-    ] = Field(default=None, alias='opCode')
+        Field(description='운항 항공사 코드 (공동운항일 때만, 아니면 빈 문자열)', alias='opCode')
+    ] = None
     flight_number: Annotated[
         str | None,
-        Field(description='편명 숫자')
-    ] = Field(default=None, alias='flightNumber')
+        Field(description='편명 숫자', alias='flightNumber')
+    ] = None
     departure: Annotated[
         NaverDomesticPointModel,
         Field(description='출발')
@@ -57,8 +57,8 @@ class NaverDomesticSegmentModel(ResponseModel):
     ]
     flight_duration: Annotated[
         int | None,
-        Field(description='비행 시간 (분)')
-    ] = Field(default=None, alias='flightDuration')
+        Field(description='비행 시간 (분)', alias='flightDuration')
+    ] = None
 
 
 class NaverDomesticCardTypeModel(ResponseModel):
@@ -75,12 +75,12 @@ class NaverDomesticCardTypeModel(ResponseModel):
 class NaverDomesticDiscountInfoModel(ResponseModel):
     card_type: Annotated[
         NaverDomesticCardTypeModel | None,
-        Field(description='할인 카드')
-    ] = Field(default=None, alias='cardType')
+        Field(description='할인 카드', alias='cardType')
+    ] = None
     discount_type: Annotated[
         str | None,
-        Field(description='할인 종류 (C = 카드)')
-    ] = Field(default=None, alias='discountType')
+        Field(description='할인 종류 (C = 카드)', alias='discountType')
+    ] = None
 
 
 class NaverDomesticDiscountFareModel(ResponseModel):
@@ -88,12 +88,12 @@ class NaverDomesticDiscountFareModel(ResponseModel):
 
     adult_discount_fare: Annotated[
         int | None,
-        Field(description='성인 1인 할인 총액 (원)')
-    ] = Field(default=None, alias='adultDiscountFare')
+        Field(description='성인 1인 할인 총액 (원)', alias='adultDiscountFare')
+    ] = None
     discount_info: Annotated[
         NaverDomesticDiscountInfoModel | None,
-        Field(description='할인 카드·종류')
-    ] = Field(default=None, alias='discountInfo')
+        Field(description='할인 카드·종류', alias='discountInfo')
+    ] = None
 
 
 class NaverDomesticFareModel(ResponseModel):
@@ -101,52 +101,52 @@ class NaverDomesticFareModel(ResponseModel):
 
     agt_code: Annotated[
         str,
-        Field(description='판매처 코드')
-    ] = Field(alias='agtCode')
+        Field(description='판매처 코드', alias='agtCode')
+    ]
     adult_fare: Annotated[
         int,
-        Field(description='성인 운임')
-    ] = Field(alias='adultFare')
+        Field(description='성인 운임', alias='adultFare')
+    ]
     child_fare: Annotated[
         int,
-        Field(description='소아 운임 (0 이면 판매처가 소아 운임을 주지 않음)')
-    ] = Field(default=0, alias='childFare')
+        Field(description='소아 운임 (0 이면 판매처가 소아 운임을 주지 않음)', alias='childFare')
+    ] = 0
     a_fuel: Annotated[
         int,
-        Field(description='성인 유류할증료')
-    ] = Field(default=0, alias='aFuel')
+        Field(description='성인 유류할증료', alias='aFuel')
+    ] = 0
     c_fuel: Annotated[
         int,
-        Field(description='소아 유류할증료')
-    ] = Field(default=0, alias='cFuel')
+        Field(description='소아 유류할증료', alias='cFuel')
+    ] = 0
     a_tax: Annotated[
         int,
-        Field(description='성인 세금')
-    ] = Field(default=0, alias='aTax')
+        Field(description='성인 세금', alias='aTax')
+    ] = 0
     c_tax: Annotated[
         int,
-        Field(description='소아 세금')
-    ] = Field(default=0, alias='cTax')
+        Field(description='소아 세금', alias='cTax')
+    ] = 0
     publish_fee: Annotated[
         int | None,
-        Field(description='발권 수수료')
-    ] = Field(default=None, alias='publishFee')
+        Field(description='발권 수수료', alias='publishFee')
+    ] = None
     support_n_pay: Annotated[
         bool,
-        Field(description='네이버페이 지원')
-    ] = Field(default=False, alias='supportNPay')
+        Field(description='네이버페이 지원', alias='supportNPay')
+    ] = False
     booking_class: Annotated[
         str,
-        Field(description='예약 클래스')
-    ] = Field(alias='bookingClass')
+        Field(description='예약 클래스', alias='bookingClass')
+    ]
     etc: Annotated[
         str,
         Field(description='판매처 고유 값 (판매처 조회에 그대로 넘긴다)')
     ] = ''
     discount_fare: Annotated[
         NaverDomesticDiscountFareModel | None,
-        Field(description='카드 할인 운임 (있을 때만)')
-    ] = Field(default=None, alias='discountFare')
+        Field(description='카드 할인 운임 (있을 때만)', alias='discountFare')
+    ] = None
 
 
 class NaverDomesticFlightModel(ResponseModel):
@@ -154,28 +154,28 @@ class NaverDomesticFlightModel(ResponseModel):
 
     itinerary_id: Annotated[
         str,
-        Field(description='편 ID (예: 202611151910GMPCJUWE6503)')
-    ] = Field(alias='itineraryId')
+        Field(description='편 ID (예: 202611151910GMPCJUWE6503)', alias='itineraryId')
+    ]
     type: Annotated[
         str,
         Field(description='departure (가는 편) 또는 arrival (오는 편)')
     ]
     seat_class: Annotated[
         str,
-        Field(description='좌석 등급 (NR·NB·L 특가석, D 할인석, Y 일반석, C 비즈니스석)')
-    ] = Field(alias='seatClass')
+        Field(description='좌석 등급 (NR·NB·L 특가석, D 할인석, Y 일반석, C 비즈니스석)', alias='seatClass')
+    ]
     seat_count: Annotated[
         int | None,
-        Field(description='남은 좌석')
-    ] = Field(default=None, alias='seatCount')
+        Field(description='남은 좌석', alias='seatCount')
+    ] = None
     fares: Annotated[
         list[NaverDomesticFareModel],
         Field(description='판매처별 운임')
     ] = []
     min_fare: Annotated[
         int | None,
-        Field(description='판매처 최저 1인 총액')
-    ] = Field(default=None, alias='minFare')
+        Field(description='판매처 최저 1인 총액', alias='minFare')
+    ] = None
     duration: Annotated[
         int | None,
         Field(description='소요 시간 (분)')
@@ -191,32 +191,32 @@ class NaverDomesticStatusModel(ResponseModel):
 
     flight_search_key: Annotated[
         str | None,
-        Field(description='서버 캐시 키 (예: YC|A:1/C:0/I:0|20261115GMPCJU)')
-    ] = Field(default=None, alias='flightSearchKey')
+        Field(description='서버 캐시 키 (예: YC|A:1/C:0/I:0|20261115GMPCJU)', alias='flightSearchKey')
+    ] = None
     version: Annotated[
         int | None,
-        Field(description='캐시 조회에 넘기는 결과 버전')
-    ] = Field(default=None, alias='__v')
+        Field(description='캐시 조회에 넘기는 결과 버전', alias='__v')
+    ] = None
     available_partner_count: Annotated[
         int | None,
-        Field(description='조회를 맡긴 판매처 수')
-    ] = Field(default=None, alias='availablePartnerCount')
+        Field(description='조회를 맡긴 판매처 수', alias='availablePartnerCount')
+    ] = None
     complete_partner_count: Annotated[
         int | None,
-        Field(description='응답을 마친 판매처 수')
-    ] = Field(default=None, alias='completePartnerCount')
+        Field(description='응답을 마친 판매처 수', alias='completePartnerCount')
+    ] = None
     is_complete: Annotated[
         bool | None,
-        Field(description='모든 판매처 응답이 끝났는지')
-    ] = Field(default=None, alias='isComplete')
+        Field(description='모든 판매처 응답이 끝났는지', alias='isComplete')
+    ] = None
     airlines_code_map: Annotated[
         dict[str, str],
-        Field(description='항공사 코드 → 이름')
-    ] = Field(default={}, alias='airlinesCodeMap')
+        Field(description='항공사 코드 → 이름', alias='airlinesCodeMap')
+    ] = {}
     op_code_map: Annotated[
         dict[str, str],
-        Field(description='운항 항공사 코드 → 이름')
-    ] = Field(default={}, alias='opCodeMap')
+        Field(description='운항 항공사 코드 → 이름', alias='opCodeMap')
+    ] = {}
 
 
 class NaverFlightDomesticSearchFlightsResponseModel(ResponseModel):
@@ -224,8 +224,8 @@ class NaverFlightDomesticSearchFlightsResponseModel(ResponseModel):
 
     is_expired: Annotated[
         bool | None,
-        Field(description='캐시 조회했는데 캐시가 없거나 만료됐는지')
-    ] = Field(default=None, alias='isExpired')
+        Field(description='캐시 조회했는데 캐시가 없거나 만료됐는지', alias='isExpired')
+    ] = None
     status: Annotated[
         NaverDomesticStatusModel | None,
         Field(description='진행 상태와 코드표')
@@ -247,15 +247,15 @@ class NaverDomesticBookingOptionsModel(ResponseModel):
     ] = []
     ota_list: Annotated[
         list[NaverOtaModel],
-        Field(description='한 판매처에서 사는 운임')
-    ] = Field(default=[], alias='otaList')
+        Field(description='한 판매처에서 사는 운임', alias='otaList')
+    ] = []
 
 
 class NaverBookingOptionsDomesticDataModel(ResponseModel):
     booking_options: Annotated[
         NaverDomesticBookingOptionsModel | None,
-        Field(description='판매처 목록')
-    ] = Field(default=None, alias='bookingOptions')
+        Field(description='판매처 목록', alias='bookingOptions')
+    ] = None
 
 
 class NaverBookingOptionsDomesticResponseModel(NaverGraphQLResponseModel):

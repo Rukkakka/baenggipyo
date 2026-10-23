@@ -35,16 +35,16 @@ class NaverBookingItineraryModel(RequestModel):
 
     departure_airport: Annotated[
         str,
-        Field(description='출발 공항 코드')
-    ] = Field(alias='departureAirport')
+        Field(description='출발 공항 코드', alias='departureAirport')
+    ]
     arrival_airport: Annotated[
         str,
-        Field(description='도착 공항 코드')
-    ] = Field(alias='arrivalAirport')
+        Field(description='도착 공항 코드', alias='arrivalAirport')
+    ]
     departure_date: Annotated[
         str,
-        Field(pattern=DATE_DIGITS_PATTERN, description='출발 날짜 (YYYYMMDD)')
-    ] = Field(alias='departureDate')
+        Field(pattern=DATE_DIGITS_PATTERN, description='출발 날짜 (YYYYMMDD)', alias='departureDate')
+    ]
 
 
 class NaverBookingPersonModel(RequestModel):

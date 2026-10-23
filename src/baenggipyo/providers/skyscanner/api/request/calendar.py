@@ -15,20 +15,20 @@ class SkyscannerCalendarHeadersModel(RequestModel):
 
     x_skyscanner_client: Annotated[
         str,
-        Field(description='클라이언트 이름 (사이트 홈은 banana)')
-    ] = Field(default='banana', alias='xSkyscannerClient')
+        Field(description='클라이언트 이름 (사이트 홈은 banana)', alias='xSkyscannerClient')
+    ] = 'banana'
     x_skyscanner_currency: Annotated[
         str,
-        Field(description='통화')
-    ] = Field(default=CURRENCY, alias='xSkyscannerCurrency')
+        Field(description='통화', alias='xSkyscannerCurrency')
+    ] = CURRENCY
     x_skyscanner_locale: Annotated[
         str,
-        Field(description='로캘')
-    ] = Field(default=LOCALE, alias='xSkyscannerLocale')
+        Field(description='로캘', alias='xSkyscannerLocale')
+    ] = LOCALE
     x_skyscanner_market: Annotated[
         str,
-        Field(description='시장')
-    ] = Field(default=MARKET, alias='xSkyscannerMarket')
+        Field(description='시장', alias='xSkyscannerMarket')
+    ] = MARKET
 
 
 class SkyscannerSearchIntentPricecalendarV1RequestPayloadModel(RequestModel):
@@ -43,9 +43,9 @@ class SkyscannerSearchIntentPricecalendarV1RequestPayloadModel(RequestModel):
     ] = Field(default_factory=SkyscannerCalendarHeadersModel)
     origin_relevant_flight_sky_id: Annotated[
         str,
-        Field(pattern=r'^[A-Z0-9]{3,5}$', description='출발 스카이 ID')
-    ] = Field(alias='originRelevantFlightSkyId')
+        Field(pattern=r'^[A-Z0-9]{3,5}$', description='출발 스카이 ID', alias='originRelevantFlightSkyId')
+    ]
     destination_relevant_flight_sky_id: Annotated[
         str,
-        Field(pattern=r'^[A-Z0-9]{3,5}$', description='도착 스카이 ID')
-    ] = Field(alias='destinationRelevantFlightSkyId')
+        Field(pattern=r'^[A-Z0-9]{3,5}$', description='도착 스카이 ID', alias='destinationRelevantFlightSkyId')
+    ]

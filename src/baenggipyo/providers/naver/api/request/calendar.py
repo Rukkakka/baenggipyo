@@ -32,37 +32,37 @@ class NaverMinPricesByDateRequestPayloadModel(RequestModel):
 
     departure_location_code: Annotated[
         str,
-        Field(pattern=LOCATION_CODE_PATTERN, description='출발 IATA 코드')
-    ] = Field(alias='departureLocationCode')
+        Field(pattern=LOCATION_CODE_PATTERN, description='출발 IATA 코드', alias='departureLocationCode')
+    ]
     departure_location_type: Annotated[
         NaverLocationType,
-        Field(description='출발지 종류')
-    ] = Field(alias='departureLocationType')
+        Field(description='출발지 종류', alias='departureLocationType')
+    ]
     arrival_location_code: Annotated[
         str,
-        Field(pattern=LOCATION_CODE_PATTERN, description='도착 IATA 코드')
-    ] = Field(alias='arrivalLocationCode')
+        Field(pattern=LOCATION_CODE_PATTERN, description='도착 IATA 코드', alias='arrivalLocationCode')
+    ]
     arrival_location_type: Annotated[
         NaverLocationType,
-        Field(description='도착지 종류')
-    ] = Field(alias='arrivalLocationType')
+        Field(description='도착지 종류', alias='arrivalLocationType')
+    ]
     trip_type: Annotated[
         NaverTripCode,
-        Field(description='OW 또는 RT')
-    ] = Field(alias='tripType')
+        Field(description='OW 또는 RT', alias='tripType')
+    ]
     departure_date: Annotated[
         str | None,
-        Field(pattern=DATE_DIGITS_PATTERN, description='왕복에서 출발일을 정할 때 (YYYYMMDD)')
-    ] = Field(default=None, alias='departureDate')
+        Field(pattern=DATE_DIGITS_PATTERN, description='왕복에서 출발일을 정할 때 (YYYYMMDD)', alias='departureDate')
+    ] = None
     group_by_departure_date: Annotated[
         bool,
-        Field(description='왕복을 출발일마다 묶을지')
-    ] = Field(default=False, alias='groupByDepartureDate')
+        Field(description='왕복을 출발일마다 묶을지', alias='groupByDepartureDate')
+    ] = False
     is_nonstop: Annotated[
         bool | None,
-        Field(description='직항만')
-    ] = Field(default=None, alias='isNonstop')
+        Field(description='직항만', alias='isNonstop')
+    ] = None
     trip_days: Annotated[
         list[int] | None,
-        Field(description='여행 일수 [최소, 최대]. 가는 날과 오는 날을 모두 센다 (2박 3일 = 3)')
-    ] = Field(default=None, alias='tripDays')
+        Field(description='여행 일수 [최소, 최대]. 가는 날과 오는 날을 모두 센다 (2박 3일 = 3)', alias='tripDays')
+    ] = None

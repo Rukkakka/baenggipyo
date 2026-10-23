@@ -49,24 +49,24 @@ class NaverSearchItineraryModel(RequestModel):
 
     departure_location_code: Annotated[
         str,
-        Field(pattern=LOCATION_CODE_PATTERN, description='출발 IATA 공항·도시 코드')
-    ] = Field(alias='departureLocationCode')
+        Field(pattern=LOCATION_CODE_PATTERN, description='출발 IATA 공항·도시 코드', alias='departureLocationCode')
+    ]
     departure_location_type: Annotated[
         NaverLocationType,
-        Field(description='출발지가 공항인지 도시인지')
-    ] = Field(alias='departureLocationType')
+        Field(description='출발지가 공항인지 도시인지', alias='departureLocationType')
+    ]
     arrival_location_code: Annotated[
         str,
-        Field(pattern=LOCATION_CODE_PATTERN, description='도착 IATA 공항·도시 코드')
-    ] = Field(alias='arrivalLocationCode')
+        Field(pattern=LOCATION_CODE_PATTERN, description='도착 IATA 공항·도시 코드', alias='arrivalLocationCode')
+    ]
     arrival_location_type: Annotated[
         NaverLocationType,
-        Field(description='도착지가 공항인지 도시인지')
-    ] = Field(alias='arrivalLocationType')
+        Field(description='도착지가 공항인지 도시인지', alias='arrivalLocationType')
+    ]
     departure_date: Annotated[
         str,
-        Field(pattern=DATE_DIGITS_PATTERN, description='출발 날짜 (YYYYMMDD)')
-    ] = Field(alias='departureDate')
+        Field(pattern=DATE_DIGITS_PATTERN, description='출발 날짜 (YYYYMMDD)', alias='departureDate')
+    ]
 
 
 class NaverFlightInternationalSearchFlightsRequestPayloadModel(RequestModel):
@@ -74,40 +74,40 @@ class NaverFlightInternationalSearchFlightsRequestPayloadModel(RequestModel):
 
     trip_type: Annotated[
         NaverTripCode,
-        Field(description='OW 편도, RT 왕복, MD 다구간')
-    ] = Field(alias='tripType')
+        Field(description='OW 편도, RT 왕복, MD 다구간', alias='tripType')
+    ]
     device: Annotated[
         Literal['pc', 'mobile'],
         Field(description='기기')
     ] = 'pc'
     seat_class: Annotated[
         NaverSeatClass,
-        Field(description='Y 일반석, P 프리미엄일반석, C 비즈니스석, F 일등석')
-    ] = Field(default='Y', alias='seatClass')
+        Field(description='Y 일반석, P 프리미엄일반석, C 비즈니스석, F 일등석', alias='seatClass')
+    ] = 'Y'
     adult_count: Annotated[
         int,
-        Field(ge=1, le=MAX_PASSENGERS, description='성인 수')
-    ] = Field(default=1, alias='adultCount')
+        Field(ge=1, le=MAX_PASSENGERS, description='성인 수', alias='adultCount')
+    ] = 1
     child_count: Annotated[
         int,
-        Field(ge=0, le=MAX_PASSENGERS, description='소아 수')
-    ] = Field(default=0, alias='childCount')
+        Field(ge=0, le=MAX_PASSENGERS, description='소아 수', alias='childCount')
+    ] = 0
     infant_count: Annotated[
         int,
-        Field(ge=0, le=MAX_PASSENGERS, description='유아 수')
-    ] = Field(default=0, alias='infantCount')
+        Field(ge=0, le=MAX_PASSENGERS, description='유아 수', alias='infantCount')
+    ] = 0
     is_nonstop: Annotated[
         bool,
-        Field(description='직항만')
-    ] = Field(default=False, alias='isNonstop')
+        Field(description='직항만', alias='isNonstop')
+    ] = False
     open_return_days: Annotated[
         int,
-        Field(ge=0, description='사이트가 늘 0 으로 보낸다')
-    ] = Field(default=0, alias='openReturnDays')
+        Field(ge=0, description='사이트가 늘 0 으로 보낸다', alias='openReturnDays')
+    ] = 0
     initial_request: Annotated[
         bool,
-        Field(description='새 검색이면 True, 서버 캐시 조회면 False')
-    ] = Field(default=True, alias='initialRequest')
+        Field(description='새 검색이면 True, 서버 캐시 조회면 False', alias='initialRequest')
+    ] = True
     version: Annotated[
         int | None,
         Field(description='캐시 조회에 쓰는 검색 결과 버전 (status.__v)')
@@ -118,8 +118,8 @@ class NaverFlightInternationalSearchFlightsRequestPayloadModel(RequestModel):
     ]
     flight_filter: Annotated[
         NaverFlightFilterModel,
-        Field(description='서버 필터·정렬·페이지')
-    ] = Field(default_factory=NaverFlightFilterModel, alias='flightFilter')
+        Field(description='서버 필터·정렬·페이지', alias='flightFilter')
+    ] = Field(default_factory=NaverFlightFilterModel)
 
     @field_validator('infant_count')
     @classmethod
@@ -147,8 +147,8 @@ class NaverBookingSearchParamsModel(RequestModel):
     ]
     fare_type: Annotated[
         NaverSeatClass,
-        Field(description='좌석 등급 코드')
-    ] = Field(alias='fareType')
+        Field(description='좌석 등급 코드', alias='fareType')
+    ]
 
 
 class NaverOtaFareModel(RequestModel):
@@ -156,20 +156,20 @@ class NaverOtaFareModel(RequestModel):
 
     ota_id: Annotated[
         str,
-        Field(description='판매처 코드 (검색 운임의 partnerCode)')
-    ] = Field(alias='otaId')
+        Field(description='판매처 코드 (검색 운임의 partnerCode)', alias='otaId')
+    ]
     fare: Annotated[
         int,
         Field(ge=0, description='모든 승객 합계 (원)')
     ]
     fare_type: Annotated[
         str,
-        Field(description='운임 종류 코드 (A01, A01/B74 …)')
-    ] = Field(alias='fareType')
+        Field(description='운임 종류 코드 (A01, A01/B74 …)', alias='fareType')
+    ]
     booking_url: Annotated[
         str,
-        Field(description='검색 운임의 reservationUrl. 비어 있으면 서버가 판매처를 돌려주지 않는다')
-    ] = Field(alias='bookingUrl')
+        Field(description='검색 운임의 reservationUrl. 비어 있으면 서버가 판매처를 돌려주지 않는다', alias='bookingUrl')
+    ]
 
 
 class NaverBookingOptionsRequestPayloadModel(RequestModel):
@@ -177,25 +177,25 @@ class NaverBookingOptionsRequestPayloadModel(RequestModel):
 
     search_params: Annotated[
         NaverBookingSearchParamsModel,
-        Field(description='검색 조건')
-    ] = Field(alias='searchParams')
+        Field(description='검색 조건', alias='searchParams')
+    ]
     ota_fares: Annotated[
         list[NaverOtaFareModel],
-        Field(description='항공권의 판매처별 운임')
-    ] = Field(alias='otaFares')
+        Field(description='항공권의 판매처별 운임', alias='otaFares')
+    ]
     device: Annotated[
         Literal['PC', 'MOBILE'],
         Field(description='DeviceType enum (소문자 pc 는 BAD_USER_INPUT)')
     ] = 'PC'
     schedule_ids: Annotated[
         list[str],
-        Field(min_length=1, description='여정 ID (가는 편, 오는 편 …)')
-    ] = Field(alias='scheduleIds')
+        Field(min_length=1, description='여정 ID (가는 편, 오는 편 …)', alias='scheduleIds')
+    ]
     curations: Annotated[
         list[str],
         Field(description='검색 결과의 curation 라벨')
     ] = []
     is_fare_load_completed: Annotated[
         bool,
-        Field(description='운임을 다 받았는지')
-    ] = Field(default=True, alias='isFareLoadCompleted')
+        Field(description='운임을 다 받았는지', alias='isFareLoadCompleted')
+    ] = True
