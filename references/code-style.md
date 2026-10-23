@@ -5,6 +5,7 @@
 [development.md](development.md#검증과-테스트) 에 있다.
 
 §2 따옴표, §3 import 순서·절대 import, §5 타입 힌트는 ruff·mypy 가 검사한다 ([코드 검사](development.md#코드-검사)).
+§4 의 별칭·기본값 위치는 `tests/test_schema.py` 가 검사한다 (ruff·mypy 는 잡지 못한다).
 §3 의 "둘 이상이면 괄호로 여러 줄" 과 나머지 절은 도구가 잡지 못하니 직접 지킨다.
 
 ## 1. 언어
@@ -83,7 +84,8 @@ from typing import (
 - 별칭을 쓰는 모델은 `populate_by_name=True` 인 `RequestModel`·`ResponseModel` 을 상속한다. 이 설정 없이
   `alias` 를 `Annotated` 안에 두면 검사기는 필드 이름을 받는다고 보는데 런타임은 별칭만 받아 서로 어긋난다.
 - `alias` 위치는 Pylance 에만 영향을 준다. mypy 의 `pydantic.mypy` 플러그인은 `populate_by_name=True` 를 보고
-  위치와 상관없이 필드 이름으로 생성자를 만든다. 그래서 `alias` 를 대입 위치에 둬도 CI(mypy·ruff)는 잡지 못한다.
+  위치와 상관없이 필드 이름으로 생성자를 만든다. mypy·ruff 가 잡지 못해 `tests/test_schema.py` 가 대입 위치의 `Field()` 에
+  `default_factory` 말고 다른 인자가 있는지와 별칭이 있는 모델이 필드 이름을 받는지를 검사한다.
 - 별칭은 `alias_generator` 로 자동 생성하지 않고 필드마다 적는다. 원본 응답의 키(`itineraryId`)로 코드를 검색할 수
   있어야 하고, 자동 변환으로 나오지 않는 키(`__typename`, `@type`, 스카이스캐너 자동완성의 `PlaceId` 같은 PascalCase)도
   있는데 응답 모델은 `extra='allow'` 라 별칭을 빠뜨리면 에러 없이 `None` 이 되기 때문이다.
