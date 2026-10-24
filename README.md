@@ -26,9 +26,9 @@
 
 Claude, ChatGPT 같은 LLM 에이전트가 항공권을 찾을 때 셸로 호출하는 도구로 쓰려고 만들었다. 조회 결과는 두 소스 모두 같은 JSON 형식과 원 단위로 돌려주고, 예약·결제는 결과의 `url` 에서 한다.
 
-![Claude Code 가 baenggipyo guide 를 읽고 네이버 항공권에서 인천→오사카 편도 최저가 3편을 조회해 표로 정리하는 터미널 데모](https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/docs/demo/claude.gif)
+![Claude Code 가 baenggipyo guide 와 guide naver 를 읽고 네이버 항공권에서 인천→오사카 편도 최저가 3편을 조회해 표로 정리하는 터미널 데모](https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/docs/demo/claude.gif)
 
-Claude Code 에 "11월 20일 인천에서 오사카 가는 편도 항공권 중 제일 싼 거 3개 찾아줘" 라고 시킨 실제 화면이다. Claude 가 `baenggipyo guide` 를 읽고 명령을 골라 조회한 뒤 결과를 표로 정리한다. **운임은 녹화한 날 네이버 항공권을 실제로 조회한 값이라 지금과 다르다** ([데모 영상](https://github.com/Rukkakka/baenggipyo#데모-영상)). 에이전트에 연결하는 방법은 [LLM 에이전트에 연결하기](https://github.com/Rukkakka/baenggipyo#llm-에이전트에-연결하기)에 있다.
+Claude Code 에 "11월 20일 인천에서 오사카 가는 편도 항공권 중 제일 싼 거 3개 찾아줘" 라고 시킨 실제 화면이다. Claude 가 `baenggipyo guide` 와 `baenggipyo guide naver` 를 읽고 명령을 골라 조회한 뒤 결과를 표로 정리한다. **운임은 녹화한 날 네이버 항공권을 실제로 조회한 값이라 지금과 다르다** ([데모 영상](https://github.com/Rukkakka/baenggipyo#데모-영상)). 에이전트에 연결하는 방법은 [LLM 에이전트에 연결하기](https://github.com/Rukkakka/baenggipyo#llm-에이전트에-연결하기)에 있다.
 
 > 두 소스 모두 국제선·국내선을 찾는다 (네이버 국내선은 편도·왕복만). 스카이스캐너는 봇 차단이 있어 몇 시간씩 막힐 수 있다. 막히면 30분(거듭되면 최대 4시간) 동안 쓰지 않으니 그동안 네이버를 쓴다.
 
@@ -168,7 +168,7 @@ LLM 에게 항공권을 찾아 달라고 하면 엉뚱한 걸 찾아올 때가 �
 
 ## 데모 영상
 
-두 영상의 운임은 모두 2026-10-14 에 네이버 항공권을 실제로 조회한 결과다. 항공권 가격은 계속 바뀌므로 지금 같은 조건으로 조회하면 다른 값이 나온다. 스카이스캐너는 봇 차단이 있어 데모에서 부르지 않았다.
+두 영상의 운임은 녹화한 날 네이버 항공권을 실제로 조회한 결과다 (설치 영상은 2026-10-14, Claude 영상은 2026-10-25). 항공권 가격은 계속 바뀌므로 지금 같은 조건으로 조회하면 다른 값이 나온다. 스카이스캐너는 봇 차단이 있어 데모에서 부르지 않았다.
 
 설치 장면은 실제 PyPI 설치 화면이고, 화면에 들어가도록 `jq` 로 항공사·출발 시각·총액만 뽑았다 ([녹화 대본](https://github.com/Rukkakka/baenggipyo/blob/main/scripts/demo/demo.tape)). Claude 의 답은 실제 Claude Code 가 쓴 것이고 ([녹화 대본](https://github.com/Rukkakka/baenggipyo/blob/main/scripts/demo/claude.tape)), 배너의 요금제 글자는 녹화한 계정 정보라 가렸다. Claude Code 는 auto mode 로 녹화했다 (화면 아래 `auto mode on`). 다른 권한 모드에서는 Claude 가 명령을 실행하기 전에 승인을 물을 수 있다.
 
