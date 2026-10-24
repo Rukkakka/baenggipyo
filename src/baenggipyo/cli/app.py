@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import sys
 from collections.abc import Sequence
 from importlib.metadata import distribution
@@ -40,6 +41,9 @@ CLI_ERROR_HINT: str = 'baenggipyo 가 명령을 처리하지 못했습니다. �
 # 설치본에는 pyproject.toml 의 force-include 로 패키지 안에, 편집 가능 설치에는 저장소 docs/ 에만 있다
 GUIDE_FILE: str = 'llm.md'
 GUIDE_URL: str = 'https://github.com/Rukkakka/baenggipyo/blob/main/docs/llm.md'
+# 가이드에서 `guide <소스>` 로만 내는 소스 절의 제목. `guide` 는 이 절들을 뺀 공통 부분을 낸다. 처음 읽는 양을 줄이려고 나눴다
+# (2026-10-23 실사용 검증: 에이전트 6개 모두 가이드 3,214토큰을 통째로 읽었고 도움말까지 작업마다 CLI 토큰의 43~53% 였다)
+GUIDE_SOURCE_HEADINGS: dict[str, str] = {'naver': '## 네이버', 'skyscanner': '## 스카이스캐너'}
 # `git log --oneline` 과 같은 짧은 커밋 해시 길이
 SHORT_COMMIT_LENGTH: int = 7
 
@@ -116,14 +120,30 @@ def limits_command(
 
 
 @app.command('guide')
-def guide_command() -> None:
-    """LLM 에이전트용 사용 가이드를 출력한다 (명령 고르기, 출력 읽기, 에러 대응).
+def guide_command(
+    source: Annotated[
+        str | None,
+        typer.Argument(help='naver 또는 skyscanner: 그 소스만의 주의점을 출력한다. 주지 않으면 공통 부분')
+    ] = None,
+) -> None:
+    """LLM 에이전트용 사용 가이드를 출력한다 (명령 고르기, 출력 읽기, 에러 대응). 쓸 소스의 `guide <소스>` 도 읽는다.
 
     `--help` 처럼 JSON 이 아닌 마크다운 텍스트를 stdout 에 쓴다. 네트워크 요청은 보내지 않는다.
     """
+    if source is not None and source not in GUIDE_SOURCE_HEADINGS:
+        raise typer.BadParameter(f'naver 또는 skyscanner 중 하나입니다: {source}', param_hint='SOURCE')
     # 파일이 없는 깨진 설치도 에러 JSON 으로 낸다
     with handle_errors('guide'):
-        typer.echo(read_guide(), nl=False)
+        typer.echo(guide_part(read_guide(), source), nl=False)
+
+
+def guide_part(text: str, source: str | None) -> str:
+    """가이드에서 공통 부분(`source` 가 None) 또는 한 소스의 절을 꺼낸다. 소스 절은 `GUIDE_SOURCE_HEADINGS` 제목부터 다음 `## ` 제목 앞까지다."""
+    sections = re.split(r'(?m)^(?=## )', text)
+    headings = tuple(GUIDE_SOURCE_HEADINGS.values())
+    if source is None:
+        return ''.join(section for section in sections if not section.startswith(headings))
+    return ''.join(section for section in sections if section.startswith(GUIDE_SOURCE_HEADINGS[source]))
 
 
 def read_guide() -> str:
