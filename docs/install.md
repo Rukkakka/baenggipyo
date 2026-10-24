@@ -111,7 +111,7 @@ Windows 는 링크를 만들려면 관리자 권한이 필요하다. `baenggipyo
 baenggipyo --help             # 명령 목록이 나오면 성공
 baenggipyo --version          # 설치한 버전, GitHub 주소로 설치했으면 커밋도 (텍스트)
 baenggipyo limits             # 요청 제한 상태 JSON. 네트워크 요청은 보내지 않는다
-baenggipyo guide              # LLM 에이전트용 사용 가이드 (텍스트)
+baenggipyo guide              # LLM 에이전트용 사용 가이드 (텍스트). 소스별 주의점은 guide naver / guide skyscanner
 baenggipyo naver search airports 오사카   # 실제 조회 한 번
 ```
 
