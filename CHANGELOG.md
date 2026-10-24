@@ -5,6 +5,8 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 
 ## Unreleased
 
+## 0.5.0 — 2026-10-24
+
 ### 추가
 
 - `baenggipyo guide naver`·`baenggipyo guide skyscanner`: 그 소스만의 주의점을 출력한다 (#101)
