@@ -7,6 +7,7 @@
 """
 
 import re
+from urllib.parse import urlencode
 
 from pydantic import (
     BaseModel,
@@ -296,12 +297,12 @@ def domestic_results_url(legs: list[NaverLeg], conditions: NaverFlightConditions
     국제선 결과 페이지(`common.results_url`)와 경로·쿼리가 달라 따로 둔다.
     """
     routes = '/'.join(f'{leg.origin.code}-{leg.destination.code}-{leg.compact_date}' for leg in legs)
-    query = f'adult={conditions.adults}&fareType=YC'
+    query: dict[str, str | int] = {'adult': conditions.adults, 'fareType': 'YC'}
     if conditions.children:
-        query += f'&child={conditions.children}'
+        query['child'] = conditions.children
     if conditions.infants:
-        query += f'&infant={conditions.infants}'
-    return f'{SITE_URL}/flights/domestic/{routes}?{query}'
+        query['infant'] = conditions.infants
+    return f'{SITE_URL}/flights/domestic/{routes}?{urlencode(query)}'
 
 
 def domestic_flight_id(legs: list[NaverLeg], conditions: NaverFlightConditions, flight: NaverDomesticFlightModel, direction: DomesticDirection) -> str:
@@ -389,15 +390,20 @@ def _cheapest(flight: NaverDomesticFlightModel, partners: dict[str, str]) -> Nav
     return min(flight.fares, key=lambda fare: (fare_per_person(fare)[0], fare.agt_code not in partners), default=None)
 
 
+def _discount_price(fare: NaverDomesticFareModel | None) -> int | None:
+    """카드 할인 운임의 성인 1인 가격. 할인 운임이 없으면 None."""
+    return fare.discount_fare.adult_discount_fare if fare and fare.discount_fare else None
+
+
 def _card_discount(flight: NaverDomesticFlightModel, general: NaverDomesticFareModel | None) -> NaverDomesticFareModel | None:
     """대표 운임보다 싼 카드 할인 운임 중 최저가."""
     ceiling = fare_per_person(general)[0] if general else None
     candidates = [
         fare for fare in flight.fares
-        if fare.discount_fare is not None and fare.discount_fare.adult_discount_fare is not None
-        and (ceiling is None or fare.discount_fare.adult_discount_fare < ceiling)
+        if (price := _discount_price(fare)) is not None
+        and (ceiling is None or price < ceiling)
     ]
-    return min(candidates, key=lambda fare: fare.discount_fare.adult_discount_fare or 0 if fare.discount_fare else 0, default=None)
+    return min(candidates, key=lambda fare: _discount_price(fare) or 0, default=None)
 
 
 def _itinerary(
@@ -448,7 +454,7 @@ def _itinerary(
         cheapest_seller=partners.get(general.agt_code) if general else None,
         # 수하물 유료 특가석만 알 수 있다. 나머지는 운임 정보에 수하물이 없다
         baggage_included=False if flight.seat_class == 'NB' else None,
-        card_discount_price_krw=discount.discount_fare.adult_discount_fare if discount and discount.discount_fare else None,
+        card_discount_price_krw=_discount_price(discount),
         card_discount_name=discount_info.card_type.name if discount_info and discount_info.card_type else None,
         card_discount_category=CARD_DISCOUNT_TYPE_LABELS.get(discount_info.discount_type or '') if discount_info else None,
         direction=DIRECTION_LABELS[direction],

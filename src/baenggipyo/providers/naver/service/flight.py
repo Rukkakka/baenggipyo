@@ -149,6 +149,8 @@ def _baggage(fare: NaverFareModel | None) -> bool | None:
 
 
 def _journey(itinerary: NaverItineraryModel, airlines: dict[str, str]) -> Journey:
+    # 국제선은 항공사·공항 코드를 빈 값 없이 준다 (2026-10-23 ICN→NRT 285여정 523구간 모두). 공동운항이 아니면 빈 문자열로 오는 국내선 opCode 와
+    # 달라 null 로 바꾸지 않는다
     segments = [
         Segment(
             airline_code=segment.marketing_carrier.airline_code,
@@ -376,7 +378,8 @@ def search_flights(
         notes.append(f'여정 정보가 응답에 없는 항공권 {missing}개는 뺐습니다')
     more = len(event.fare_mappings) >= fetch_limit or len(results) > limit
     if sort == '가격':
-        # 대표 가격이 없는 항공권(카드 조건 운임만 있음 등)은 뒤로. 같은 값이면 서버 순서를 지킨다
+        # 대표 가격이 없는 항공권(카드 조건 운임만 있음 등)은 뒤로. 같은 값이면 서버 순서를 지킨다. 받은 묶음(limit 의 3배, 많아야 150개)을 모두
+        # 출력 모델로 바꾼 뒤 세운다. 스카이스캐너처럼 원본으로 세워 앞의 limit 개만 바꿔도 3ms 남짓 아낄 뿐이다 (2026-10-23 150개 5.9ms, 50개 2.6ms)
         results.sort(key=lambda itinerary: (itinerary.price_per_adult_krw is None, itinerary.price_per_adult_krw or 0))
     results = results[:limit]
     no_general = [itinerary for itinerary in results if itinerary.price_per_adult_krw is None]

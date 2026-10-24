@@ -67,11 +67,13 @@ RETRY_BODY_PREVIEW_LIMIT: int = 200
 LOG_PATH_EXTENSION: str = 'baenggipyo_log_path'
 
 # 에러 본문은 에러 JSON 의 message 로 나간다. 인증정보와 함께 세션·추적 ID(sessionId, traceId, requestId, X-Request-Id 등)도 가린다
-# (AGENTS.md: 세션 토큰·쿠키·추적 ID 는 출력하지 않는다)
+# (AGENTS.md: 세션 토큰·쿠키·추적 ID 는 출력하지 않는다). 스카이스캐너 봇 차단 본문의 `redirect_to` 는 캡차 주소이고 쿼리에 추적 ID(uuid, vid)와
+# 요청 경로(url, base64 라 폴링이면 세션 ID 가 든다)가 있어 통째로 가린다. vid 는 낱말 끝일 때만 본다 (provider 같은 키를 가리지 않게)
 SENSITIVE_KEYWORDS: str = (
     r'token|secret|password|passwd|api[-_]?key|access[-_]?key|'
     r'private[-_]?key|service[-_]?key|authorization|cookie|credential|'
-    r'session|trace|span[-_]?id|request[-_]?id|correlation[-_]?id'
+    r'session|trace|span[-_]?id|request[-_]?id|correlation[-_]?id|'
+    r'uuid|vid\b|redirect[-_]?to'
 )
 SENSITIVE_KEY_PATTERN: re.Pattern[str] = re.compile(f'({SENSITIVE_KEYWORDS})', re.IGNORECASE)
 # JSON 으로 읽히지 않는 본문(HTML 안의 JSON, 잘린 JSON)과 JSON 값 안에 든 JSON 문자열은 키·값이 따옴표에 싸여 온다. 따옴표를 건너뛰지 않으면

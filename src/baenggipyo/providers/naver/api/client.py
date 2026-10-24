@@ -114,6 +114,8 @@ def _search_event(event: str | None) -> dict[str, object]:
     """
     if event is None:
         raise ValueError('네이버 항공권 검색 응답에 이벤트가 없습니다')
+    # dict 로 읽어 키를 본 뒤 응답 모델이 한 번 더 훑는다. model_validate_json 한 번보다 30ms 느릴 뿐이다 (2026-10-23 ICN→NRT 가격순 150묶음,
+    # 마지막 이벤트 2.6MB: 55ms·25ms). 검색 10초 남짓에 비해 작아 키 이름을 그대로 보이는 쪽을 둔다
     loaded = json.loads(event)
     if not isinstance(loaded, dict) or not {'status', 'isExpired'} & loaded.keys():
         # 값에는 추적 ID 같은 것이 섞일 수 있어 키 이름만 싣는다

@@ -73,14 +73,19 @@ jobs:
       - run: python -m build
       # README 가 PyPI 프로젝트 페이지에서 렌더링되는지 (상대 링크는 잡지 못한다)
       - run: twine check --strict dist/*
-      # 편집 가능 설치와 달리 docs/llm.md 를 패키지 안 사본으로 읽으므로 그 사본이 빠지거나 다르면 여기서 드러난다
+      # 편집 가능 설치와 달리 docs/llm.md 를 패키지 안 사본으로 읽으므로 그 사본이 빠지거나 다르면 여기서 드러난다.
+      # guide 는 소스 절을 뺀 공통 부분, guide <소스> 는 그 절이라 소스 절이 비지 않았는지 보고 셋을 이어 문서와 비교한다
       - name: 새 가상환경에 설치해 실행
         run: |
           python -m venv "$RUNNER_TEMP/baenggipyo-check"
           "$RUNNER_TEMP/baenggipyo-check/bin/pip" install dist/*.whl
           "$RUNNER_TEMP/baenggipyo-check/bin/baenggipyo" --version
           "$RUNNER_TEMP/baenggipyo-check/bin/baenggipyo" guide > "$RUNNER_TEMP/guide.md"
-          diff "$RUNNER_TEMP/guide.md" docs/llm.md
+          "$RUNNER_TEMP/baenggipyo-check/bin/baenggipyo" guide naver > "$RUNNER_TEMP/guide-naver.md"
+          "$RUNNER_TEMP/baenggipyo-check/bin/baenggipyo" guide skyscanner > "$RUNNER_TEMP/guide-skyscanner.md"
+          test -s "$RUNNER_TEMP/guide-naver.md"
+          test -s "$RUNNER_TEMP/guide-skyscanner.md"
+          cat "$RUNNER_TEMP/guide.md" "$RUNNER_TEMP/guide-naver.md" "$RUNNER_TEMP/guide-skyscanner.md" | diff - docs/llm.md
       - uses: actions/upload-artifact@v7
         with:
           name: dist
