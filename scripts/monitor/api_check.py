@@ -110,7 +110,8 @@ BLOCKED_LABEL: str = 'api-blocked'
 BLOCKED_STREAK: int = 3
 WORKFLOW_FILE: str = 'api-monitor.yml'
 REPORT_ARTIFACT: str = 'report'
-# 날짜는 CLI 처럼 한국 시간으로 센다. 러너는 UTC 라 그대로 쓰면 한국 04:17 실행이 전날로 찍힌다
+# 날짜는 CLI 처럼 한국 시간으로 센다. 러너는 UTC 라 그대로 쓰면 한국 04:17 실행이 전날로 찍힌다. baenggipyo 의 KST·today_kst 를 가져오지 않는
+# 것은 결과 정리(report) 잡이 baenggipyo 를 설치하지 않고 표준 라이브러리만으로 돌아서다 (CLI 는 조회 잡에서 python -m baenggipyo 로 부른다)
 KST: datetime.timezone = datetime.timezone(datetime.timedelta(hours=9), 'KST')
 
 
