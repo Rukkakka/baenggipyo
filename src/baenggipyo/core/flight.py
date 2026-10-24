@@ -305,11 +305,26 @@ def candidate_label(airport: Airport) -> str:
     return ' '.join(part for part in (airport.code, airport.name) if part) + f' ({detail})'
 
 
+def _only_airport(city: tuple[CandidateT, Airport], airports: list[tuple[CandidateT, Airport]]) -> CandidateT | None:
+    """도시의 공항이 하나뿐이고 그 공항이 후보에 있으면 그 공항 후보. 아니면 None.
+
+    네이버 '인천' 은 공항이 인천 하나뿐인 도시(`ICN`, airports [ICN])인데, 도시로 찾으면 서버가 김포 출발까지 준다 (2026-10-23 실측: 인천→오사카
+    왕복 20건 중 김포 출발 피치항공 MM738·MM744 4건, 공항 ICN 으로 찾으면 0건). '인천 출발' 을 찾는데 김포 편이 섞인다. '김포' 는 거꾸로
+    인천 출발이 섞인다 (2026-10-24 김포→오사카 편도 50건 중 34건, 공항 GMP 로는 0건). 공항이 하나뿐인 도시는
+    그 공항과 뜻이 같아 공항으로 찾는다. 공항 목록을 주지 않는 소스(스카이스캐너)는 바뀌지 않는다.
+    """
+    codes = city[1].airports or []
+    if len(codes) != 1:
+        return None
+    return next((candidate for candidate, airport in airports if airport.type == '공항' and airport.code == codes[0]), None)
+
+
 def pick_place(text: str, candidates: list[CandidateT], to_airport: Callable[[CandidateT], Airport]) -> CandidateT:
     """출발·도착지 입력에 맞는 자동완성 후보 하나를 고른다. 두 소스가 같은 규칙을 쓴다.
 
     - 3글자 코드면 같은 코드의 공항을 먼저 고르고(ICN, BKK), 공항이 없으면 도시(SEL, TYO)를 고른다.
     - 이름이면 이름이 똑같은 도시, 없으면 이름이 똑같은 공항을 고른다. 그래도 정하지 못하면 후보가 하나일 때만 그것을 쓴다.
+    - 고른 도시의 공항이 하나뿐이면 그 공항으로 찾는다 (`_only_airport`, 네이버 '인천' → 인천국제공항).
     - 이름이 똑같은 후보가 여럿이면 고르지 않는다 (네이버 '포틀랜드' → 도시 PDX·PWM 이 이름까지 같다, 2026-10-12 실측).
     - 3글자 입력이 어느 후보의 코드·이름과도 맞지 않으면 후보가 하나여도 쓰지 않는다. 코드로 준 것이라 다른 곳이다
       (네이버 'SEO' → 서울 SEL 하나뿐이라 서울로 찾았다, 2026-10-11 실측).
@@ -339,7 +354,7 @@ def pick_place(text: str, candidates: list[CandidateT], to_airport: Callable[[Ca
             if airport.type == kind and (airport.city if kind == '도시' else airport.name) == text
         ]
         if len(exact) == 1:
-            return exact[0][0]
+            return _only_airport(exact[0], airports) or exact[0][0]
         if exact:
             raise AirportAmbiguousError(text, [candidate_label(airport) for _, airport in exact[:MAX_CANDIDATES]], len(exact))
     if not candidates:
