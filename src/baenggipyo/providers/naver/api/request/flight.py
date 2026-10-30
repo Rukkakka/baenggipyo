@@ -170,6 +170,10 @@ class NaverOtaFareModel(RequestModel):
         str,
         Field(description='검색 운임의 reservationUrl. 비어 있으면 서버가 판매처를 돌려주지 않는다', alias='bookingUrl')
     ]
+    booking_url_sig: Annotated[
+        str | None,
+        Field(description='검색 운임의 reservationUrlSig. 빠지면 서버가 판매처를 돌려주지 않는다', alias='bookingUrlSig')
+    ] = None
 
 
 class NaverBookingOptionsRequestPayloadModel(RequestModel):

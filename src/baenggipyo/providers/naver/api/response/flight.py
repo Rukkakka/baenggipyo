@@ -205,6 +205,10 @@ class NaverFareModel(ResponseModel):
         str | None,
         Field(description='판매처 예약 URL. 새 검색에서는 늘 빈 문자열이고 캐시 조회(selectedItineraries)에서 채워진다', alias='reservationUrl')
     ] = None
+    reservation_url_sig: Annotated[
+        str | None,
+        Field(description='예약 URL 서명. 판매처 조회(getOtaList)에 bookingUrlSig 로 넘긴다', alias='reservationUrlSig')
+    ] = None
     baggage_fee_type: Annotated[
         str | None,
         Field(description='FREE(수하물 포함)·CHARGE(유료)·UNKNOWN', alias='baggageFeeType')

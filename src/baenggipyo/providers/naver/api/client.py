@@ -399,8 +399,8 @@ class NaverClient(BaseHTTPClient):
     ) -> NaverBookingOptionsResponseModel:
         """List booking partners of one itinerary via `POST /graphql` (`getOtaList` → `bookingOptions`).
 
-        Same retry behaviour as `run_request_flight_international_search_flights`. 운임의 `bookingUrl` 이 비어 있으면
-        빈 목록이 온다 (검색 캐시 조회로 채운 reservationUrl 을 넘긴다).
+        Same retry behaviour as `run_request_flight_international_search_flights`. 운임의 `bookingUrl` 이 비었거나
+        `bookingUrlSig` 가 빠지면 에러 없이 빈 목록이 온다 (검색 캐시 조회로 채운 reservationUrl·reservationUrlSig 를 넘긴다).
 
         Args:
             payload: 검색 조건, 항공권의 판매처별 운임, 여정 ID.

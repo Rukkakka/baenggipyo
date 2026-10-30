@@ -5,7 +5,7 @@
 공통 규약에 없는, 네이버 항공권(flight.naver.com)에만 있는 구현과 예외를 적는다.
 
 > **상태: 구현 완료 (2026-10-11).** 아래 사실은 flight.naver.com 의 JS 번들(빌드 `AKgbJRSghI-_MvY-JjFe3`)을 읽고 실제로 호출해
-> 확인했다. 모두 로그인 없이 된다.
+> 확인했다. 모두 로그인 없이 된다. `getOtaList` 의 예약 URL 서명(`bookingUrlSig`)은 빌드 `swr8J1MDciPCR0aSd9q7C` 에서 확인했다 (2026-10-30).
 
 ## 명령과 요청 흐름
 
@@ -120,9 +120,11 @@
    - 같은 조건으로 새 검색을 곧바로 거듭 보냈을 때 500 이 오고, 몇 분 동안 다른 국내선 조건도 500 이었다 (2026-10-11 21:20 쯤, 한 번 관찰). 검증할 때 같은
      조건의 새 검색을 연달아 보내지 않는다.
 2. GraphQL `getOtaList`(`bookingOptions(input: {…, searchType: INTERNATIONAL})`) 에 `searchParams`(`itinerary[]`, `person`, `trip`,
-   `fareType`), `otaFares[]`(`otaId`=`partnerCode`, `fare`, `fareType`, `bookingUrl`=`reservationUrl`), `device: PC`, `scheduleIds`,
-   `curations`, `isFareLoadCompleted` 를 넣으면 판매처 이름(`expName`)·순위·`bookingUrl`·`redirectUrl` 이 온다.
-   `reservationUrl` 을 비운 채로 보내면 빈 목록이 온다.
+   `fareType`), `otaFares[]`(`otaId`=`partnerCode`, `fare`, `fareType`, `bookingUrl`=`reservationUrl`, `bookingUrlSig`=`reservationUrlSig`),
+   `device: PC`, `scheduleIds`, `curations`, `isFareLoadCompleted` 를 넣으면 판매처 이름(`expName`)·순위·`bookingUrl`·`redirectUrl` 이 온다.
+   `reservationUrl` 을 비운 채로 보내거나 `bookingUrlSig` 를 빼면 에러 없이 빈 목록이 온다. 서명은 2026-10-29 부터 필요해졌다 (ICN→NRT 운임 122개:
+   빼면 0곳, 넣으면 122곳, 2026-10-30). 사이트는 `adult.gradeMemberFare`(회원 등급 운임)에 예약 URL 이 있으면 그 URL·서명을 쓰지만, 로그인 없는
+   캐시 조회에는 그 값이 없었다 (운임 122개 중 0개).
    - `bookingUrl` 은 네이버 클릭 추적 링크(`tivan.naver.com/fotac/…`), `redirectUrl` 은 판매처 랜딩 URL 이고 둘 다 검색 요청 ID·시각이 들어 있다.
      `bookingUrl` 은 경로 전체가 불투명한 값이라 뗄 수 있는 토큰이 없고, 열면 판매처로 307 리디렉트된다. 사이트가 판매처로 넘기는 링크라
      `offers[].url` 로 그대로 낸다 ([내보내지 않는 정보](../output-contract.md#내보내지-않는-정보)의 `url` 예외). 검색 캐시(15분)가 지난 뒤에도
@@ -188,6 +190,7 @@ GraphQL `autocompleteLocations(airportOnly: Boolean!, query: String!)`. 결과�
   `flight` 의 대표 가격·`cheapest_seller`·카드 할인도 `offers` 에 낸 운임(실시간 판매처가 돌려준 행)으로 정한다. 검색 운임 전체로 정하면 실시간이 아니라 뺀
   판매처나 판매처 조회에 넘기지 못한 운임이 가장 쌀 때, 그 가격을 파는 판매처가 `offers` 에 없고 `cheapest_seller` 가 null 이 된다 (2026-10-13 리뷰).
   `bookingOptions` 가 null 인 응답은 빈 목록으로 내지 않고 `UPSTREAM_ERROR` 로 낸다. 빈 `offers` 는 파는 곳이 없다고 읽히기 때문이다 (국내선과 같다).
+  운임을 넘겼는데 `otaList` 가 빈 목록이어도 `UPSTREAM_ERROR` 다. 서버가 요청을 받아들이지 않은 것이다 (서명이 빠졌을 때 그랬다).
 - **어디든지**: 서버는 인기순이라 100곳을 받아 가격순으로 자른다. 국제선 목적지만 묻는다(`isDomestic: false`). 나라 이름은 주지 않는다.
 - **달력 왕복**: `groupByDepartureDate: true` + `tripDays: [n, n]` 이면 출발일마다 n일 왕복 최저가다 (ICN→NRT 349일, `tripDays [4, 4]` 299일).
 
@@ -264,3 +267,5 @@ SSE 응답은 한 줄씩 읽어 마지막 이벤트만 검증하는 단계가 �
 
 번들의 GraphQL 문서(`{kind:"Document",…}`)와 `searchFlights` 본문 zod 스키마가 출발점이다. 헤더 조건(User-Agent + Accept-Language) →
 SSE 이벤트 구조와 완료 표시 → 캐시 조회(`initialRequest`·`version`) → `fareType` 코드 → `getOtaList` 변수 순으로 확인한다.
+`getOtaList` 문서와 변수를 만드는 함수(`otaFares` 를 채우는 곳)는 첫 화면 번들이 아니라 국제선 상세 페이지 번들
+(`_buildManifest.js` 의 `/flights/international/detail/[...routes]`)에 있다. 경로에 `[]` 가 있어 curl 은 `-g` 로 받는다.
