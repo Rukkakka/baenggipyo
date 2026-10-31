@@ -29,6 +29,16 @@ README 로고 `docs/logo.svg` 는 `scripts/logo/build_logo.py` 로 만든다. �
 `api/response/` 모델 설명에 적는다. 엔드포인트를 추가·수정하기 전에 먼저 읽고, 응답 형태는
 CLI 직접 조회나 원본 응답으로 확인한다.
 
+## 자주 쓰는 명령
+
+```bash
+.venv/bin/ruff check && .venv/bin/mypy       # 코드를 고쳤으면 둘 다 0건
+.venv/bin/pytest tests/test_x.py::test_name  # 바꾼 부분 테스트만 이름으로 (전체 pytest 는 먼저 묻는다)
+.venv/bin/baenggipyo <소스> <명령> ...        # 바뀐 동작은 실제 API 로 한 번 불러 확인
+```
+
+설치와 Windows 명령은 [개발 환경](docs/development/README.md)에 있다.
+
 ## 꼭 지킬 것
 
 - **로그인 없는 기능만.** 계정·쿠키·API 키를 받지 않고, 로그인이 필요한 API(회원가·찜·가격 알림 등)나 사용자 대신 보내는 기능(예약·결제·문의)은 넣지 않는다. 승객 정보도 받지 않는다. 새 엔드포인트는 로그인 없이 호출되는지 먼저 확인한다. ([README 원칙](README.md#원칙-로그인-없는-기능만))
@@ -84,6 +94,9 @@ README는 로고·배지·기능 요약·빠른 시작(실제 출력 예시 하�
 명령을 실제로 추가하면 해당 문서의 `예정` 표시를 지운다.
 
 ## 작업 절차
+
+**에이전트는 사용자가 시킬 때만 이슈·브랜치·커밋·PR 을 만든다.** 시키지 않았으면 지금 브랜치에서 파일만 고치고 멈춘다.
+[workflow.md](docs/development/workflow.md) 의 "파일을 고치기 전에 브랜치부터 딴다" 보다 이 규칙이 먼저다. 시켰을 때는 아래 절차를 따른다.
 
 커밋 전에 **[docs/development/workflow.md](docs/development/workflow.md)** 를 읽는다. 요약:
 **커밋 전에 `.github/ISSUE_TEMPLATE/` 템플릿으로 이슈를 연다.** `main` 에 직접 커밋하지 않고
