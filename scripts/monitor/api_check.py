@@ -1,6 +1,6 @@
 """두 소스의 모든 CLI 명령을 실제로 불러 비공식 API 가 깨졌는지 본다 (매일 새벽 `.github/workflows/api-monitor.yml`).
 
-명령마다 셋으로 나눈다 (references/development.md '매일 API 감시').
+명령마다 셋으로 나눈다 (docs/development/README.md '매일 API 감시').
 
 - 정상: exit 0 이고 결과가 1건 이상
 - 고장: 응답 형식 오류·서버 거절(4xx·500)·내부 오류 같은 에러, 결과 0건, JSON 이 아닌 출력. 인기 노선이라 0건이면 사이트가 바뀐 것으로 본다.
@@ -183,7 +183,7 @@ def _first_id(directions: list[list[object]], index: int) -> str:
 def _outside_hours(data: dict[str, object], hours: tuple[tuple[int, int], ...]) -> int:
     """출발 시각대 밖 항공권 수. 방향이 둘(네이버 국내선 왕복 `legs[]`)이면 방향마다, 하나면 항공권의 여정(`journeys`)마다 차례로 맞춘다.
 
-    끝 시 정각(12:00) 출발은 밖으로 세지 않는다. 네이버 칸의 끝 시각 포함 여부는 정각 출발 편이 없어 재지 못했다 (references/providers/naver.md).
+    끝 시 정각(12:00) 출발은 밖으로 세지 않는다. 네이버 칸의 끝 시각 포함 여부는 정각 출발 편이 없어 재지 못했다 (docs/development/providers/naver.md).
     """
     directions = _directions(data)
     outside = 0

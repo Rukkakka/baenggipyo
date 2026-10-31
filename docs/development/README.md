@@ -1,10 +1,10 @@
 # 공통 개발 환경
 
-[개발 규약](../AGENTS.md) · [코드 형식](code-style.md) · [작업 절차](workflow.md)
+[개발 규약](../../AGENTS.md) · [코드 형식](code-style.md) · [작업 절차](workflow.md)
 
 ## 설치
 
-코드를 고치려면 저장소를 받아 편집 가능 모드로 설치한다. 고친 코드가 바로 반영된다. Python·git 설치는 [설치 문서의 준비물](../docs/install.md#1-준비물)을 따른다.
+코드를 고치려면 저장소를 받아 편집 가능 모드로 설치한다. 고친 코드가 바로 반영된다. Python·git 설치는 [설치 문서의 준비물](../install.md#1-준비물)을 따른다.
 
 ```bash
 # macOS·Linux
@@ -26,7 +26,7 @@ py -m venv .venv                       # 또는 uv venv --python 3.11
 .venv\Scripts\baenggipyo --help             # .venv\Scripts\Activate.ps1 후에는 baenggipyo 만 쳐도 된다
 ```
 
-Windows 는 [README 의 Windows 에서 쓸 때](../README.md#windows-에서-쓸-때)(UTF-8 출력 설정)도 그대로 적용된다. `Activate.ps1` 이 실행 정책 때문에 막히면 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 를 한 번 실행한다.
+Windows 는 [README 의 Windows 에서 쓸 때](../../README.md#windows-에서-쓸-때)(UTF-8 출력 설정)도 그대로 적용된다. `Activate.ps1` 이 실행 정책 때문에 막히면 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 를 한 번 실행한다.
 
 ## 코드 검사
 
@@ -70,7 +70,7 @@ Windows 는 `.venv\Scripts\ruff`, `.venv\Scripts\mypy` 로 부른다.
 
 Windows 는 `.venv/bin/pytest` 대신 `.venv\Scripts\pytest` 로 부른다.
 
-- **전체 `pytest` 는 실행 전에 사용자에게 묻는다.** PR 에서는 [CI](../.github/workflows/ci.yml) 가 전체를 돌린다.
+- **전체 `pytest` 는 실행 전에 사용자에게 묻는다.** PR 에서는 [CI](../../.github/workflows/ci.yml) 가 전체를 돌린다.
 - 평소에는 바꾼 함수를 직접 검사하는 테스트 몇 개만 `tests/test_x.py::test_name` 으로 골라 한 번 실행한다. 파일 전체, 넓은 `-k` 키워드, 바꾼 함수를 부르는 테스트를 모두 모아 돌리는 것도 하지 않는다. 실패하면 그 테스트만 다시 돌린다.
 - 문구·문서·이름 변경처럼 깨질 위험이 없으면 바꾼 부분의 테스트도 돌리지 않는다.
 
@@ -83,8 +83,8 @@ Windows 는 `.venv/bin/pytest` 대신 `.venv\Scripts\pytest` 로 부른다.
 
 ## 매일 API 감시
 
-비공식 API 는 사이트가 응답을 바꾸면 조용히 깨진다. 사용자보다 먼저 알려고 [API 감시 워크플로](../.github/workflows/api-monitor.yml)가
-한국 시간 매일 04:17 에 두 소스의 모든 CLI 명령을 실제로 부른다 ([scripts/monitor/api_check.py](../scripts/monitor/api_check.py)).
+비공식 API 는 사이트가 응답을 바꾸면 조용히 깨진다. 사용자보다 먼저 알려고 [API 감시 워크플로](../../.github/workflows/api-monitor.yml)가
+한국 시간 매일 04:17 에 두 소스의 모든 CLI 명령을 실제로 부른다 ([scripts/monitor/api_check.py](../../scripts/monitor/api_check.py)).
 CI 는 여전히 실제 API 를 부르지 않는다.
 
 - **무엇을 부르나:** 두 소스의 `search airports`·`search flights`·`flight`·`calendar`·`explore` 를 국제선·국내선으로 (편도, 30일 뒤,
@@ -95,9 +95,9 @@ CI 는 여전히 실제 API 를 부르지 않는다.
   국제선, 스카이스캐너 국내선 셋이고 러너를 나눈다. 스카이스캐너 명령을 모두 부르면 40번 남짓이라 한 러너로는 시간당 상한(30회)에 막혀 한 시간
   넘게 기다린다. 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (막힌 날은 확인 못 함으로 남긴다).
 - **스카이스캐너는 접속 버릇만 크롬처럼:** 러너는 데이터센터 IP 라 스카이스캐너 봇 차단에 첫 요청부터 막히곤 한다. 감시는 검증용이라
-  스카이스캐너 묶음만 [disguise.py](../scripts/monitor/disguise.py)(`api_check.py run --disguise`)로 부른다. `SkyscannerClient` 의 httpx
+  스카이스캐너 묶음만 [disguise.py](../../scripts/monitor/disguise.py)(`api_check.py run --disguise`)로 부른다. `SkyscannerClient` 의 httpx
   전송만 curl_cffi(`impersonate='chrome'`, 워크플로에서 `curl_cffi==0.16.3` 설치)로 바꾸고, 요청 제한·로그 훅, 헤더, 응답 해석은 CLI 와 같다.
-  설치되는 CLI 에는 넣지 않고 캡차는 풀지 않는다 (막히면 확인 못 함). [AGENTS.md](../AGENTS.md) 의 "봇 차단을 우회하지 않는다" 는 CLI
+  설치되는 CLI 에는 넣지 않고 캡차는 풀지 않는다 (막히면 확인 못 함). [AGENTS.md](../../AGENTS.md) 의 "봇 차단을 우회하지 않는다" 는 CLI
   원칙이라 감시는 예외다.
 - **판정:** 명령마다 셋으로 나눈다.
 

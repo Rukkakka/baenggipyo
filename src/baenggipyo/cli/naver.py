@@ -1,4 +1,4 @@
-"""`baenggipyo naver` 하위 명령. 사용법은 docs/naver.md, 구현 메모는 references/providers/naver.md."""
+"""`baenggipyo naver` 하위 명령. 사용법은 docs/naver.md, 구현 메모는 docs/development/providers/naver.md."""
 
 import typer
 

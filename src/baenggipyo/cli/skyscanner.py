@@ -1,4 +1,4 @@
-"""`baenggipyo skyscanner` 하위 명령. 사용법은 docs/skyscanner.md, 구현 메모는 references/providers/skyscanner.md."""
+"""`baenggipyo skyscanner` 하위 명령. 사용법은 docs/skyscanner.md, 구현 메모는 docs/development/providers/skyscanner.md."""
 
 import typer
 from pydantic import BaseModel
