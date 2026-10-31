@@ -4,6 +4,7 @@
 LLM 에이전트가 셸로 호출하는 도구라, 출력 형식과 에러 형식이 곧 API 다.
 패키지 코드는 모두 `src/baenggipyo/` 아래에 있다.
 사용자 문서(CLI 사용법)는 `docs/` 바로 아래, 개발 문서(구현 규약·소스별 개발 가이드)는 `docs/development/`에 있다.
+처음 기여하는 사람용 안내는 `CONTRIBUTING.md` 다.
 README 데모 GIF 는 `docs/demo/`, 그 녹화 도구(VHS 대본·후처리 스크립트)는 `scripts/demo/` 에 있다.
 README 로고 `docs/logo.svg` 는 `scripts/logo/build_logo.py` 로 만든다. 글자를 외곽선으로 바꾼 파일이라 직접 고치지 않고 스크립트를 고쳐 다시 만든다.
 매일 새벽 두 소스의 모든 CLI 명령을 실제로 불러 보는 감시는 `scripts/monitor/` 와 `.github/workflows/api-monitor.yml` 이다 ([매일 API 감시](docs/development/README.md#매일-api-감시)).
