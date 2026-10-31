@@ -138,7 +138,7 @@ def explore(
             round_trip=round_trip,
         ))
     destinations.sort(key=lambda destination: destination.min_price_krw or 0)
-    # 결과마다 붙는 안내라 하나로 짧게 둔다 (references/output-contract.md '항공권 출력'). sky_code 를 검색에 넣으면 요청 없이
+    # 결과마다 붙는 안내라 하나로 짧게 둔다 (docs/development/output-contract.md '항공권 출력'). sky_code 를 검색에 넣으면 요청 없이
     # AIRPORT_NOT_FOUND 와 hint 가 가니 따로 알리지 않는다. 지표 가격은 그 달 어느 날의 최저가다. 인천→제주 26,928원은 11/9·11/23 같은 날의
     # 값이고 11/15 는 315,865원이었다 (2026-10-20 실측 달력). 스카이스캐너 calendar 는 편도만 돼 왕복은 날짜를 찾는 명령이 없다
     find_dates = (

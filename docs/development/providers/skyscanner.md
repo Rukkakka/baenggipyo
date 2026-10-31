@@ -1,6 +1,6 @@
 # 스카이스캐너 개발 가이드
 
-[CLI 사용법](../../docs/skyscanner.md) · [개발 환경·검증](../development.md) · [공통 아키텍처](../architecture.md) · [provider 작성 규약](../provider-conventions.md) · [출력 계약](../output-contract.md) · [코드 형식](../code-style.md)
+[CLI 사용법](../../skyscanner.md) · [개발 환경·검증](../README.md) · [공통 아키텍처](../architecture.md) · [provider 작성 규약](../provider-conventions.md) · [출력 계약](../output-contract.md) · [코드 형식](../code-style.md)
 
 공통 규약에 없는, 스카이스캐너(skyscanner.co.kr)에만 있는 구현과 예외를 적는다.
 
@@ -23,7 +23,7 @@
 ### 공식 API 를 쓰지 않는 이유
 
 스카이스캐너는 파트너용 공식 API 를 제공하지만 API 키가 필요하다. baenggipyo 는 계정·API 키를 받지 않으므로
-([README 원칙](../../README.md#원칙-로그인-없는-기능만)) 웹 페이지가 로그인 없이 부르는 엔드포인트를 쓴다.
+([README 원칙](../../../README.md#원칙-로그인-없는-기능만)) 웹 페이지가 로그인 없이 부르는 엔드포인트를 쓴다.
 
 ### 봇 차단
 
@@ -36,7 +36,7 @@
 - 같은 컴퓨터의 브라우저로는 열리는데 baenggipyo 만 막히기도 한다. IP 만이 아니라 클라이언트(검사 스크립트 실행·`_px*` 쿠키·TLS 지문)를 보고 막는 것이다.
   브라우저 쿠키를 옮겨 넣거나 지문을 흉내 내면 통과할 수 있겠지만 그것이 우회라 CLI 는 하지 않는다. CLI 는 기다리는 것 말고는 방법이 없다.
 - 검증용인 매일 API 감시만 예외로, GitHub 러너(데이터센터 IP)에서 막히는 날을 줄이려고 스카이스캐너 요청의 TLS 지문을 크롬처럼 바꾼다
-  (`scripts/monitor/disguise.py`, [매일 API 감시](../development.md#매일-api-감시)). 쿠키·캡차는 다루지 않고 설치되는 CLI 에는 넣지 않는다.
+  (`scripts/monitor/disguise.py`, [매일 API 감시](../README.md#매일-api-감시)). 쿠키·캡차는 다루지 않고 설치되는 CLI 에는 넣지 않는다.
 - 스카이스캐너 실측은 하루에 검색 한두 번으로 줄이고 나머지는 가짜 응답으로 확인한다.
 
 ### 헤더와 시장·통화

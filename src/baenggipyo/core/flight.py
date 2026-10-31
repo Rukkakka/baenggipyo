@@ -1,6 +1,6 @@
 """항공권 공통 정의: 소스·여정·좌석 등급 이름, 검색 조건 베이스, 소스와 상관없는 출력 모델, 입력 공항 해석 묶기와 후보 고르기.
 
-출력 규칙은 references/output-contract.md '항공권 출력' 을 따른다. 금액은 원 정수(`*_krw`), 시각은 각 공항의 현지 시각
+출력 규칙은 docs/development/output-contract.md '항공권 출력' 을 따른다. 금액은 원 정수(`*_krw`), 시각은 각 공항의 현지 시각
 `YYYY-MM-DDTHH:MM`, 소요 시간은 분이다. 그 항공권·조회에 원래 없는 값은 `not_applicable_fields()` 로 키째 뺀다.
 """
 

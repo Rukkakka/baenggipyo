@@ -35,7 +35,7 @@ def is_request_validation_error(exc: ValidationError) -> bool:
     응답 모델이나 공통 출력 모델 검증 오류는 소스 응답이 예상과 달라진 것이라 입력 오류가 아니다.
     `ValidationError.title` 은 검증한 모델 클래스 이름이다. 모델 클래스로만 가르므로, 앞 응답의 값으로 만드는 요청 모델은
     `built_from_response()` 안에서 만들어 입력 오류로 잘못 가르지 않게 한다. 기본값을 입력 오류로 둔 이유(사용자 값이 들어가는 길이 더 많다)는
-    references/provider-conventions.md '요청·응답 모델' 에 있다.
+    docs/development/provider-conventions.md '요청·응답 모델' 에 있다.
     """
     stack: list[type[BaseModel]] = [RequestModel]
     while stack:

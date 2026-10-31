@@ -55,7 +55,7 @@
 
 소스에만 있는 필드(네이버 `card_discount_*` 등)는 소스 문서에 있다.
 
-필드 정의와 확정 상태는 개발 문서의 [출력 계약](../references/output-contract.md#항공권-출력)을 따른다.
+필드 정의와 확정 상태는 개발 문서의 [출력 계약](development/output-contract.md#항공권-출력)을 따른다.
 
 ### 응답 줄이기
 
