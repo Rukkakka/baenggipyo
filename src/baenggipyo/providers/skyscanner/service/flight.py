@@ -364,7 +364,7 @@ def search_flights(
     sort: SkyscannerFlightSort = '가격',
     limit: int = DEFAULT_LIMIT,
 ) -> SkyscannerFlightSearchResult:
-    """편도·왕복·다구간 항공권을 찾는다 (검색 1회 + 폴링, 보통 2~10초).
+    """편도·왕복·다구간 항공권을 찾는다 (검색 1회 + 폴링, 보통 5~15초).
 
     스카이스캐너는 폴링이 끝난 결과를 한 번에 주고 직항·항공사 조건을 받지 않는다. 그래서 받은 결과에서 조건을 거르고, 정한 순서로
     세운 뒤 자른다 (서버 필터 없는 대체 조회).

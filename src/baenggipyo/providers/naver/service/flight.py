@@ -129,6 +129,8 @@ def _total_fare(fare: NaverFareModel, conditions: NaverFlightConditions) -> int 
 
 def general_fare(fares: list[NaverFareModel]) -> NaverFareModel | None:
     """대표 운임: 모든 결제수단(A01) 운임 중 성인 1인 최저가. 조건이 붙은 할인 운임은 대표로 쓰지 않는다."""
+    # 소아가 있어도 성인 1인 최저가로 고른다. 판매처마다 소아 운임이 달라도 성인 최저가 판매처가 합계로도 가장 쌌다 (2026-11-01 ICN→NRT
+    # 11/20·23 성인 1·소아 1 MM642: Agoda 소아 440,633원·트립닷컴 439,200원, 합계는 Agoda 가 쌌다). 둘이 갈리는 응답은 아직 보지 못했다
     candidates = [fare for fare in fares if fare.fare_type == GENERAL_FARE_TYPE and _adult_fare(fare) is not None]
     return min(candidates, key=lambda fare: _adult_fare(fare) or 0, default=None)
 
@@ -420,6 +422,8 @@ def _cached_search(
     version: int | None,
 ) -> NaverFlightInternationalSearchFlightsResponseModel:
     """서버 캐시 조회. `version` 이 None 이면 그 조건의 가장 새 검색 결과를 준다 (`CACHE_LATEST_VERSION`)."""
+    # selectedItineraries 는 고른 여정 묶음과 똑같은 것만 준다. 그래서 limit 1 이어도 가는 편이 같은 더 싼 왕복이 자리를 차지하지 않는다
+    # (2026-11-01 ICN→NRT 11/20·23: 가장 싼 ZG46|ZG43 이 있어도 ZG46|ZG45 를 찾았다)
     return client.run_request_flight_international_search_flights(
         _search_payload(legs, conditions, sort='가격', limit=1, initial=False, version=version, selected=journey_ids)
     )
@@ -541,7 +545,8 @@ def _offers(
             # 합계를 모르는 운임(승객 유형 운임이 빠짐)과 예약 URL 이 없는 운임은 판매처 조회에 넘기지 않는다
             if fare.reservation_url and (total := _total_fare(fare, conditions)) is not None
         ]
-        # 소아·유아 1명씩 넣은 ICN→NRT 캐시 조회에서는 128개 모두 URL·합계가 있었다 (2026-10-12 실측). 빠지면 get_flight 가 notes 로 알린다
+        # 소아·유아 1명씩 넣은 ICN→NRT 캐시 조회에서는 128개 모두 URL·합계가 있었다 (2026-10-12 실측). 빠지면 get_flight 가 notes 로 알린다.
+        # 모두 빠져 offers 가 비어도 에러로 바꾸지 않는다. 판매처가 0곳으로 온 것(no_sellers_error)과 달리 까닭(링크·승객 유형 운임 없음)을 notes 로 말할 수 있다
         unbookable = len(mapping.fares) - len(ota_fares)
         if not ota_fares:
             return [], [], {}, 0, unbookable
@@ -581,6 +586,8 @@ def _offers(
         fare = fare_by_key.get((ota.ota_id, ota.fare_type or ''))
         if fare is not None:
             shown_fares.append(fare)
+        # 결제수단 조건은 운임 종류 표의 category 로 가린다. category 가 빈 운임(장애인 운임 A07 등 대상이 정해진 운임)이 조건 없이 섞일 수 있다는
+        # 지적이 있었지만 실측 판매처 운임은 모든 결제수단·카드·간편결제뿐이었다 (2026-11-01 ICN→NRT 왕복·ICN→KIX 편도 상세)
         info = status.fare_types_code_map.get(ota.fare_type or '')
         offers.append(NaverOffer(
             seller=ota.exp_name,

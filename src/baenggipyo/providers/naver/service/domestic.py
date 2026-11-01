@@ -104,6 +104,8 @@ CABIN_LETTER_BY_LABEL: dict[CabinClass, str] = {
     '비즈니스석': 'C',
 }
 CABIN_BY_LETTER: dict[str, CabinClass] = {letter: label for label, letter in CABIN_LETTER_BY_LABEL.items()}
+# 국내선 가격순(minFare)은 카드 할인이 있어도 대표 가격 순이라 국제선처럼 더 받아 다시 세우지 않는다 (2026-11-01 김포↔제주 11/20·22 왕복
+# 50+50편: 카드 할인 있는 편 43·40편이 섞여도 price_per_adult_krw 가 오름차순)
 DOMESTIC_SORT_BY_LABEL: dict[NaverFlightSort, dict[str, int]] = {
     '가격': {'minFare': 1},
     '출발시각': {'segment.departure.time': 1, 'minFare': 1},
@@ -556,6 +558,7 @@ def search_domestic_flights(
         label = f'{DIRECTION_LABELS[direction]}: ' if len(legs) == 2 else ''
         notes += [f'{label}{note}' for note in _search_note(event.status)]
         leg = legs[index]
+        # 서버가 limit 만큼 준 편을 그대로 낸다. 운임 없는 편·남은 좌석 0·같은 ID 는 없었다 (2026-11-01 김포↔제주 11/20·22 왕복 limit 50: 50+50편)
         itineraries = [
             _itinerary(flight, status, partners, legs=legs, conditions=conditions, direction=direction)
             for flight in event.flights
@@ -621,6 +624,7 @@ def _find_flight(
             legs, conditions, direction=direction, sort='가격', limit=DETAIL_FETCH_LIMIT, initial=True,
             seat_classes=[seat_class], airlines=airlines,
         ))
+    # 다시 찾은 편에 운임이 하나도 없는 경우는 따로 거르지 않는다. 검색 결과 편은 모두 운임이 있었다 (2026-11-01 김포↔제주 왕복 50+50편)
     flight = next((flight for flight in event.flights if flight.itinerary_id == itinerary_id and flight.seat_class == seat_class), None)
     if flight is None:
         # 시간 상한에 끊긴 검색에 없는 것은 매진이 아니다 (국제선 get_flight 와 같다)

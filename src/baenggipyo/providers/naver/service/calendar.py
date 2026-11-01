@@ -112,6 +112,7 @@ def get_calendar(
             last_date = date
         if date is None or not date.startswith(month):
             continue
+        # 값이 null 인 날은 실측에 없었다 (2026-11-01 ICN→NRT 2026-12 편도 31일 모두 값). 그래서 거르지 않는다
         days.append(CalendarDay(
             date=date,
             return_date=compact_date(row.return_date),
