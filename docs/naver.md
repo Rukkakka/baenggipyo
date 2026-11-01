@@ -166,6 +166,8 @@ baenggipyo naver flight <가는 편 id> <오는 편 id>
 `days[]`(날짜 순) — `date`, `return_date`(왕복만), `min_price_krw`. 값이 있는 날만 온다. 날마다 직항인지는 네이버가 주지 않는다.
 
 - **실시간 가격이 아니다.** 네이버가 최근 검색에서 모은 최저가이고 카드 할인가가 섞인다. 고른 날은 `search flights` 로 확인한다.
+- 네이버는 지금부터 약 1년 뒤까지만 준다. 그 뒤 달은 비어 오고 `notes` 로 범위 끝 날짜를 알린다 (아직 판매하지 않는 달이라 `search flights` 도
+  비어 올 수 있다).
 
 ```bash
 baenggipyo naver calendar ICN 도쿄 --month 2026-11

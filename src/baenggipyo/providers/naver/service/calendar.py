@@ -104,8 +104,12 @@ def get_calendar(
     response = client.run_request_min_prices_by_date(payload)
     data = unwrap_graphql(response, response.data, '날짜별 최저가')
     days = []
+    # 서버가 준 가장 늦은 날. 그 뒤 달은 검색한 사람이 적어서가 아니라 범위 밖이라 빈다
+    last_date: str | None = None
     for row in data.min_prices_by_date or []:
         date = compact_date(row.departure_date)
+        if date is not None and (last_date is None or date > last_date):
+            last_date = date
         if date is None or not date.startswith(month):
             continue
         days.append(CalendarDay(
@@ -116,7 +120,13 @@ def get_calendar(
         ))
     days.sort(key=lambda day: day.date)
     notes = [ESTIMATE_NOTE]
-    if not days:
+    if not days and last_date is not None and month > last_date[:7]:
+        # 인기 노선도 약 1년 뒤까지만 온다 (2026-11-01 ICN→NRT: 편도 2027-10-30·왕복 2027-10-27 까지, 2027-12 는 0일. 같은 달 search flights 도 0건)
+        notes.append(
+            f'네이버가 날짜별 최저가를 주는 범위(지금부터 약 1년, {last_date} 까지) 밖의 달이라 비었습니다. '
+            '아직 판매하지 않는 달일 수 있어 search flights 도 비어 올 수 있습니다'
+        )
+    elif not days:
         notes.append(f'{month} 에 값이 있는 날이 없습니다. 최근에 이 노선을 검색한 사람이 적으면 비어 있을 수 있으니 search flights 로 찾으세요')
     return NaverCalendarResult(
         origin=origin.code,
