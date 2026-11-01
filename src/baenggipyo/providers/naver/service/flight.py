@@ -64,6 +64,7 @@ from baenggipyo.providers.naver.service.common import (
     flight_number_of,
     hour_slots,
     incomplete_note,
+    no_sellers_error,
     partner_names,
     results_url,
     seller_type_of,
@@ -566,13 +567,7 @@ def _offers(
     # 판매처 목록이 빠진 응답을 빈 offers 로 내면 파는 곳이 없다고 읽힌다. 국내선 판매처 조회처럼 에러로 낸다
     options = unwrap_graphql(response, response.data.booking_options if response.data else None, '판매처')
     if not options.ota_list:
-        # 보낸 운임이 있는데 판매처가 하나도 없으면 서버가 요청을 받아들이지 않은 것이다. 예약 URL 서명이 빠졌을 때 에러 없이 빈 목록이 왔다
-        # (2026-10-30 ICN→NRT 운임 122개: 서명 없이 0곳, 넣으면 122곳)
-        raise BaenggipyoError(
-            code='UPSTREAM_ERROR',
-            message=f'네이버 판매처 조회가 운임 {len(ota_fares)}개를 받고 판매처를 하나도 돌려주지 않았습니다',
-            hint='네이버 항공권 API 가 바뀌었을 수 있습니다. 스카이스캐너를 쓰거나 baenggipyo 를 업데이트하세요',
-        )
+        raise no_sellers_error(len(ota_fares), '판매처 조회')
     fare_by_key = {(fare.partner_code, fare.fare_type): fare for fare in mapping.fares}
     offers = []
     shown_fares: list[NaverFareModel] = []
