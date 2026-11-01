@@ -97,7 +97,7 @@
 | `RATE_LIMITED` | 로컬 요청 예산 초과 또는 429 이후 쿨다운 | `retry_after_seconds`가 있으면 해당 시간만큼 대기. 없으면 `hint`와 `baenggipyo limits` 확인 |
 | `NETWORK_ERROR` | 연결·타임아웃 등 전송 실패 | 네트워크 상태 확인 후 재시도 |
 | `UPSTREAM_ERROR`, `PARSE_ERROR` | API 거절·응답 구조 변경·봇 차단 페이지·파싱 실패 | 힌트 확인, 다른 소스 사용 또는 버전 갱신 |
-| `INTERNAL_ERROR` | 처리하지 못한 실행 오류. 출력 인코딩이 UTF-8 이 아니라 결과를 쓰지 못한 경우도 (Windows) | 에러 내용을 보존해 원인 확인. 출력 인코딩 오류면 hint 대로 `PYTHONUTF8=1` 을 설정하고 다시 실행 |
+| `INTERNAL_ERROR` | 처리하지 못한 실행 오류. 출력 인코딩이 UTF-8 이 아니라 결과를 쓰지 못한 경우(Windows), 요청 제한 상태 디렉터리에 쓰지 못한 경우도 | 에러 내용을 보존해 원인 확인. 출력 인코딩 오류면 hint 대로 `PYTHONUTF8=1` 을, 상태 디렉터리 오류면 쓸 수 있는 절대 경로를 `BAENGGIPYO_STATE_DIR` 로 설정하고 다시 실행 (상태 디렉터리 오류는 다른 소스도 같이 실패한다) |
 | `CLI_ERROR` | 사용법 오류가 아닌 CLI 처리 오류 (지금 명령에서는 나오지 않음) | 에러 내용을 보존해 원인 확인 |
 | `INTERRUPTED` | Ctrl+C 등 호출 중단 | 필요하면 같은 명령을 다시 실행 |
 

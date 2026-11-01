@@ -76,7 +76,8 @@ class RateLimitedError(BaenggipyoError):
             hint = '봇 차단을 피하려고 시간당 요청 수를 묶어 둔 것입니다. 기다리는 동안 다른 소스를 쓰세요'
         else:
             message = f'{source} 분당 요청 상한에 도달했습니다. {seconds}초 뒤 다시 시도하세요'
-            hint = '조회 범위(--limit, 날짜 범위)를 줄이거나 잠시 뒤 다시 시도하세요'
+            # 요청 수를 줄이는 옵션은 없다 (--limit 은 요청 수와 상관없다). 명령이 한꺼번에 몰린 것이라 기다리라고만 한다
+            hint = '짧은 시간에 명령이 몰린 것입니다. retry_after_seconds 만큼 기다렸다 다시 부르세요'
         super().__init__(
             code='RATE_LIMITED',
             message=message,
@@ -85,6 +86,25 @@ class RateLimitedError(BaenggipyoError):
         )
         self.retry_after = retry_after
         self.reason = reason
+
+
+class StateDirError(BaenggipyoError):
+    """요청 제한 상태 디렉터리를 만들거나 쓰지 못했을 때 (`INTERNAL_ERROR`).
+
+    두 소스가 같은 상태 디렉터리를 써서 다른 소스로 바꿔도 같이 실패한다. 그래서 일반 내부 오류 hint(다른 소스를 써라) 대신 경로를 바꾸라고
+    안내한다 (2026-11-01 읽기 전용 디렉터리로 확인: 두 소스 모두 요청 전에 실패).
+
+    Args:
+        error: 상태 파일·디렉터리를 다루다 난 `OSError`.
+    """
+
+    def __init__(self, error: OSError) -> None:
+        super().__init__(
+            code='INTERNAL_ERROR',
+            message=f'요청 제한 상태 디렉터리를 쓸 수 없습니다 ({type(error).__name__}: {error})',
+            hint=f'모든 소스가 같은 상태 디렉터리({state_dir()})를 써서 다른 소스도 같이 실패합니다. 쓸 수 있는 디렉터리의 절대 경로를 '
+                 '환경 변수 BAENGGIPYO_STATE_DIR 로 주고 다시 실행하세요',
+        )
 
 
 class RateLimitPolicy(BaseModel):
@@ -234,21 +254,23 @@ class RateLimiter:
         읽을 수 없는 파일(UTF-8 이 아닌 내용, 읽기 권한 없음)도 빈 상태로 본다. 그래야 `limits --reset` 이 그 파일을 새로 써서 고칠 수 있다.
         다만 `PermissionError` 는 몇 번 다시 읽어 본다. Windows 에서는 다른 프로세스가 파일을 바꿔 넣는 순간에도 나는데, 그때 빈 상태로 보면
         방금 걸린 쿨다운을 놓치고 요청을 보낸다.
-        경로가 잘못된 것(상태 디렉터리 자리에 파일, 상태 파일 자리에 디렉터리)은 다시 써도 고쳐지지 않아 그대로 올린다. 빈 상태로 보면 `limits` 가
+        경로가 잘못된 것(상태 디렉터리 자리에 파일, 상태 파일 자리에 디렉터리)은 다시 써도 고쳐지지 않아 `StateDirError` 로 올린다. 빈 상태로 보면 `limits` 가
         요청 기록 0 을 보여 주는데 요청은 모두 실패한다.
         돌려주는 상태에는 늘 `blocked_until`(float)·`recent`(float 목록)·`block_streak`(거듭 차단 횟수, 0 이상 정수)가 있다.
         """
         try:
             state = json.loads(_retry_sharing(lambda: self.path.read_text(encoding='utf-8')))
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
             # 경로 중간이 파일이면 macOS·Linux 는 NotADirectoryError 를 내지만 Windows 는 FileNotFoundError 를 내서 아직 기록이
             # 없는 것과 구분되지 않는다. 그 경로에는 상태를 쓸 수 없으니 macOS·Linux 처럼 그대로 올린다
             # (2026-10-14 CI windows-latest: 상태 디렉터리 자리에 파일이 있어도 limits 가 빈 상태로 exit 0)
             if any(parent.is_file() for parent in self.path.parents):
-                raise
+                raise StateDirError(exc) from exc
             state = {}
         except (PermissionError, ValueError):  # ValueError: JSONDecodeError·UnicodeDecodeError
             state = {}
+        except OSError as exc:
+            raise StateDirError(exc) from exc
         if not isinstance(state, dict):
             state = {}
         blocked_until = state.get('blocked_until')
@@ -277,16 +299,20 @@ class RateLimiter:
 
     @contextmanager
     def _locked_state(self) -> Iterator[dict[str, Any]]:
+        # 부르는 쪽은 상태 값만 바꾸고 파일을 다루지 않아, 여기서 난 OSError 는 모두 상태 디렉터리 문제다
         path = self.path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path.with_suffix('.lock'), 'a+') as lock:
-            _lock_file(lock)
-            try:
-                state = self._read_state()
-                yield state
-                write_json_atomic(path, state)
-            finally:
-                _unlock_file(lock)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path.with_suffix('.lock'), 'a+') as lock:
+                _lock_file(lock)
+                try:
+                    state = self._read_state()
+                    yield state
+                    write_json_atomic(path, state)
+                finally:
+                    _unlock_file(lock)
+        except OSError as exc:
+            raise StateDirError(exc) from exc
 
     def _check_cooldown(self) -> None:
         """쿨다운 중이면 `RateLimitedError` 를 낸다 (읽기만 한다)."""

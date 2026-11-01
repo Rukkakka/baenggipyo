@@ -50,7 +50,7 @@
 | `RATE_LIMITED` | 바로 다시 부르지 않는다. `retry_after_seconds` 만큼 기다리거나 다른 소스를 쓴다 |
 | `NETWORK_ERROR` | 잠시 뒤 한 번만 다시 부른다 |
 | `UPSTREAM_ERROR`, `PARSE_ERROR` | 다른 소스를 쓰고 업데이트(`uv tool upgrade baenggipyo`)를 권한다. `reason: SEARCH_INCOMPLETE` 는 잠시 뒤 한 번 다시 부른다 |
-| `INTERNAL_ERROR`, `CLI_ERROR` | 에러 JSON 을 `baenggipyo --version` 과 함께 사용자에게 보여 준다. `hint` 가 `PYTHONUTF8=1` 이면 붙여 한 번 다시 부른다 |
+| `INTERNAL_ERROR`, `CLI_ERROR` | 에러 JSON 을 `baenggipyo --version` 과 함께 사용자에게 보여 준다. `hint` 가 `PYTHONUTF8=1` 이면 붙여 한 번 다시 부른다. `BAENGGIPYO_STATE_DIR` 이면 다른 소스도 같이 실패하니, 쓸 수 있는 절대 경로를 붙여 한 번 다시 부른다 |
 
 더 자세한 설명: [공통 규칙](https://github.com/Rukkakka/baenggipyo/blob/main/docs/common.md) · [네이버](https://github.com/Rukkakka/baenggipyo/blob/main/docs/naver.md) · [스카이스캐너](https://github.com/Rukkakka/baenggipyo/blob/main/docs/skyscanner.md)
 
