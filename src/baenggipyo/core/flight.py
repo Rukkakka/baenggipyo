@@ -325,12 +325,29 @@ def _only_airport(city: tuple[CandidateT, Airport], airports: list[tuple[Candida
     return next((candidate for candidate, airport in airports if airport.type == '공항' and airport.code == codes[0]), None)
 
 
+def _same_airport(airports: list[tuple[CandidateT, Airport]]) -> CandidateT | None:
+    """후보가 모두 같은 공항 하나를 가리키면 그 공항 후보. 공항이 하나뿐인 도시는 그 공항으로 본다. 아니면 None.
+
+    네이버 '김해' 는 도시 부산(`PUS`, airports [PUS])과 김해국제공항(`PUS`)을 준다. 이름이 똑같은 후보가 없어 모호하다고 했는데 둘은 같은 곳이다
+    (2026-11-01 실사용 검증: 에이전트가 AIRPORT_AMBIGUOUS 를 받고 PUS 로 다시 불렀다). 공항 목록을 주지 않는 소스(스카이스캐너)는 바뀌지 않는다.
+    """
+    places = {
+        airport.code if airport.type == '공항' else (airport.airports[0] if airport.airports and len(airport.airports) == 1 else None)
+        for _, airport in airports
+    }
+    if len(places) != 1 or None in places:
+        return None
+    code = places.pop()
+    return next((candidate for candidate, airport in airports if airport.type == '공항' and airport.code == code), None)
+
+
 def pick_place(text: str, candidates: list[CandidateT], to_airport: Callable[[CandidateT], Airport]) -> CandidateT:
     """출발·도착지 입력에 맞는 자동완성 후보 하나를 고른다. 두 소스가 같은 규칙을 쓴다.
 
     - 3글자 코드면 같은 코드의 공항을 먼저 고르고(ICN, BKK), 공항이 없으면 도시(SEL, TYO)를 고른다.
     - 이름이면 이름이 똑같은 도시, 없으면 이름이 똑같은 공항을 고른다. 그래도 정하지 못하면 후보가 하나일 때만 그것을 쓴다.
     - 고른 도시의 공항이 하나뿐이면 그 공항으로 찾는다 (`_only_airport`, 네이버 '인천' → 인천국제공항).
+    - 이름이 똑같은 후보가 없어도 후보가 모두 같은 공항 하나를 가리키면 그 공항을 고른다 (`_same_airport`, 네이버 '김해' → 김해국제공항).
     - 이름이 똑같은 후보가 여럿이면 고르지 않는다 (네이버 '포틀랜드' → 도시 PDX·PWM 이 이름까지 같다, 2026-10-12 실측).
     - 3글자 입력이 어느 후보의 코드·이름과도 맞지 않으면 후보가 하나여도 쓰지 않는다. 코드로 준 것이라 다른 곳이다
       (네이버 'SEO' → 서울 SEL 하나뿐이라 서울로 찾았다, 2026-10-11 실측).
@@ -373,6 +390,9 @@ def pick_place(text: str, candidates: list[CandidateT], to_airport: Callable[[Ca
         )
     if len(candidates) == 1:
         return candidates[0]
+    same = _same_airport(airports)
+    if same is not None:
+        return same
     raise AirportAmbiguousError(text, labels, len(candidates))
 
 
