@@ -150,6 +150,18 @@ class NaverDomesticItinerary(NaverItinerary):
         int | None,
         Field(description='남은 좌석')
     ] = None
+    price_per_child_krw: Annotated[
+        int | None,
+        Field(description='대표 운임의 소아 1인 요금 (원). 소아를 넣어 찾았을 때만 키가 있고, 그 판매처가 소아 운임을 주지 않으면 null')
+    ] = None
+    with_children: Annotated[
+        bool,
+        Field(exclude=True, description='소아를 넣어 찾았는지 (출력하지 않음)')
+    ] = False
+
+    def not_applicable_fields(self) -> frozenset[str]:
+        fields = super().not_applicable_fields()
+        return fields if self.with_children else fields | {'price_per_child_krw'}
 
     def brief_omitted_fields(self) -> frozenset[str]:
         # 방향은 왕복이면 legs[].direction 에 있고, 편도는 늘 가는 편이다
@@ -461,6 +473,10 @@ def _itinerary(
         direction=DIRECTION_LABELS[direction],
         seat_class=SEAT_CLASS_LABELS.get(flight.seat_class, flight.seat_class),
         seats_left=flight.seat_count,
+        # 유아가 있으면 합계가 null 이라, 소아 요금이 없으면 유아를 뺀 금액도 알 수 없다 (2026-11-01 실사용 검증: 에이전트가 소아를 성인 요금으로
+        # 추정했다). 소아 운임 0 은 그 판매처가 소아 운임을 주지 않는 것이다 (fare_total 과 같다)
+        price_per_child_krw=fare_per_person(general)[1] if general and general.child_fare else None,
+        with_children=bool(conditions.children),
     )
 
 
@@ -562,7 +578,10 @@ def search_domestic_flights(
             '국내선 왕복은 가는 편과 오는 편을 하나씩 고릅니다. 가격은 편마다 따로이고, 두 편의 id 를 함께 flight 에 넣으면 왕복 예약 가격이 나옵니다'
         )
     if conditions.infants:
-        notes.append('유아 운임은 네이버가 계산에 넣지 않아 total_price_krw 가 null 입니다')
+        notes.append(
+            '유아 운임은 네이버가 계산에 넣지 않아 total_price_krw 가 null 입니다'
+            + (' (성인·소아 1인 요금은 price_per_adult_krw·price_per_child_krw)' if conditions.children else ' (price_per_adult_krw 는 성인 1인 요금)')
+        )
     summary = _summary(legs, conditions)
     if len(legs) == 1:
         return NaverDomesticOneWayResult(search=summary, returned=results[0].returned, itineraries=results[0].itineraries, notes=notes)
@@ -813,7 +832,11 @@ def get_domestic_flights(
     notes.extend(url_omitted_notes(shown, url_limit))
     totals = [itinerary.total_price_krw for itinerary in itineraries]
     if conditions.infants:
-        notes.append('유아 운임은 네이버가 주지 않아 total_price_krw 가 null 입니다 (price_per_adult_krw 는 성인 1인 요금)')
+        notes.append(
+            '유아 운임은 네이버가 주지 않아 total_price_krw 가 null 입니다'
+            + (' (성인·소아 1인 요금은 flights[] 의 price_per_adult_krw·price_per_child_krw)' if conditions.children
+               else ' (price_per_adult_krw 는 성인 1인 요금)')
+        )
     booking = NaverDomesticBooking(
         trip_type='왕복' if len(flights) == 2 else '편도',
         url=domestic_results_url(legs, conditions),

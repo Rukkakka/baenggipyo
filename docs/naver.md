@@ -117,6 +117,8 @@ baenggipyo naver search flights --leg ICN-NRT-2026-11-15 --leg KIX-ICN-2026-11-2
 - 공항 코드로 찾는다. 공항이 하나뿐인 도시(`CJU`, `PUS`, 이름 `제주`)는 그 공항으로 바꾸고, 공항이 여럿인 도시(`SEL`)는 `INVALID_ARGUMENT` 다 (서울은 `GMP`).
 - 좌석은 `--cabin 일반석`(특가·할인·일반석) 또는 `비즈니스석` 만 된다. `--direct` 는 의미가 없다 (모두 직항).
 - `total_price_krw` 는 성인·소아 1인 운임 × 인원의 합이다. 유아 운임은 네이버가 계산에 넣지 않아 유아가 있으면 `null` 이다.
+- `price_per_child_krw` 는 대표 운임의 소아 1인 요금이다. 소아를 넣어 찾았을 때만 키가 있고(`search flights`·`flight` 의 `flights[]`), 그 판매처가
+  소아 운임을 주지 않으면 `null` 이다. 유아가 있어 합계가 `null` 이면 성인·소아 1인 요금 × 인원으로 유아를 뺀 금액을 알 수 있다.
 
 ```bash
 baenggipyo naver search flights GMP 제주 --depart 2026-11-15 --return 2026-11-17
