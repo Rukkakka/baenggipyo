@@ -5,6 +5,8 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 
 ## Unreleased
 
+## 0.6.0 — 2026-11-01
+
 ### 추가
 
 - 네이버 국내선 `price_per_child_krw`: 대표 운임의 소아 1인 요금 (소아를 넣어 찾았을 때만). 유아가 있어 `total_price_krw` 가 `null` 일 때 유아를 뺀
