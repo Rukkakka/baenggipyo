@@ -69,6 +69,7 @@ from baenggipyo.providers.naver.service.common import (
     flight_number_of,
     hour_slots,
     incomplete_note,
+    no_sellers_error,
     partner_names,
     seller_type_of,
     trip_type_of,
@@ -103,6 +104,8 @@ CABIN_LETTER_BY_LABEL: dict[CabinClass, str] = {
     '비즈니스석': 'C',
 }
 CABIN_BY_LETTER: dict[str, CabinClass] = {letter: label for label, letter in CABIN_LETTER_BY_LABEL.items()}
+# 국내선 가격순(minFare)은 카드 할인이 있어도 대표 가격 순이라 국제선처럼 더 받아 다시 세우지 않는다 (2026-11-01 김포↔제주 11/20·22 왕복
+# 50+50편: 카드 할인 있는 편 43·40편이 섞여도 price_per_adult_krw 가 오름차순)
 DOMESTIC_SORT_BY_LABEL: dict[NaverFlightSort, dict[str, int]] = {
     '가격': {'minFare': 1},
     '출발시각': {'segment.departure.time': 1, 'minFare': 1},
@@ -149,6 +152,18 @@ class NaverDomesticItinerary(NaverItinerary):
         int | None,
         Field(description='남은 좌석')
     ] = None
+    price_per_child_krw: Annotated[
+        int | None,
+        Field(description='대표 운임의 소아 1인 요금 (원). 소아를 넣어 찾았을 때만 키가 있고, 그 판매처가 소아 운임을 주지 않으면 null')
+    ] = None
+    with_children: Annotated[
+        bool,
+        Field(exclude=True, description='소아를 넣어 찾았는지 (출력하지 않음)')
+    ] = False
+
+    def not_applicable_fields(self) -> frozenset[str]:
+        fields = super().not_applicable_fields()
+        return fields if self.with_children else fields | {'price_per_child_krw'}
 
     def brief_omitted_fields(self) -> frozenset[str]:
         # 방향은 왕복이면 legs[].direction 에 있고, 편도는 늘 가는 편이다
@@ -460,6 +475,10 @@ def _itinerary(
         direction=DIRECTION_LABELS[direction],
         seat_class=SEAT_CLASS_LABELS.get(flight.seat_class, flight.seat_class),
         seats_left=flight.seat_count,
+        # 유아가 있으면 합계가 null 이라, 소아 요금이 없으면 유아를 뺀 금액도 알 수 없다 (2026-11-01 실사용 검증: 에이전트가 소아를 성인 요금으로
+        # 추정했다). 소아 운임 0 은 그 판매처가 소아 운임을 주지 않는 것이다 (fare_total 과 같다)
+        price_per_child_krw=fare_per_person(general)[1] if general and general.child_fare else None,
+        with_children=bool(conditions.children),
     )
 
 
@@ -539,6 +558,7 @@ def search_domestic_flights(
         label = f'{DIRECTION_LABELS[direction]}: ' if len(legs) == 2 else ''
         notes += [f'{label}{note}' for note in _search_note(event.status)]
         leg = legs[index]
+        # 서버가 limit 만큼 준 편을 그대로 낸다. 운임 없는 편·남은 좌석 0·같은 ID 는 없었다 (2026-11-01 김포↔제주 11/20·22 왕복 limit 50: 50+50편)
         itineraries = [
             _itinerary(flight, status, partners, legs=legs, conditions=conditions, direction=direction)
             for flight in event.flights
@@ -561,7 +581,10 @@ def search_domestic_flights(
             '국내선 왕복은 가는 편과 오는 편을 하나씩 고릅니다. 가격은 편마다 따로이고, 두 편의 id 를 함께 flight 에 넣으면 왕복 예약 가격이 나옵니다'
         )
     if conditions.infants:
-        notes.append('유아 운임은 네이버가 계산에 넣지 않아 total_price_krw 가 null 입니다')
+        notes.append(
+            '유아 운임은 네이버가 계산에 넣지 않아 total_price_krw 가 null 입니다'
+            + (' (성인·소아 1인 요금은 price_per_adult_krw·price_per_child_krw)' if conditions.children else ' (price_per_adult_krw 는 성인 1인 요금)')
+        )
     summary = _summary(legs, conditions)
     if len(legs) == 1:
         return NaverDomesticOneWayResult(search=summary, returned=results[0].returned, itineraries=results[0].itineraries, notes=notes)
@@ -601,6 +624,7 @@ def _find_flight(
             legs, conditions, direction=direction, sort='가격', limit=DETAIL_FETCH_LIMIT, initial=True,
             seat_classes=[seat_class], airlines=airlines,
         ))
+    # 다시 찾은 편에 운임이 하나도 없는 경우는 따로 거르지 않는다. 검색 결과 편은 모두 운임이 있었다 (2026-11-01 김포↔제주 왕복 50+50편)
     flight = next((flight for flight in event.flights if flight.itinerary_id == itinerary_id and flight.seat_class == seat_class), None)
     if flight is None:
         # 시간 상한에 끊긴 검색에 없는 것은 매진이 아니다 (국제선 get_flight 와 같다)
@@ -717,10 +741,6 @@ def get_domestic_flights(
         # 끊긴 캐시 조회·다시 검색에서 찾은 편은 응답한 판매처의 운임만 담겨 있다. 판매처 목록과 가격이 일부 판매처만으로 정해진다
         notes += [f'{DIRECTION_LABELS[direction]}: {note}' for note in _search_note(status, missing='더 싼 판매처 운임')]
     flights = [flight for flight, _, _ in found]
-    itineraries = [
-        _itinerary(flight, status, partners, legs=legs, conditions=conditions, direction=direction)
-        for (flight, status, _), (_, _, direction, _, _, _) in zip(found, parsed)
-    ]
     # 판매처마다 고른 편 전부를 파는 운임 (편마다 그 판매처의 최저 운임)
     per_agent: dict[str, list[tuple[NaverDomesticFlightModel, NaverDomesticFareModel]]] = {}
     for flight in flights:
@@ -763,6 +783,8 @@ def get_domestic_flights(
         )
     response = client.run_request_booking_options_domestic(payload)
     options = unwrap_graphql(response, response.data.booking_options if response.data else None, '국내선 판매처')
+    if (ota_fares or combined_fares) and not options.ota_list and not options.combined:
+        raise no_sellers_error(len(ota_fares) + len(combined_fares), '국내선 판매처 조회')
     per_adult = {agt: sum(fare_per_person(fare)[0] for _, fare in pairs) for agt, pairs in whole.items()}
     total_known = {agt: _pairs_total(pairs, conditions) is not None for agt, pairs in whole.items()}
     offers = [
@@ -772,8 +794,10 @@ def get_domestic_flights(
     # 따로 예약하는 조합은 편마다 한 줄씩 온다. 넘긴 순서(가는 편, 오는 편)와 판매처로 어느 편인지 붙인다
     direction_by_agent = {fare.ota_id: label for fare, label in zip(combined_fares, ('가는 편', '오는 편'))}
     combined_known = {best.agt_code: fare_total(best, conditions) is not None for best in combined_bests}
+    # 줄마다 그 편의 성인 1인 요금. 유아가 있으면 합계가 null 이라 이 값이 없으면 가장 싼 조합의 가격이 offers 에 없다
+    combined_per_adult = {best.agt_code: fare_per_person(best)[0] for best in combined_bests}
     combined = [
-        _offer(ota, f"{direction_by_agent.get(ota.ota_id, '한 편')}만 (다른 편은 다른 판매처에서 따로 예약)", None,
+        _offer(ota, f"{direction_by_agent.get(ota.ota_id, '한 편')}만 (다른 편은 다른 판매처에서 따로 예약)", combined_per_adult.get(ota.ota_id),
                total_known=combined_known.get(ota.ota_id, False))
         for ota in options.combined if ota.active is None or ota.active.realtime is not False
     ]
@@ -793,14 +817,30 @@ def get_domestic_flights(
     # 국제선처럼 사이트를 따라 뺀 판매처 수를 알린다. 알리지 않으면 판매처가 모두 빠졌을 때 빈 offers 가 파는 곳이 없다고 읽힌다
     hidden = {ota.ota_id for ota in [*options.ota_list, *options.combined] if ota.active is not None and ota.active.realtime is False}
     if hidden:
-        notes.append(f'실시간 가격을 주지 않는 판매처 {len(hidden)}곳은 사이트처럼 뺐습니다' + (' (남은 판매처가 없어 offers 가 비었습니다)' if not fares else ''))
+        notes.append(
+            f'실시간 가격을 주지 않는 판매처 {len(hidden)}곳은 사이트처럼 뺐습니다. 대표 가격도 남은 판매처로 정해 search flights 의 가격·seller_count 와 '
+            '다를 수 있습니다' + (' (남은 판매처가 없어 offers 가 비었습니다)' if not fares else '')
+        )
+    # 편의 대표 가격·cheapest_seller·카드 할인도 뺀 판매처의 운임 없이 정한다 (국제선 get_flight 와 같다). 뺀 판매처가 가장 싸면 그 가격을
+    # offers 의 어느 판매처에서도 살 수 없다. 국내선에서 실시간이 아닌 판매처는 2026-11-01 편 6개(판매처 1~14곳)에 없어 가짜 응답으로 확인했다
+    itineraries = [
+        _itinerary(
+            flight.model_copy(update={'fares': [fare for fare in flight.fares if fare.agt_code not in hidden]}),
+            status, partners, legs=legs, conditions=conditions, direction=direction,
+        )
+        for (flight, status, _), (_, _, direction, _, _, _) in zip(found, parsed)
+    ]
     if len(fares) > offer_limit:
         notes.append(f'판매처 운임 {len(fares)}개 중 앞의 {offer_limit}개만 보여 줍니다 (--limit 최대 {MAX_OFFER_LIMIT})')
     shown = shown_offers(fares, offer_limit, url_limit)
     notes.extend(url_omitted_notes(shown, url_limit))
     totals = [itinerary.total_price_krw for itinerary in itineraries]
     if conditions.infants:
-        notes.append('유아 운임은 네이버가 주지 않아 total_price_krw 가 null 입니다 (price_per_adult_krw 는 성인 1인 요금)')
+        notes.append(
+            '유아 운임은 네이버가 주지 않아 total_price_krw 가 null 입니다'
+            + (' (성인·소아 1인 요금은 flights[] 의 price_per_adult_krw·price_per_child_krw)' if conditions.children
+               else ' (price_per_adult_krw 는 성인 1인 요금)')
+        )
     booking = NaverDomesticBooking(
         trip_type='왕복' if len(flights) == 2 else '편도',
         url=domestic_results_url(legs, conditions),

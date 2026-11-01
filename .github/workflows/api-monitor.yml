@@ -24,9 +24,9 @@ jobs:
   check:
     name: 조회 (${{ matrix.group }})
     runs-on: ubuntu-latest
-    # 명령 하나의 시간 상한(api_check.py COMMAND_TIMEOUT_SECONDS 300초) × 가장 긴 묶음(네이버 8개) = 40분보다 길게 둔다.
-    # 잡이 상한에 끊기면 결과 파일이 없어 고장으로 판정된다
-    timeout-minutes: 50
+    # 명령 하나의 시간 상한(api_check.py COMMAND_TIMEOUT_SECONDS 300초) × 가장 긴 묶음(네이버 12개) = 60분보다 길게 둔다.
+    # 잡이 상한에 끊기면 결과 파일이 없어 고장으로 판정된다. 평소에는 2분 안팎에 끝난다 (2026-10 실행 기록)
+    timeout-minutes: 65
     strategy:
       fail-fast: false
       matrix:

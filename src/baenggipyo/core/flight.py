@@ -231,14 +231,20 @@ class FlightModel(BaseModel):
         """요약에서 빼는 필드 (같은 결과의 다른 곳에 있거나 고르는 데 필요 없는 값). 서브클래스가 넓힌다."""
         return frozenset()
 
+    def restore_brief(self, data: dict[str, Any]) -> None:
+        """요약에서 하위 값이 뺀 키 중 이 값 안에서만 필요하다고 알 수 있는 것을 `data` 에 되돌린다. 서브클래스가 넓힌다."""
+
     @model_serializer(mode='wrap')
     def drop_fields(self, handler: SerializerFunctionWrapHandler, info: SerializationInfo) -> dict[str, Any]:
         data: dict[str, Any] = handler(self)
         omitted = self.not_applicable_fields()
-        if info.context and info.context.get(BRIEF_CONTEXT_KEY):
+        brief = bool(info.context and info.context.get(BRIEF_CONTEXT_KEY))
+        if brief:
             omitted = omitted | self.brief_omitted_fields()
         for field in omitted:
             data.pop(field, None)
+        if brief:
+            self.restore_brief(data)
         return data
 
 
@@ -319,12 +325,29 @@ def _only_airport(city: tuple[CandidateT, Airport], airports: list[tuple[Candida
     return next((candidate for candidate, airport in airports if airport.type == '공항' and airport.code == codes[0]), None)
 
 
+def _same_airport(airports: list[tuple[CandidateT, Airport]]) -> CandidateT | None:
+    """후보가 모두 같은 공항 하나를 가리키면 그 공항 후보. 공항이 하나뿐인 도시는 그 공항으로 본다. 아니면 None.
+
+    네이버 '김해' 는 도시 부산(`PUS`, airports [PUS])과 김해국제공항(`PUS`)을 준다. 이름이 똑같은 후보가 없어 모호하다고 했는데 둘은 같은 곳이다
+    (2026-11-01 실사용 검증: 에이전트가 AIRPORT_AMBIGUOUS 를 받고 PUS 로 다시 불렀다). 공항 목록을 주지 않는 소스(스카이스캐너)는 바뀌지 않는다.
+    """
+    places = {
+        airport.code if airport.type == '공항' else (airport.airports[0] if airport.airports and len(airport.airports) == 1 else None)
+        for _, airport in airports
+    }
+    if len(places) != 1 or None in places:
+        return None
+    code = places.pop()
+    return next((candidate for candidate, airport in airports if airport.type == '공항' and airport.code == code), None)
+
+
 def pick_place(text: str, candidates: list[CandidateT], to_airport: Callable[[CandidateT], Airport]) -> CandidateT:
     """출발·도착지 입력에 맞는 자동완성 후보 하나를 고른다. 두 소스가 같은 규칙을 쓴다.
 
     - 3글자 코드면 같은 코드의 공항을 먼저 고르고(ICN, BKK), 공항이 없으면 도시(SEL, TYO)를 고른다.
     - 이름이면 이름이 똑같은 도시, 없으면 이름이 똑같은 공항을 고른다. 그래도 정하지 못하면 후보가 하나일 때만 그것을 쓴다.
     - 고른 도시의 공항이 하나뿐이면 그 공항으로 찾는다 (`_only_airport`, 네이버 '인천' → 인천국제공항).
+    - 이름이 똑같은 후보가 없어도 후보가 모두 같은 공항 하나를 가리키면 그 공항을 고른다 (`_same_airport`, 네이버 '김해' → 김해국제공항).
     - 이름이 똑같은 후보가 여럿이면 고르지 않는다 (네이버 '포틀랜드' → 도시 PDX·PWM 이 이름까지 같다, 2026-10-12 실측).
     - 3글자 입력이 어느 후보의 코드·이름과도 맞지 않으면 후보가 하나여도 쓰지 않는다. 코드로 준 것이라 다른 곳이다
       (네이버 'SEO' → 서울 SEL 하나뿐이라 서울로 찾았다, 2026-10-11 실측).
@@ -367,6 +390,9 @@ def pick_place(text: str, candidates: list[CandidateT], to_airport: Callable[[Ca
         )
     if len(candidates) == 1:
         return candidates[0]
+    same = _same_airport(airports)
+    if same is not None:
+        return same
     raise AirportAmbiguousError(text, labels, len(candidates))
 
 
@@ -487,6 +513,7 @@ class Segment(FlightModel):
 
     def brief_omitted_fields(self) -> frozenset[str]:
         # 편명·항공사(코드셰어면 운항 항공사)만 남긴다. 코드는 편명 앞에 있고, 공항·시각은 여정과 경유 공항에 있다 (직항이면 여정과 똑같다).
+        # 공항을 옮겨 갈아타는 곳의 공항은 여정이 되돌린다 (`Journey.restore_brief`).
         # 편명을 모르면 판매 항공사 코드를, 운항 항공사 이름을 모르면 운항 항공사 코드를 남긴다 (빼면 요약에서 그 항공사를 알 수 없다)
         omitted = {'departure_airport', 'arrival_airport', 'departure_at', 'arrival_at', 'duration_minutes', 'aircraft'}
         if self.flight_number is not None:
@@ -531,6 +558,14 @@ class Journey(FlightModel):
         list[Segment],
         Field(description='비행 구간')
     ]
+
+    def restore_brief(self, data: dict[str, Any]) -> None:
+        # 공항을 옮겨 갈아타면(베이징 다싱 도착 → 수도공항 출발) stopover_airports 에는 내리는 공항만 있다. 요약이 뺀 구간 공항 중
+        # 바뀌는 두 끝(앞 구간 도착, 뒤 구간 출발)만 남긴다 (2026-11-01 서울→뉴욕 50개 중 3개, 서울→런던 50개 중 4개)
+        for index, (before, after) in enumerate(zip(self.segments, self.segments[1:])):
+            if before.arrival_airport and after.departure_airport and before.arrival_airport != after.departure_airport:
+                data['segments'][index]['arrival_airport'] = before.arrival_airport
+                data['segments'][index + 1]['departure_airport'] = after.departure_airport
 
 
 class Itinerary(FlightModel):

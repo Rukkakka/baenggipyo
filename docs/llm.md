@@ -50,7 +50,7 @@
 | `RATE_LIMITED` | 바로 다시 부르지 않는다. `retry_after_seconds` 만큼 기다리거나 다른 소스를 쓴다 |
 | `NETWORK_ERROR` | 잠시 뒤 한 번만 다시 부른다 |
 | `UPSTREAM_ERROR`, `PARSE_ERROR` | 다른 소스를 쓰고 업데이트(`uv tool upgrade baenggipyo`)를 권한다. `reason: SEARCH_INCOMPLETE` 는 잠시 뒤 한 번 다시 부른다 |
-| `INTERNAL_ERROR`, `CLI_ERROR` | 에러 JSON 을 `baenggipyo --version` 과 함께 사용자에게 보여 준다. `hint` 가 `PYTHONUTF8=1` 이면 붙여 한 번 다시 부른다 |
+| `INTERNAL_ERROR`, `CLI_ERROR` | 에러 JSON 을 `baenggipyo --version` 과 함께 사용자에게 보여 준다. `hint` 가 `PYTHONUTF8=1` 이면 붙여 한 번 다시 부른다. `BAENGGIPYO_STATE_DIR` 이면 다른 소스도 같이 실패하니, 쓸 수 있는 절대 경로를 붙여 한 번 다시 부른다 |
 
 더 자세한 설명: [공통 규칙](https://github.com/Rukkakka/baenggipyo/blob/main/docs/common.md) · [네이버](https://github.com/Rukkakka/baenggipyo/blob/main/docs/naver.md) · [스카이스캐너](https://github.com/Rukkakka/baenggipyo/blob/main/docs/skyscanner.md)
 
@@ -60,6 +60,7 @@
 
 - **국내선 왕복은 결과 모양이 다르다.** `itineraries` 대신 `legs[]`(가는 편·오는 편)에서 하나씩 고르고, 가격은 편마다 따로다. 두 편의 `id` 를 함께 넣으면(`flight <가는 편 id> <오는 편 id>`) 왕복 예약 판매처와 가격이 나온다. 국내선 편도는 국제선과 같은 `itineraries` 다.
 - 국내선은 공항 코드로 찾는다 (서울은 `GMP`). 국내선 다구간과 국내·국제가 섞인 노선은 `ROUTE_NOT_SUPPORTED` 다.
+- 국내선에 유아가 있으면 네이버가 유아 운임을 주지 않아 `total_price_krw` 가 `null` 이다. 유아를 뺀 금액은 `price_per_adult_krw`·`price_per_child_krw` × 인원으로 말하고, 유아 요금은 예약 화면에서 확인하라고 한다. 소아 요금을 성인 요금으로 짐작하지 않는다.
 - `search flights` 는 10~20초 걸린다. 같은 검색을 되풀이하지 않는다.
 - 대표 가격은 어떤 결제수단으로도 받는 운임의 최저가다. `card_discount_price_krw` 는 특정 카드·결제수단으로만(실적 조건이 붙기도 한다) 받는 성인 1인 가격이라, 대표 가격처럼 말하지 말고 `card_discount_name` 과 함께 알린다.
 - `flight` 의 `offers` 는 모든 결제수단 운임이 먼저, 카드 조건 운임이 뒤다. 검색 뒤 15분이 지났으면 다시 검색하고 `notes` 로 알린다.

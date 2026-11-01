@@ -44,6 +44,7 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 | `HTTPStatusError` 404 / 429 / 그 밖 | `NOT_FOUND` / `RATE_LIMITED` / `UPSTREAM_ERROR` | 1 |
 | 그 밖의 `HTTPError` | `NETWORK_ERROR` | 1 |
 | `UnicodeEncodeError` (결과를 쓰는 출력 인코딩이 UTF-8 이 아님. PYTHONUTF8 없는 Windows 파이프의 cp949) | `INTERNAL_ERROR` (hint: `PYTHONUTF8=1`) | 1 |
+| 요청 제한 상태 디렉터리를 만들거나 쓰지 못함 (`StateDirError`, 읽기 전용 홈·샌드박스. 모든 소스가 같이 실패한다) | `INTERNAL_ERROR` (hint: `BAENGGIPYO_STATE_DIR`) | 1 |
 | 그 밖의 `ValueError` (JSON 아닌 응답의 `JSONDecodeError`, 이벤트 없는 SSE 등), `LookupError` (응답이 예상과 달라도, 내부 버그여도 나서 가를 수 없다. hint 에 `--verbose` 로 다시 실행하라고 덧붙인다) | `PARSE_ERROR` | 1 |
 | 그 밖의 모든 예외 | `INTERNAL_ERROR` | 1 |
 | Click `UsageError` (`run()` 에서) | `INVALID_ARGUMENT` | 2 |

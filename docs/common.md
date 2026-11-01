@@ -71,7 +71,8 @@
 - 항공권의 `source`·`trip_type`·`cabin`(결과의 `search` 에 있다)과 `url`(`search.url` 이나 `flight <id>` 로 연다)
 - 비행 구간(`segments[]`)의 공항·시각·소요 시간·기종·항공사 코드. `airline`·`flight_number`, 코드셰어면 `operating_airline` 만 남는다
   (직항이면 공항·시각이 여정과 똑같고, 경유편은 `stopover_airports` 로 경유지를 본다). 편명이 `null` 이면 `airline_code` 를, 운항 항공사 이름이
-  `null` 이면 `operating_airline_code` 를 남긴다
+  `null` 이면 `operating_airline_code` 를 남긴다. 공항을 옮겨 갈아타면(베이징 다싱에 내려 수도공항에서 탑승) `stopover_airports` 에는 내리는
+  공항만 있으므로, 그 앞 구간의 `arrival_airport` 와 뒤 구간의 `departure_airport` 를 남긴다
 - 네이버 국내선 편의 `direction` (왕복은 `legs[].direction` 에 있고, 편도는 늘 가는 편이다)
 
 뺀 값(구간별 시각으로 보는 경유 대기 시간, 기종 등)이 필요하면 `--full` 로 다시 찾는다. 2026-10-20 인천→간사이 편도 10건이 `--full` 9,676자, 기본
@@ -96,7 +97,7 @@
 | `RATE_LIMITED` | 로컬 요청 예산 초과 또는 429 이후 쿨다운 | `retry_after_seconds`가 있으면 해당 시간만큼 대기. 없으면 `hint`와 `baenggipyo limits` 확인 |
 | `NETWORK_ERROR` | 연결·타임아웃 등 전송 실패 | 네트워크 상태 확인 후 재시도 |
 | `UPSTREAM_ERROR`, `PARSE_ERROR` | API 거절·응답 구조 변경·봇 차단 페이지·파싱 실패 | 힌트 확인, 다른 소스 사용 또는 버전 갱신 |
-| `INTERNAL_ERROR` | 처리하지 못한 실행 오류. 출력 인코딩이 UTF-8 이 아니라 결과를 쓰지 못한 경우도 (Windows) | 에러 내용을 보존해 원인 확인. 출력 인코딩 오류면 hint 대로 `PYTHONUTF8=1` 을 설정하고 다시 실행 |
+| `INTERNAL_ERROR` | 처리하지 못한 실행 오류. 출력 인코딩이 UTF-8 이 아니라 결과를 쓰지 못한 경우(Windows), 요청 제한 상태 디렉터리에 쓰지 못한 경우도 | 에러 내용을 보존해 원인 확인. 출력 인코딩 오류면 hint 대로 `PYTHONUTF8=1` 을, 상태 디렉터리 오류면 쓸 수 있는 절대 경로를 `BAENGGIPYO_STATE_DIR` 로 설정하고 다시 실행 (상태 디렉터리 오류는 다른 소스도 같이 실패한다) |
 | `CLI_ERROR` | 사용법 오류가 아닌 CLI 처리 오류 (지금 명령에서는 나오지 않음) | 에러 내용을 보존해 원인 확인 |
 | `INTERRUPTED` | Ctrl+C 등 호출 중단 | 필요하면 같은 명령을 다시 실행 |
 

@@ -27,7 +27,9 @@
 
 ### 봇 차단
 
-- 홈 페이지가 PerimeterX 스크립트(`/rf8vapwA/init.js`)와 `_pxhd` 쿠키를 준다. baenggipyo 는 쿠키를 받거나 보내지 않는다.
+- 홈 페이지가 PerimeterX 스크립트(`/rf8vapwA/init.js`)와 `_pxhd` 쿠키를 준다. baenggipyo 는 홈 페이지를 열지 않아 이 쿠키를 받지 않는다.
+  다만 검색 응답(`radar`)은 세션 쿠키 `__Secure-session_id` 를 주고, httpx 기본 동작대로 클라이언트가 들고 있다가 같은 명령의 다음 요청에 다시 보낼 수
+  있다 (ICN→BKK 12/4 검색, 2026-11-01. 자동완성 응답에는 쿠키가 없었다). 명령이 끝나면 버리고 파일에 남기지 않는다.
 - 차단 응답은 `403 {"reason": "blocked", "redirect_to": "/sttc/px/captcha-v2/index.html?url=…&uuid=…"}` 다. 몇 시간씩 이어지기도 하고, 거듭 막힐수록
   길어지는 것으로 보인다.
 - 차단은 우회하지 않는다. `SkyscannerClient` 의 응답 훅(`_check_blocked`)이 403 본문의 `"blocked"`·`captcha` 로 알아보고 요청 제한 쿨다운(30분, 거듭되면 두 배씩 최대 4시간)을
@@ -86,9 +88,11 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
     `stopCount`, `timeDeltaInDays`, `carriers.marketing[]`, `segments[]` — `flightNumber`, `marketingCarrier`·`operatingCarrier`(`displayCode`
     가 IATA 항공사 코드, 예 에어서울 `RS`; `alternateId` 는 스카이스캐너 내부 코드). 운항 항공사 코드가 둘 다 비면 판매·운항 항공사 이름이 둘 다 있고
     다를 때만 공동운항으로 보고 `operating_airline_code` 를 `null` 로 낸다 (`core.flight.Segment`). ICN→FUK 편도 96건의 구간 175개는 모두 운항 항공사
-    코드가 있었다 (2026-10-19).
+    코드가 있었다 (2026-10-19). ICN→BKK 12/4 편도 253건의 구간 510개도 판매·운항 항공사 `displayCode` 가 모두 있었다 (2026-11-01). 그래서
+    `displayCode` 가 빌 때 `alternateId` 로 채우는 경로(`_segment`)는 실측에서 쓰인 적이 없다.
   - `pricingOptions[]`: 판매처마다 `agentIds`, `price.amount`, `price.updateStatus`(`current`), `items[].url`(예약 딥링크,
     `/transport_deeplink/4.0/KR/ko-KR/KRW/…`), `items[].bookingProposition`(`PBOOK`). 실측 항공권 184개 중 89개가 판매처 5곳 이상.
+    `updateStatus` 는 판매 가능 판정에 쓰지 않는다. ICN→BKK 12/4 편도 운임 1,728개가 모두 `current` 였다 (2026-11-01).
 - 판매처 이름은 `itineraries.agents[]`(`id`, `name`, `isCarrier` = 항공사 직판 여부, `rating`)에 있다 (실측 49곳).
 - **판매처별 가격이 검색 결과에 이미 들어 있어 `flight` 는 따로 부를 API 가 없다.** 대신 세션이 없으면 결과를 다시 볼 수 없다.
   `sessionId` 를 나중에 다시 GET 했을 때 언제까지 결과를 주는지는 구현할 때 확인한다.
@@ -160,6 +164,8 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
   `offers` 와 `seller_count` 에서 빼고 뺀 수를 `notes` 로 알린다 (`_priced_options`). 전에는 `버진애틀랜틱항공 0원` 이 맨 앞에 나왔다.
   판매처 운임이 **모두** 가격 없음인 항공권은 살 수 있는 가격이 없어 `search flights` 가 빼고 그 수를 `notes` 로 알리며, `flight` 는 결과에 없는 것
   (`NOT_IN_RESULTS`)으로 낸다. ICN→BCN 203건에는 없었고(일부 운임만 가격 없음 36건) 대표 가격이 가격 없음 운임인 것도 없었다 (2026-10-11).
+  ICN→BKK 12/4 편도 253건도 가격 없음 운임 49개(`itinerary_not_returned` 36, `partner_not_selected` 13)는 있었지만 대표 가격(`price.raw`)이 0 인
+  항공권은 없었다 (2026-11-01). 그래서 대표 가격은 0 을 따로 거르지 않는다.
 - **판매처 수**: `seller_count` 는 가격을 준 운임 수다. 한 판매처 운임은 판매처마다 하나라 판매처 수와 같다 (ICN→BCN 203건 모두, 2026-10-11).
   판매처 여러 곳에서 따로 예약하는 조합(아래)은 운임 하나로 센다.
 - **대표 가격의 판매처**: `cheapest_seller` 는 `price.pricingOptionId` 와 운임 ID 가 같은 판매처 운임의 판매처다. 대표 가격에 운임 ID 가 없으면 어느

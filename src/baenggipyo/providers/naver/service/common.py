@@ -187,6 +187,19 @@ def unwrap_graphql(response: NaverGraphQLResponseModel, value: T | None, what: s
     return value
 
 
+def no_sellers_error(fare_count: int, what: str) -> BaenggipyoError:
+    """운임을 보냈는데 판매처 조회가 판매처를 하나도 돌려주지 않았을 때의 에러 (`UPSTREAM_ERROR`).
+
+    서버가 요청을 받아들이지 않은 것이다. 빈 offers 로 내면 파는 곳이 없다고 읽힌다. 예약 URL 서명이 빠졌을 때 에러 없이 빈 목록이 왔다
+    (2026-10-30 ICN→NRT 운임 122개: 서명 없이 0곳, 넣으면 122곳).
+    """
+    return BaenggipyoError(
+        code='UPSTREAM_ERROR',
+        message=f'네이버 {what}가 운임 {fare_count}개를 받고 판매처를 하나도 돌려주지 않았습니다',
+        hint='네이버 항공권 API 가 바뀌었을 수 있습니다. 스카이스캐너를 쓰거나 baenggipyo 를 업데이트하세요',
+    )
+
+
 NaverFlightSort = Literal['가격', '출발시각', '소요시간']
 
 # 서버 정렬 키. 셋 다 서버가 적용한다 (2026-10-11 실측 ICN→NRT: departureTime 은 출발 시각순, departureDurationSecond 는 소요
