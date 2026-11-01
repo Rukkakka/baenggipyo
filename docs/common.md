@@ -71,7 +71,8 @@
 - 항공권의 `source`·`trip_type`·`cabin`(결과의 `search` 에 있다)과 `url`(`search.url` 이나 `flight <id>` 로 연다)
 - 비행 구간(`segments[]`)의 공항·시각·소요 시간·기종·항공사 코드. `airline`·`flight_number`, 코드셰어면 `operating_airline` 만 남는다
   (직항이면 공항·시각이 여정과 똑같고, 경유편은 `stopover_airports` 로 경유지를 본다). 편명이 `null` 이면 `airline_code` 를, 운항 항공사 이름이
-  `null` 이면 `operating_airline_code` 를 남긴다
+  `null` 이면 `operating_airline_code` 를 남긴다. 공항을 옮겨 갈아타면(베이징 다싱에 내려 수도공항에서 탑승) `stopover_airports` 에는 내리는
+  공항만 있으므로, 그 앞 구간의 `arrival_airport` 와 뒤 구간의 `departure_airport` 를 남긴다
 - 네이버 국내선 편의 `direction` (왕복은 `legs[].direction` 에 있고, 편도는 늘 가는 편이다)
 
 뺀 값(구간별 시각으로 보는 경유 대기 시간, 기종 등)이 필요하면 `--full` 로 다시 찾는다. 2026-10-20 인천→간사이 편도 10건이 `--full` 9,676자, 기본

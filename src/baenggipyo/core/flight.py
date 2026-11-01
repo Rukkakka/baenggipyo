@@ -231,14 +231,20 @@ class FlightModel(BaseModel):
         """요약에서 빼는 필드 (같은 결과의 다른 곳에 있거나 고르는 데 필요 없는 값). 서브클래스가 넓힌다."""
         return frozenset()
 
+    def restore_brief(self, data: dict[str, Any]) -> None:
+        """요약에서 하위 값이 뺀 키 중 이 값 안에서만 필요하다고 알 수 있는 것을 `data` 에 되돌린다. 서브클래스가 넓힌다."""
+
     @model_serializer(mode='wrap')
     def drop_fields(self, handler: SerializerFunctionWrapHandler, info: SerializationInfo) -> dict[str, Any]:
         data: dict[str, Any] = handler(self)
         omitted = self.not_applicable_fields()
-        if info.context and info.context.get(BRIEF_CONTEXT_KEY):
+        brief = bool(info.context and info.context.get(BRIEF_CONTEXT_KEY))
+        if brief:
             omitted = omitted | self.brief_omitted_fields()
         for field in omitted:
             data.pop(field, None)
+        if brief:
+            self.restore_brief(data)
         return data
 
 
@@ -487,6 +493,7 @@ class Segment(FlightModel):
 
     def brief_omitted_fields(self) -> frozenset[str]:
         # 편명·항공사(코드셰어면 운항 항공사)만 남긴다. 코드는 편명 앞에 있고, 공항·시각은 여정과 경유 공항에 있다 (직항이면 여정과 똑같다).
+        # 공항을 옮겨 갈아타는 곳의 공항은 여정이 되돌린다 (`Journey.restore_brief`).
         # 편명을 모르면 판매 항공사 코드를, 운항 항공사 이름을 모르면 운항 항공사 코드를 남긴다 (빼면 요약에서 그 항공사를 알 수 없다)
         omitted = {'departure_airport', 'arrival_airport', 'departure_at', 'arrival_at', 'duration_minutes', 'aircraft'}
         if self.flight_number is not None:
@@ -531,6 +538,14 @@ class Journey(FlightModel):
         list[Segment],
         Field(description='비행 구간')
     ]
+
+    def restore_brief(self, data: dict[str, Any]) -> None:
+        # 공항을 옮겨 갈아타면(베이징 다싱 도착 → 수도공항 출발) stopover_airports 에는 내리는 공항만 있다. 요약이 뺀 구간 공항 중
+        # 바뀌는 두 끝(앞 구간 도착, 뒤 구간 출발)만 남긴다 (2026-11-01 서울→뉴욕 50개 중 3개, 서울→런던 50개 중 4개)
+        for index, (before, after) in enumerate(zip(self.segments, self.segments[1:])):
+            if before.arrival_airport and after.departure_airport and before.arrival_airport != after.departure_airport:
+                data['segments'][index]['arrival_airport'] = before.arrival_airport
+                data['segments'][index + 1]['departure_airport'] = after.departure_airport
 
 
 class Itinerary(FlightModel):

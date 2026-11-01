@@ -20,8 +20,11 @@ from baenggipyo.core.errors import (
     BaenggipyoError,
 )
 from baenggipyo.core.flight import (
+    BRIEF_CONTEXT_KEY,
     Airport,
+    Journey,
     Offer,
+    Segment,
     check_place_inputs,
     pick_place,
     resolve_route,
@@ -197,6 +200,21 @@ def test_offer_urls_count_fares_and_never_split_a_combination() -> None:
     assert has_url(None) == [True, True, True, True]
     assert has_url(2) == [True, True, True, False]
     assert has_url(1) == [True, False, False, False]
+
+
+def test_brief_keeps_airports_where_a_connection_changes_airport() -> None:
+    # 공항을 옮겨 갈아타면(다싱 도착 → 수도공항 출발) stopover_airports 에는 내리는 공항만 있다. 요약이 구간 공항을 모두 빼면
+    # 옮겨 타야 한다는 정보가 사라진다 (2026-11-01 서울→뉴욕 50개 중 3개). 같은 공항에서 갈아타는 구간은 예전처럼 뺀다
+    def segment(number: str, origin: str, destination: str) -> Segment:
+        return Segment(airline_code='CA', flight_number=number, departure_airport=origin, arrival_airport=destination)
+
+    journey = Journey(
+        departure_airport='ICN', arrival_airport='JFK', stops=2, stopover_airports=['PKX', 'PVG'],
+        segments=[segment('CA132', 'ICN', 'PKX'), segment('CA1', 'PEK', 'PVG'), segment('CA981', 'PVG', 'JFK')],
+    )
+    brief = journey.model_dump(mode='json', context={BRIEF_CONTEXT_KEY: True})['segments']
+    assert [{key for key in row if key.endswith('_airport')} for row in brief] == [{'arrival_airport'}, {'departure_airport'}, set()]
+    assert (brief[0]['arrival_airport'], brief[1]['departure_airport']) == ('PKX', 'PEK')
 
 
 # --- 매일 API 감시 ---
