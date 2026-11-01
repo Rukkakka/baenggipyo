@@ -81,7 +81,7 @@ baenggipyo skyscanner search flights ICN NRT --depart 2026-11-20 --direct --airl
 | `--offer-urls` | 예약 링크를 붙일 앞쪽 판매처 운임 수 (0 이상, 기본 1. [응답 줄이기](common.md#응답-줄이기)). 링크를 뺀 판매처는 맨 위 `url`(검색 결과 페이지)에서 고른다 |
 
 반환: 항공권 필드 + `offers[]` — `seller`, `seller_type`(`항공사`·`여행사`), `total_price_krw`, `price_per_adult_krw`, `fare_name`(판매처 여러 곳에서 따로
-예약하는 조합일 때만), `url`(스카이스캐너를 거쳐 판매처로 가는 예약 링크).
+예약하는 조합일 때만), `baggage_included`(스카이스캐너가 주지 않아 늘 null), `url`(스카이스캐너를 거쳐 판매처로 가는 예약 링크).
 
 - 스카이스캐너가 가격 없음으로 준 판매처 운임(0원)은 빼고 `notes` 로 알린다. `seller_count` 도 가격을 준 판매처만 센다. 판매처 운임이 모두 가격
   없음이면 `search flights` 처럼 결과에 없는 것으로 보고 `FARE_UNAVAILABLE` 이다.
@@ -116,7 +116,7 @@ baenggipyo skyscanner search flights ICN NRT --depart 2026-11-20 --direct --airl
 | `--limit` | 도시 수 (1~100, 기본 20) |
 
 반환: `origin`, `trip_type`, `month`, `returned`, `destinations[]` — `code`(IATA 코드를 주지 않아 null), `city`, `country`·`country_code`(주면),
-`min_price_krw`, `direct`, `departure_date`·`return_date`(주지 않아 null), `sky_code`(스카이스캐너 도시 코드, 예 `CJUA`).
+`min_price_krw`, `direct`, `departure_date`(주지 않아 null)·`return_date`(왕복만, 주지 않아 null), `sky_code`(스카이스캐너 도시 코드, 예 `CJUA`).
 
 - 지표 가격(추정가)이고 날짜를 주지 않는다. 가격은 그 기간 어느 날의 최저가라 다른 날은 몇 배 비쌀 수 있다 (인천→제주 11월 26,928원은 9·23일 같은
   날의 값이고 15일은 315,865원이었다, 2026-10-20). 고른 도시는 `calendar` 로 그 가격의 날을 찾은 뒤 `search flights` 한다. `--round-trip` 은

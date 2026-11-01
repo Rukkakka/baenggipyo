@@ -178,7 +178,7 @@ def flight_command(
     offer_urls: OfferUrlsOption = DEFAULT_OFFER_URLS,
     pretty: PrettyOption = None,
 ) -> None:
-    """항공권의 판매처별 가격과 예약 링크 (요청 2~3회, 검색 뒤 15분이 지났으면 같은 조건으로 다시 검색한다).
+    """항공권의 판매처별 가격과 예약 링크 (요청 2~4회, 검색 뒤 15분이 지났으면 같은 조건으로 다시 검색한다).
 
     국제선은 id 하나, 국내선은 편 하나(편도) 또는 가는 편·오는 편 둘(왕복 예약 가격)을 받는다.
 
