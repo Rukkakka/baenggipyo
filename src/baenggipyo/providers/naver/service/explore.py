@@ -103,7 +103,7 @@ def explore(
             code=row.destination.airport_code,
             city=row.destination.city_name,
             country_code=row.country_code,
-            min_price_krw=row.min_price,
+            min_price_per_adult_krw=row.min_price,
             direct=row.stops == 0 if row.stops is not None else None,
             departure_date=compact_date(row.departure_date),
             return_date=compact_date(row.return_date),

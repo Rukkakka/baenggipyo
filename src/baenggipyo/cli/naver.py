@@ -217,7 +217,7 @@ def calendar_command(
 ) -> None:
     """한 달의 날짜별 최저가 (요청 3회: 공항 해석 2회 + 달력 1회). 실시간이 아닌 추정가다.
 
-    --trip-days 를 주면 출발일마다 그 일수의 왕복 최저가다.
+    가격(min_price_per_adult_krw)은 성인 1명 기준이다. --trip-days 를 주면 출발일마다 그 일수의 왕복 합계 최저가다.
 
     예: baenggipyo naver calendar ICN NRT --month 2026-11 --trip-days 4
     """
@@ -247,6 +247,8 @@ def explore_command(
     pretty: PrettyOption = None,
 ) -> None:
     """어디든지: 국제선 목적지별 최저가를 싼 순으로 (요청 2회: 공항 해석 + 조회). 실시간이 아닌 추정가다.
+
+    가격(min_price_per_adult_krw)은 성인 1명 기준이고, --trip-days 를 주면 왕복 합계다.
 
     예: baenggipyo naver explore SEL --month 2026-11 --trip-days 4
     """

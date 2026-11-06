@@ -5,6 +5,19 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 
 ## Unreleased
 
+### ⚠️ 호환 깨짐
+
+- `calendar` 의 `days[]`·`cheapest_days[]` 와 `explore` 의 `destinations[]` 에서 `min_price_krw` 를 `min_price_per_adult_krw` 로 바꿈 (두 소스 모두).
+  성인 1명 가격(왕복이면 왕복 합계)인데 이름으로 드러나지 않아, 에이전트가 1인 가격인지 총액인지 알 수 없었다. 읽는 쪽도 새 이름으로 고친다 (#137)
+- 네이버 `search flights`·`flight` 의 `card_discount_price_krw` 를 `card_discount_price_per_adult_krw` 로 바꿈. 성인 1명 가격인데 이름으로 드러나지
+  않아 총액(`total_price_krw`)과 섞여 읽혔다. 읽는 쪽도 새 이름으로 고친다 (#137)
+
+### 수정
+
+- 문서: LLM 가이드(`baenggipyo guide naver`)·`docs/naver.md` 에 `H1`(한 에어 시스템) 같은 발권 전용 항공사 편을 고를 수 있는 항공사로 세지 않게
+  안내한다. 네이버가 운항 항공사도 H1 로 줘서 `operating_airline` 이 없어, 실제로 어느 항공사 비행기인지 결과에 드러나지 않는다 (#138)
+- 문서: LLM 가이드에 `calendar`·`explore` 가격이 성인 1명 기준(왕복이면 왕복 합계)이라 여러 명이면 성인 수를 곱한 값보다 비쌀 수 있다는 안내 (#137)
+
 ## 0.6.0 — 2026-11-01
 
 ### 추가

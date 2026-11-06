@@ -109,6 +109,7 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
 - `POST /g/search-intent/v1/pricecalendar/month` 본문 `{"headers": {…}, "originId": <엔티티 ID>, "destinationId": <엔티티 ID>, "isDirect": false,
   "tripType": "TRIP_TYPE_ONEWAY" 또는 "TRIP_TYPE_RETURN"}` 은 달마다 최저가 하나(`flightPricesPerMonth[]`, `priceCategory`)를 준다.
 - **실시간 가격이 아니다.** 11/15 달력 값 167,334원과 같은 날 검색 최저가 167,504원이 조금 달랐다. 출력에 추정가라고 `notes` 로 알린다.
+- 성인 1명 기준이다 (요청에 승객 항목이 없다). 2026-11-06 ICN→NRT 12/22 달력 103,238원, 같은 날 성인 1명 검색 최저 106,943원.
 
 ### 어디든지
 
@@ -126,7 +127,8 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
   검색 315,470원(직항 없이 경유)이었다 (2026-10-20 실측). 버그가 아니라 날짜를 주지 않는 값이라 `notes` 로 `calendar` 를 먼저 쓰게 안내한다.
   `--round-trip` 은 `calendar` 가 편도만 되어 그 달 날짜로 `search flights` 하게 안내한다.
   지표 가격이 없는 도시(`--direct` 면 직항 지표 가격이 없는 도시)는 싼 순으로 세울 수 없어 빼고 그 수를 `notes` 로 알린다.
-- 가격은 달력처럼 지표 가격(indicative)이다.
+- 가격은 달력처럼 지표 가격(indicative)이다. 성인 1명(요청 `adults` 기본값 1) 기준이고 `--round-trip` 이면 왕복 합계다. 2026-11-06 서울 출발 12월
+  도시 100곳에서 왕복이 편도의 1.48~3.1배(중간값 1.94배)였다.
 
 ### 구현 메모 (2026-10-11 실측)
 

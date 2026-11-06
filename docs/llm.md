@@ -26,7 +26,7 @@
 - 공항 후보: `<소스> search airports <이름>` (후보를 사용자에게 보여 줄 때만)
 - 요청 제한 상태: `baenggipyo limits` (요청 없음)
 
-날짜가 미정이면 `calendar`, 목적지가 미정이면 `explore` 로 고른 뒤 `search flights` → `flight <id>` 로 간다. `calendar`·`explore` 가격은 최근 검색에서 모은 추정가라 `search flights` 로 실제 가격을 확인한다.
+날짜가 미정이면 `calendar`, 목적지가 미정이면 `explore` 로 고른 뒤 `search flights` → `flight <id>` 로 간다. `calendar`·`explore` 가격은 최근 검색에서 모은 추정가라 `search flights` 로 실제 가격을 확인한다. 이 가격(`min_price_per_adult_krw`)은 성인 1명 기준이고 왕복이면 왕복 합계다. 가장 싼 좌석 하나의 값이라 여러 명이면 같은 가격 좌석이 모자라 성인 수를 곱한 값보다 비쌀 수 있다. 곱한 값은 어림값이라고만 말하고, 실제 총액은 `search flights --adults N`(소아·유아도 넣어)으로 확인한다.
 
 ## 응답 줄이기
 
@@ -62,7 +62,8 @@
 - 국내선은 공항 코드로 찾는다 (서울은 `GMP`). 국내선 다구간과 국내·국제가 섞인 노선은 `ROUTE_NOT_SUPPORTED` 다.
 - 국내선에 유아가 있으면 네이버가 유아 운임을 주지 않아 `total_price_krw` 가 `null` 이다. 유아를 뺀 금액은 `price_per_adult_krw`·`price_per_child_krw` × 인원으로 말하고, 유아 요금은 예약 화면에서 확인하라고 한다. 소아 요금을 성인 요금으로 짐작하지 않는다.
 - `search flights` 는 10~20초 걸린다. 같은 검색을 되풀이하지 않는다.
-- 대표 가격은 어떤 결제수단으로도 받는 운임의 최저가다. `card_discount_price_krw` 는 특정 카드·결제수단으로만(실적 조건이 붙기도 한다) 받는 성인 1인 가격이라, 대표 가격처럼 말하지 말고 `card_discount_name` 과 함께 알린다.
+- `H1`(한 에어 시스템)처럼 표만 대신 파는 발권 전용 항공사의 편은 실제로는 다른 항공사가 운항하는데, 네이버가 운항 항공사도 H1 로 줘서 `operating_airline` 이 나오지 않는다. 고를 수 있는 항공사로 세지 않는다. 출발·도착 시각이 같은 다른 항공사 편이 있으면 같은 비행기일 수 있다고만 말하고 단정하지 않는다. 다른 항공사끼리 시각이 우연히 같기도 하고, `--airline`·`--limit` 때문에 실제 운항 편이 결과에 없을 수도 있다. 경유 항공권의 H1 구간은 기본 출력에 구간 시각이 없으니 `--full` 로 본다.
+- 대표 가격은 어떤 결제수단으로도 받는 운임의 최저가다. `card_discount_price_per_adult_krw` 는 특정 카드·결제수단으로만(실적 조건이 붙기도 한다) 받는 성인 1인 가격이라, 대표 가격처럼 말하지 말고 `card_discount_name` 과 함께 알린다.
 - `flight` 의 `offers` 는 모든 결제수단 운임이 먼저, 카드 조건 운임이 뒤다. 검색 뒤 15분이 지났으면 다시 검색하고 `notes` 로 알린다.
 - `--trip-days` 는 가는 날과 오는 날을 모두 센다 (3박 4일 = 4).
 

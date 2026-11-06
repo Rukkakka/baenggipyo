@@ -14,7 +14,7 @@ class SkyscannerCalendarDayModel(ResponseModel):
     ]
     price: Annotated[
         float | None,
-        Field(description='추정 최저가 (원)')
+        Field(description='성인 1명 편도 추정 최저가 (원). 요청에 승객 항목이 없다 (2026-11-06 같은 날 검색과 비교)')
     ] = None
     group: Annotated[
         str | None,

@@ -244,7 +244,7 @@ class NaverFlightConditions(FlightConditions):
 class NaverItinerary(Itinerary):
     """네이버 항공권 한 건. 카드·간편결제 할인 최저가를 대표 가격과 따로 준다."""
 
-    card_discount_price_krw: Annotated[
+    card_discount_price_per_adult_krw: Annotated[
         int | None,
         Field(description='특정 카드·간편결제로만 받는 성인 1인 최저가 (원). 대표 가격보다 싼 할인이 없으면 키가 없다')
     ] = None
@@ -259,8 +259,8 @@ class NaverItinerary(Itinerary):
 
     def not_applicable_fields(self) -> frozenset[str]:
         fields = super().not_applicable_fields()
-        if self.card_discount_price_krw is None:
-            fields = fields | {'card_discount_price_krw', 'card_discount_name', 'card_discount_category'}
+        if self.card_discount_price_per_adult_krw is None:
+            fields = fields | {'card_discount_price_per_adult_krw', 'card_discount_name', 'card_discount_category'}
         return fields
 
 

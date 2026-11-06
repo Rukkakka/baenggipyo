@@ -50,8 +50,8 @@
 | `seller_count`, `cheapest_seller`, `baggage_included` | 판매처 수(판매처 여러 곳에서 따로 예약하는 조합은 하나), 대표 가격의 판매처, 위탁 수하물 포함 여부 |
 | 상세 `offers[]` | 판매처마다 `seller`, `seller_type`, `total_price_krw`, `price_per_adult_krw`, `fare_name`, `baggage_included`, 예약 `url` |
 | 공항 후보 (`search airports`) | `code`, `type`(`공항`·`도시`), `name`, `city`, `country`, `airports`(도시만), `domestic` |
-| 달력 (`calendar` 의 `days[]`, 날짜 순) | `date`, `return_date`(왕복만), `min_price_krw`(추정가). 결과 맨 위 `cheapest_days` 에 같은 모양으로 싼 순 3일 (같은 값이면 이른 날 먼저) |
-| 어디든지 (`explore` 의 `destinations[]`) | `code`(IATA, 스카이스캐너는 주지 않아 null), `city`, `country`, `country_code`, `min_price_krw`(추정가), `direct`, `departure_date`, `return_date`(왕복만) |
+| 달력 (`calendar` 의 `days[]`, 날짜 순) | `date`, `return_date`(왕복만), `min_price_per_adult_krw`(성인 1명 추정가, 왕복이면 왕복 합계). 결과 맨 위 `cheapest_days` 에 같은 모양으로 싼 순 3일 (같은 값이면 이른 날 먼저) |
+| 어디든지 (`explore` 의 `destinations[]`) | `code`(IATA, 스카이스캐너는 주지 않아 null), `city`, `country`, `country_code`, `min_price_per_adult_krw`(성인 1명 추정가, 왕복이면 왕복 합계), `direct`, `departure_date`, `return_date`(왕복만) |
 
 소스에만 있는 필드(네이버 `card_discount_*` 등)는 소스 문서에 있다.
 

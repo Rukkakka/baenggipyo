@@ -97,7 +97,7 @@ baenggipyo skyscanner search flights ICN NRT --depart 2026-11-20 --direct --airl
 | `<출발>`, `<도착>` | IATA 공항·도시 코드 또는 이름 |
 | `--month` | `YYYY-MM` (기본 이번 달) |
 
-반환: `origin`, `destination`, `trip_type`(`편도`), `month`, `returned`, `cheapest_days[]`(싼 순 3일), `days[]`(날짜 순) — `date`, `min_price_krw`.
+반환: `origin`, `destination`, `trip_type`(`편도`), `month`, `returned`, `cheapest_days[]`(싼 순 3일), `days[]`(날짜 순) — `date`, `min_price_per_adult_krw`(성인 1명).
 날마다 직항인지는 스카이스캐너가 주지 않는다.
 
 - **편도만 된다.** 왕복·직항 달력은 [네이버](naver.md#4-calendar--날짜별-최저가)를 쓴다.
@@ -116,7 +116,7 @@ baenggipyo skyscanner search flights ICN NRT --depart 2026-11-20 --direct --airl
 | `--limit` | 도시 수 (1~100, 기본 20) |
 
 반환: `origin`, `trip_type`, `month`, `returned`, `destinations[]` — `code`(IATA 코드를 주지 않아 null), `city`, `country`·`country_code`(주면),
-`min_price_krw`, `direct`, `departure_date`(주지 않아 null)·`return_date`(왕복만, 주지 않아 null), `sky_code`(스카이스캐너 도시 코드, 예 `CJUA`).
+`min_price_per_adult_krw`(성인 1명, `--round-trip` 이면 왕복 합계), `direct`, `departure_date`(주지 않아 null)·`return_date`(왕복만, 주지 않아 null), `sky_code`(스카이스캐너 도시 코드, 예 `CJUA`).
 
 - 지표 가격(추정가)이고 날짜를 주지 않는다. 가격은 그 기간 어느 날의 최저가라 다른 날은 몇 배 비쌀 수 있다 (인천→제주 11월 26,928원은 9·23일 같은
   날의 값이고 15일은 315,865원이었다, 2026-10-20). 고른 도시는 `calendar` 로 그 가격의 날을 찾은 뒤 `search flights` 한다. `--round-trip` 은

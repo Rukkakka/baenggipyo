@@ -82,7 +82,7 @@ baenggipyo naver search airports 오사카
 
 | 필드 | 의미 |
 | --- | --- |
-| `card_discount_price_krw` | 특정 카드·간편결제로만 받는 **성인 1인** 최저가. 대표 가격보다 싼 할인이 없으면 키가 없다 |
+| `card_discount_price_per_adult_krw` | 특정 카드·간편결제로만 받는 **성인 1인** 최저가. 대표 가격보다 싼 할인이 없으면 키가 없다 |
 | `card_discount_name` | 그 결제수단과 조건 (예: `성인/KB국민카드(이용실적 충족시)`) |
 | `card_discount_category` | 분류 (`신용카드(즉시할인)`, `신용카드(실적충족/청구할인)`, `간편결제`) |
 
@@ -95,6 +95,9 @@ baenggipyo naver search airports 오사카
   뒤로 밀리므로, `--limit` 의 3배를 받아 대표 가격 순으로 다시 세운 뒤 자른다. 대표 가격이 `null` 인 항공권은 맨 뒤다.
 - `cheapest_seller` 는 네이버가 이름을 알려 주지 않는 판매처면 `null` 이다.
 - `aircraft`(기종)는 네이버가 준 그대로라 이름(`Airbus A321`)과 IATA 기종 코드(`738`)가 섞여 온다. 모르면 `null` 이다.
+- 운항 항공사(`operating_airline`)는 네이버가 판매 항공사와 다른 운항 항공사를 줄 때(코드셰어)만 있다. `H1`(한 에어 시스템)처럼 표만 대신 파는
+  발권 전용 항공사의 편은 실제로는 다른 항공사가 운항하는데, 네이버가 운항 항공사도 H1 로 줘서 이 키가 없다. 출발·도착 시각이 같은 다른 항공사 편과
+  같은 비행기일 수 있지만 다른 항공사끼리 시각이 우연히 같기도 해, baenggipyo 는 합치거나 거르지 않고 받은 그대로 낸다.
 - `--limit` 만큼 받았으면 더 있을 수 있다고 `notes` 로 알린다. 늘리면 응답이 커지고 느려진다.
 - 판매처가 60초 안에 다 응답하지 않으면 받은 데까지 돌려주고 `notes` 로 알린다.
 
@@ -170,7 +173,7 @@ baenggipyo naver flight <가는 편 id> <오는 편 id>
 | `--direct` | 직항만 |
 
 반환: `origin`, `destination`, `trip_type`, `trip_days`(왕복만), `month`, `direct`(`--direct` 로 찾았는지), `returned`, `cheapest_days[]`(싼 순 3일),
-`days[]`(날짜 순) — `date`, `return_date`(왕복만), `min_price_krw`. 값이 있는 날만 온다. 날마다 직항인지는 네이버가 주지 않는다.
+`days[]`(날짜 순) — `date`, `return_date`(왕복만), `min_price_per_adult_krw`(성인 1명, 왕복이면 왕복 합계). 값이 있는 날만 온다. 날마다 직항인지는 네이버가 주지 않는다.
 
 - **실시간 가격이 아니다.** 네이버가 최근 검색에서 모은 최저가이고 카드 할인가가 섞인다. 고른 날은 `search flights` 로 확인한다.
 - 네이버는 지금부터 약 1년 뒤까지만 준다. 그 뒤 달은 비어 오고 `notes` 로 범위 끝 날짜를 알린다 (아직 판매하지 않는 달이라 `search flights` 도
@@ -194,7 +197,7 @@ baenggipyo naver calendar SEL OSA --month 2026-12 --trip-days 4
 | `--limit` | 목적지 수 (1~100, 기본 20) |
 
 반환: `origin`, `trip_type`, `month`, `trip_days`(왕복만), `returned`, `destinations[]` — `code`(목적지 공항 IATA 코드), `city`, `country_code`,
-`min_price_krw`, `direct`, `departure_date`, `return_date`(왕복만). `country`(나라 이름)는 네이버가 주지 않아 `null` 이다.
+`min_price_per_adult_krw`(성인 1명, 왕복이면 왕복 합계), `direct`, `departure_date`, `return_date`(왕복만). `country`(나라 이름)는 네이버가 주지 않아 `null` 이다.
 
 - 실시간이 아닌 추정가다 (`calendar` 와 같다).
 - 네이버는 인기 목적지 100곳을 주고, 그중 싼 순으로 자른다. 최저가를 주지 않은 목적지는 빼고 그 수를 `notes` 로 알린다.
