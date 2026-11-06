@@ -42,7 +42,7 @@ class NaverMinPriceByDestinationModel(ResponseModel):
     ] = None
     min_price: Annotated[
         int | None,
-        Field(description='최저가 (원)', alias='minPrice')
+        Field(description='성인 1명 최저가 (원, 최근 검색에서 모은 값). 왕복이면 왕복 합계 (2026-11-06 편도와 비교)', alias='minPrice')
     ] = None
     stops: Annotated[
         int | None,

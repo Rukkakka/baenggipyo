@@ -218,7 +218,7 @@ def _price_fields(
         'total_price_krw': _total_fare(general, conditions) if general else None,
         'price_per_adult_krw': _adult_fare(general),
         'baggage_included': _baggage(general),
-        'card_discount_price_krw': _adult_fare(discount),
+        'card_discount_price_per_adult_krw': _adult_fare(discount),
         'card_discount_name': discount_info.name if discount_info else None,
         'card_discount_category': (discount_info.category or None) if discount_info else None,
     }
@@ -386,7 +386,7 @@ def search_flights(
         results.sort(key=lambda itinerary: (itinerary.price_per_adult_krw is None, itinerary.price_per_adult_krw or 0))
     results = results[:limit]
     no_general = [itinerary for itinerary in results if itinerary.price_per_adult_krw is None]
-    card_only = sum(1 for itinerary in no_general if itinerary.card_discount_price_krw is not None)
+    card_only = sum(1 for itinerary in no_general if itinerary.card_discount_price_per_adult_krw is not None)
     if card_only:
         notes.append(
             f'모든 결제수단으로 살 수 있는 운임이 없는 항공권 {card_only}개는 대표 가격이 null 입니다. '

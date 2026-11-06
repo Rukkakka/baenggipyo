@@ -73,7 +73,7 @@ def get_calendar(client: SkyscannerClient, origin: SkyscannerPlace, destination:
         )
     response = client.run_request_search_intent_pricecalendar_v1(payload)
     days = [
-        CalendarDay(date=day.day, min_price_krw=round(day.price) if day.price is not None else None)
+        CalendarDay(date=day.day, min_price_per_adult_krw=round(day.price))
         for day in (response.flights.days if response.flights else [])
         if day.day.startswith(month) and day.price is not None
     ]

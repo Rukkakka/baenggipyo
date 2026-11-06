@@ -82,7 +82,7 @@ baenggipyo naver search airports 오사카
 
 | 필드 | 의미 |
 | --- | --- |
-| `card_discount_price_krw` | 특정 카드·간편결제로만 받는 **성인 1인** 최저가. 대표 가격보다 싼 할인이 없으면 키가 없다 |
+| `card_discount_price_per_adult_krw` | 특정 카드·간편결제로만 받는 **성인 1인** 최저가. 대표 가격보다 싼 할인이 없으면 키가 없다 |
 | `card_discount_name` | 그 결제수단과 조건 (예: `성인/KB국민카드(이용실적 충족시)`) |
 | `card_discount_category` | 분류 (`신용카드(즉시할인)`, `신용카드(실적충족/청구할인)`, `간편결제`) |
 
@@ -170,7 +170,7 @@ baenggipyo naver flight <가는 편 id> <오는 편 id>
 | `--direct` | 직항만 |
 
 반환: `origin`, `destination`, `trip_type`, `trip_days`(왕복만), `month`, `direct`(`--direct` 로 찾았는지), `returned`, `cheapest_days[]`(싼 순 3일),
-`days[]`(날짜 순) — `date`, `return_date`(왕복만), `min_price_krw`. 값이 있는 날만 온다. 날마다 직항인지는 네이버가 주지 않는다.
+`days[]`(날짜 순) — `date`, `return_date`(왕복만), `min_price_per_adult_krw`(성인 1명, 왕복이면 왕복 합계). 값이 있는 날만 온다. 날마다 직항인지는 네이버가 주지 않는다.
 
 - **실시간 가격이 아니다.** 네이버가 최근 검색에서 모은 최저가이고 카드 할인가가 섞인다. 고른 날은 `search flights` 로 확인한다.
 - 네이버는 지금부터 약 1년 뒤까지만 준다. 그 뒤 달은 비어 오고 `notes` 로 범위 끝 날짜를 알린다 (아직 판매하지 않는 달이라 `search flights` 도
@@ -194,7 +194,7 @@ baenggipyo naver calendar SEL OSA --month 2026-12 --trip-days 4
 | `--limit` | 목적지 수 (1~100, 기본 20) |
 
 반환: `origin`, `trip_type`, `month`, `trip_days`(왕복만), `returned`, `destinations[]` — `code`(목적지 공항 IATA 코드), `city`, `country_code`,
-`min_price_krw`, `direct`, `departure_date`, `return_date`(왕복만). `country`(나라 이름)는 네이버가 주지 않아 `null` 이다.
+`min_price_per_adult_krw`(성인 1명, 왕복이면 왕복 합계), `direct`, `departure_date`, `return_date`(왕복만). `country`(나라 이름)는 네이버가 주지 않아 `null` 이다.
 
 - 실시간이 아닌 추정가다 (`calendar` 와 같다).
 - 네이버는 인기 목적지 100곳을 주고, 그중 싼 순으로 자른다. 최저가를 주지 않은 목적지는 빼고 그 수를 `notes` 로 알린다.

@@ -256,7 +256,7 @@ class SkyscannerItinerariesModel(ResponseModel):
 class SkyscannerQuoteModel(ResponseModel):
     raw_price: Annotated[
         float | None,
-        Field(description='지표 가격 (원)', alias='rawPrice')
+        Field(description='지표 가격 (원). 요청의 성인 수(어디든지는 1명) 기준이고 왕복이면 왕복 합계 (2026-11-06 편도와 비교)', alias='rawPrice')
     ] = None
     direct: Annotated[
         bool | None,

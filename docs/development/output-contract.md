@@ -135,13 +135,20 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 | `Journey` | (항공권 안) | `departure_airport`, `arrival_airport`, `departure_at`, `arrival_at`, `duration_minutes`(경유 대기 포함), `stops`, `stopover_airports`, `segments` | — |
 | `Itinerary` | `search flights` | `source`, `id`, `url`, `trip_type`, `cabin`, `journeys`, `total_price_krw`, `price_per_adult_krw`, `seller_count`, `cheapest_seller`, `baggage_included` | — |
 | `Offer` | `flight` 의 `offers[]` | `seller`, `seller_type`, `total_price_krw`, `price_per_adult_krw`, `fare_name`, `baggage_included`, `url` | `--offer-urls` 로 링크를 뺀 운임의 `url` |
-| `CalendarDay` | `calendar` 의 `days[]`·`cheapest_days[]` | `date`, `return_date`, `min_price_krw` | 편도의 `return_date` |
-| `Destination` | `explore` 의 `destinations[]` | `code`, `city`, `country`, `country_code`, `min_price_krw`, `direct`, `departure_date`, `return_date` | 편도의 `return_date` |
+| `CalendarDay` | `calendar` 의 `days[]`·`cheapest_days[]` | `date`, `return_date`, `min_price_per_adult_krw` | 편도의 `return_date` |
+| `Destination` | `explore` 의 `destinations[]` | `code`, `city`, `country`, `country_code`, `min_price_per_adult_krw`, `direct`, `departure_date`, `return_date` | 편도의 `return_date` |
 
 - **대표 가격**(`total_price_krw`, `price_per_adult_krw`)은 결제수단 조건이 없는 운임의 최저가다. 특정 카드·결제수단으로만 받는 가격은 대표 가격으로
   쓰지 않고 소스 필드로 따로 준다 (2026-10-11 결정, 네이버).
 - 총액과 1인 요금 중 소스가 하나만 주면 다른 하나를 나눗셈으로 만들지 않고 `null` 로 둔다. 승객 유형별 1인 운임을 모두 주면 인원을 곱해 더한 합은 쓴다.
-- `CalendarDay`·`Destination` 의 가격은 추정가라 `notes` 로 알린다.
+- 1인 가격 필드는 모두 이름에 `per_adult` 를 붙인다 (`price_per_adult_krw`, `min_price_per_adult_krw`, 네이버 `card_discount_price_per_adult_krw`).
+  0.6 까지 뒤의 둘은 `min_price_krw`·`card_discount_price_krw` 라 에이전트가 1인 가격인지 총액인지 알 수 없었다.
+- `CalendarDay`·`Destination` 의 가격은 추정가라 `notes` 로 알린다. `calendar`·`explore` 명령은 승객 수를 받지 않고 성인 1명 가격(왕복이면 왕복 합계)을
+  낸다. 네이버 달력·어디든지와 스카이스캐너 달력은 요청에 승객 항목이 없고, 스카이스캐너 어디든지는 요청에 성인 1명(`adults` 기본값)을 보낸다. 승객 수
+  옵션을 더하면 이 이름도 다시 정한다.
+  - `docs/llm.md` 가 에이전트에게 성인 수를 곱한 값을 말하게 하는 것은 출력에 총액을 만들어 넣는 것이 아니라 대화용 어림값이다. 위의 "나눗셈으로
+    만들지 않는다" 는 출력 필드 규칙이고, 가이드는 같은 가격 좌석이 모자라 더 비쌀 수 있다는 단서를 함께 말하고 실제 총액은 `search flights --adults N`
+    으로 확인하게 한다 (2026-11-06, 이 안내가 없으면 에이전트가 "1인인지 총액인지 모른다" 며 금액을 말하지 못했다).
 - `seller_count` 는 판매처 수다. 판매처 여러 곳에서 따로 예약하는 조합은 하나로 센다. 0.3 까지 이름이 `offer_count` 라 `offers` 줄 수·운임 수와
   섞어 읽혔다 (네이버 국제선 상세는 판매처 21곳에 운임 114개). 운임 수가 다르면 `notes` 에 둘을 함께 쓴다.
 - 달력 결과는 `days`(날짜 순) 위에 `cheapest_days`(싼 순 3일, 같은 값이면 이른 날 먼저. `core.flight.cheapest_days`)를 준다. 에이전트가 수십 개 값에서

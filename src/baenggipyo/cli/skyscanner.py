@@ -203,6 +203,8 @@ def calendar_command(
 ) -> None:
     """한 달의 편도 날짜별 최저가 (요청 3회: 공항 해석 2회 + 달력 1회). 실시간이 아닌 추정가이고 편도만 된다.
 
+    가격(min_price_per_adult_krw)은 성인 1명 기준이다.
+
     예: baenggipyo skyscanner calendar ICN NRT --month 2026-11
     """
     month_value = parse_month(month, '--month')
@@ -234,6 +236,8 @@ def explore_command(
     pretty: PrettyOption = None,
 ) -> None:
     """어디든지: 도시별 최저가를 싼 순으로, 국내 포함 (요청 2회: 공항 해석 + 조회). 지표 가격(추정가)이고 날짜는 주지 않는다.
+
+    가격(min_price_per_adult_krw)은 성인 1명 기준이고, --round-trip 이면 왕복 합계다.
 
     예: baenggipyo skyscanner explore SEL --month 2026-11 --round-trip
     """

@@ -469,7 +469,7 @@ def _itinerary(
         cheapest_seller=partners.get(general.agt_code) if general else None,
         # 수하물 유료 특가석만 알 수 있다. 나머지는 운임 정보에 수하물이 없다
         baggage_included=False if flight.seat_class == 'NB' else None,
-        card_discount_price_krw=_discount_price(discount),
+        card_discount_price_per_adult_krw=_discount_price(discount),
         card_discount_name=discount_info.card_type.name if discount_info and discount_info.card_type else None,
         card_discount_category=CARD_DISCOUNT_TYPE_LABELS.get(discount_info.discount_type or '') if discount_info else None,
         direction=DIRECTION_LABELS[direction],

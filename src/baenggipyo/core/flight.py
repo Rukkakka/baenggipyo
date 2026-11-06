@@ -697,9 +697,9 @@ class CalendarDay(FlightModel):
         str | None,
         Field(description='오는 날짜. 왕복일 때만 키가 있다')
     ] = None
-    min_price_krw: Annotated[
+    min_price_per_adult_krw: Annotated[
         int | None,
-        Field(description='그날 최저가 (원, 추정가)')
+        Field(description='그날 성인 1명 최저가 (원, 추정가). 왕복이면 왕복 합계')
     ] = None
     round_trip: Annotated[
         bool,
@@ -715,8 +715,8 @@ def cheapest_days(days: list[CalendarDay]) -> list[CalendarDay]:
 
     `days` 는 날짜 순이라 에이전트가 수십 개 값에서 최저가를 직접 골라야 한다. 고르다 틀리기 쉬워 싼 날을 따로 준다.
     """
-    priced = [day for day in days if day.min_price_krw is not None]
-    return sorted(priced, key=lambda day: (day.min_price_krw or 0, day.date))[:CHEAPEST_DAY_COUNT]
+    priced = [day for day in days if day.min_price_per_adult_krw is not None]
+    return sorted(priced, key=lambda day: (day.min_price_per_adult_krw or 0, day.date))[:CHEAPEST_DAY_COUNT]
 
 
 # 두 소스 달력 결과의 `cheapest_days` 필드. 설명의 날 수를 `CHEAPEST_DAY_COUNT` 에서 만든다
@@ -745,9 +745,9 @@ class Destination(FlightModel):
         str | None,
         Field(description='나라 코드 (ISO 3166-1 alpha-2)')
     ] = None
-    min_price_krw: Annotated[
+    min_price_per_adult_krw: Annotated[
         int | None,
-        Field(description='최저가 (원, 추정가)')
+        Field(description='성인 1명 최저가 (원, 추정가). 왕복이면 왕복 합계')
     ] = None
     direct: Annotated[
         bool | None,

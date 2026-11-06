@@ -116,7 +116,7 @@ def get_calendar(
         days.append(CalendarDay(
             date=date,
             return_date=compact_date(row.return_date),
-            min_price_krw=row.min_price,
+            min_price_per_adult_krw=row.min_price,
             round_trip=round_trip,
         ))
     days.sort(key=lambda day: day.date)
