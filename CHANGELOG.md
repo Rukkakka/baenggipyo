@@ -5,6 +5,8 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 
 ## Unreleased
 
+## 0.7.0 — 2026-11-06
+
 ### ⚠️ 호환 깨짐
 
 - `calendar` 의 `days[]`·`cheapest_days[]` 와 `explore` 의 `destinations[]` 에서 `min_price_krw` 를 `min_price_per_adult_krw` 로 바꿈 (두 소스 모두).
