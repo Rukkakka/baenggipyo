@@ -153,7 +153,8 @@ def _baggage(fare: NaverFareModel | None) -> bool | None:
 
 def _journey(itinerary: NaverItineraryModel, airlines: dict[str, str]) -> Journey:
     # 국제선은 항공사·공항 코드를 빈 값 없이 준다 (2026-10-23 ICN→NRT 285여정 523구간 모두). 공동운항이 아니면 빈 문자열로 오는 국내선 opCode 와
-    # 달라 null 로 바꾸지 않는다
+    # 달라 null 로 바꾸지 않는다. 발권 전용 항공사(H1)는 운항 항공사도 자기 자신으로 와서 키가 빠지지만, 목록으로 null 을 만들지 않는다
+    # (docs/development/providers/naver.md '발권 전용 항공사 편')
     segments = [
         Segment(
             airline_code=segment.marketing_carrier.airline_code,
