@@ -91,8 +91,11 @@ baenggipyo naver search airports 오사카
 - 모든 결제수단 운임이 없으면 대표 가격이 `null` 이다. 카드 할인 운임만 있으면 `card_discount_*` 로만 살 수 있고, 그것도 없으면 가격을 모르니
   `flight` 로 판매처별 운임을 본다. 어느 쪽인지 `notes` 로 알린다.
 - `total_price_krw` 는 승객 유형별 1인 운임 × 인원의 합이다.
-- `--sort 가격` 은 대표 가격(`price_per_adult_krw`) 순이다. 네이버 가격순은 카드 할인을 포함한 최저가 기준이라 카드 할인이 없는 싼 항공권이
-  뒤로 밀리므로, `--limit` 의 3배를 받아 대표 가격 순으로 다시 세운 뒤 자른다. 대표 가격이 `null` 인 항공권은 맨 뒤다.
+- `--sort 가격` 은 대표 가격(`price_per_adult_krw`) 순이다. 소아·유아가 있으면 성인 1인 요금 순과 합계 순이 달라 합계(`total_price_krw`) 순이다.
+  네이버 가격순은 카드 할인을 포함한 성인 최저가 기준이라 카드 할인이 없는 싼 항공권이 뒤로 밀리므로, `--limit` 의 3배를 받아 다시 세운 뒤
+  자른다. 그 값이 `null` 인 항공권은 맨 뒤다.
+- 조건에 맞는 항공권이 하나도 없으면 `itineraries` 가 `[]` 이고 `notes` 로 알린다. 매진인지, 운항하지 않는지, 판매처가 결과를 주지 않았는지는
+  알 수 없다. 같은 조건도 잠시 뒤에 다시 찾으면 나오기도 한다.
 - `cheapest_seller` 는 네이버가 이름을 알려 주지 않는 판매처면 `null` 이다.
 - `aircraft`(기종)는 네이버가 준 그대로라 이름(`Airbus A321`)과 IATA 기종 코드(`738`)가 섞여 온다. 모르면 `null` 이다.
 - 운항 항공사(`operating_airline`)는 네이버가 판매 항공사와 다른 운항 항공사를 줄 때(코드셰어)만 있다. `H1`(한 에어 시스템)처럼 표만 대신 파는
@@ -194,6 +197,7 @@ baenggipyo naver calendar SEL OSA --month 2026-12 --trip-days 4
 | `--month` | 출발 달 `YYYY-MM` (주지 않으면 네이버 기본 범위) |
 | `--trip-days` | 왕복 여행 일수. 주지 않으면 편도 |
 | `--direct` | 직항만 |
+| `--country` | 목적지 나라 ISO 2자리 코드만 (`JP`, `VN`, 영국 `GB`). 반복하거나 쉼표. 한글 이름(`일본`)은 받지 않는다 |
 | `--limit` | 목적지 수 (1~100, 기본 20) |
 
 반환: `origin`, `trip_type`, `month`, `trip_days`(왕복만), `returned`, `destinations[]` — `code`(목적지 공항 IATA 코드), `city`, `country_code`,
@@ -201,7 +205,13 @@ baenggipyo naver calendar SEL OSA --month 2026-12 --trip-days 4
 
 - 실시간이 아닌 추정가다 (`calendar` 와 같다).
 - 네이버는 인기 목적지 100곳을 주고, 그중 싼 순으로 자른다. 최저가를 주지 않은 목적지는 빼고 그 수를 `notes` 로 알린다.
+- 나라 조건(`--country`)은 네이버 서버가 건다. "일본이면 어디든"처럼 나라가 정해졌으면 `--limit` 을 늘려 직접 고르지 말고 이 옵션을 쓴다.
+  형식(대문자 2자)만 검사하므로 ISO 코드가 아닌 값(영국을 `UK`)은 에러 없이 목적지가 없다.
+- 목적지가 하나도 없으면 `destinations` 가 `[]` 이고 `notes` 로 알린다. 네이버가 모은 가격이 없다는 뜻이지 항공권이 없다는 뜻은 아니다.
+- `departure_date` 는 목적지마다 **그 달에서 가장 싼 하루**다. `--month` 를 주지 않으면 네이버 기본 범위의 여러 달 중 하루다. 네이버가 달 단위로만
+  찾아 주 단위 기간은 받지 않는다. "12월 둘째 주"처럼 기간이 그 달 일부라면 날짜가 기간 밖인 목적지도 빼지 말고 `calendar` 로 그 기간 가격을 본다.
 
 ```bash
 baenggipyo naver explore 서울 --month 2026-11 --trip-days 4
+baenggipyo naver explore 청주 --month 2027-01 --trip-days 4 --country JP
 ```

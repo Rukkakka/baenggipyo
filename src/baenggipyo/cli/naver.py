@@ -33,6 +33,7 @@ from baenggipyo.cli.output import (
     handle_errors,
     one_of,
     parse_airlines,
+    parse_countries,
     parse_leg_hours,
     parse_legs,
     parse_month,
@@ -240,6 +241,10 @@ def explore_command(
     ] = None,
     trip_days: TripDaysOption = None,
     direct: DirectOption = False,
+    country: Annotated[
+        list[str] | None,
+        typer.Option('--country', help='목적지 나라 ISO 2자리 코드만 (예: JP, VN, 영국 GB). 반복하거나 쉼표로 구분')
+    ] = None,
     limit: Annotated[
         int,
         typer.Option('--limit', min=1, max=EXPLORE_MAX_LIMIT, help='목적지 수')
@@ -248,12 +253,16 @@ def explore_command(
 ) -> None:
     """어디든지: 국제선 목적지별 최저가를 싼 순으로 (요청 2회: 공항 해석 + 조회). 실시간이 아닌 추정가다.
 
-    가격(min_price_per_adult_krw)은 성인 1명 기준이고, --trip-days 를 주면 왕복 합계다.
+    가격(min_price_per_adult_krw)은 성인 1명 기준이고, --trip-days 를 주면 왕복 합계다. 날짜는 목적지마다 그 달(--month 가 없으면 네이버
+    기본 범위, 여러 달)에서 가장 싼 하루다.
 
-    예: baenggipyo naver explore SEL --month 2026-11 --trip-days 4
+    예: baenggipyo naver explore SEL --month 2026-11 --trip-days 4 --country JP
     """
     month_value = parse_month(month, '--month') if month is not None else None
+    countries = parse_countries(country)
     with handle_errors(SOURCE), NaverClient() as client:
         [origin_location] = resolve_locations(client, origin)
-        result = explore(client, origin_location.code, month=month_value, trip_days=trip_days, direct=direct, limit=limit)
+        result = explore(
+            client, origin_location.code, month=month_value, trip_days=trip_days, direct=direct, countries=countries, limit=limit,
+        )
         emit(result, pretty, notes=result.notes)

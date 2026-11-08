@@ -61,6 +61,7 @@ DATE_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 MONTH_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^\d{4}-\d{2}$')
 LEG_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^(?P<origin>[^-\s]+)-(?P<destination>[^-\s]+)-(?P<date>\d{4}-\d{2}-\d{2})$')
 AIRLINE_CODE_PATTERN: re.Pattern[str] = re.compile(r'^[A-Z0-9]{2}$')
+COUNTRY_CODE_PATTERN: re.Pattern[str] = re.compile(r'^[A-Z]{2}$')
 HOURS_INPUT_PATTERN: re.Pattern[str] = re.compile(r'^(?P<start>\d{1,2})-(?P<end>\d{1,2})$')
 # CLI 가 받는 승객 합계 상한 (validate_passengers). 소스 요청 모델의 유형별 상한(api/request/common.py)과는 따로 둔다
 MAX_PASSENGERS: int = 9
@@ -391,3 +392,12 @@ def parse_airlines(values: list[str] | None) -> list[str]:
         if AIRLINE_CODE_PATTERN.fullmatch(code) is None:
             raise typer.BadParameter(f'항공사는 IATA 2자리 코드로 주세요: {code}', param_hint='--airline')
     return list(dict.fromkeys(airlines))
+
+
+def parse_countries(values: list[str] | None) -> list[str]:
+    """`--country JP,VN` / `--country JP --country VN` 을 나라 ISO 2자리 코드 목록으로."""
+    countries = [code.strip().upper() for value in values or [] for code in value.split(',') if code.strip()]
+    for code in countries:
+        if COUNTRY_CODE_PATTERN.fullmatch(code) is None:
+            raise typer.BadParameter(f'나라는 ISO 2자리 코드로 주세요 (일본 JP, 베트남 VN): {code}', param_hint='--country')
+    return list(dict.fromkeys(countries))

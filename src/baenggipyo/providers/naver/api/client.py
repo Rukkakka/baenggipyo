@@ -481,7 +481,7 @@ class NaverClient(BaseHTTPClient):
         모은 값이다.
 
         Args:
-            payload: 출발 코드, 편도·왕복, 출발 달, 여행 일수, 직항, 국내·국제, 목적지 수.
+            payload: 출발 코드, 편도·왕복, 출발 달, 여행 일수, 직항, 국내·국제, 목적지 나라, 목적지 수.
 
         Returns:
             NaverMinPricesByDestinationResponseModel: 목적지별 최저가 또는 `errors`.

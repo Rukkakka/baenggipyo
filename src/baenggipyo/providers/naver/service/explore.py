@@ -25,6 +25,13 @@ from typing import Annotated
 EXPLORE_FETCH_SIZE: int = 100
 EXPLORE_DEFAULT_LIMIT: int = 20
 EXPLORE_MAX_LIMIT: int = EXPLORE_FETCH_SIZE
+EXPLORE_MONTH_DATE_NOTE: str = (
+    '날짜는 목적지마다 그 달에서 가장 싼 하루입니다. 원하는 기간이 그 달 일부라면 날짜가 기간 밖인 목적지도 빼지 말고 '
+    'calendar 로 그 기간 가격을 확인하세요'
+)
+EXPLORE_RANGE_DATE_NOTE: str = (
+    '날짜는 목적지마다 네이버 기본 범위(여러 달)에서 가장 싼 하루입니다. 원하는 기간이 있으면 --month 로 그 달을 정해 찾으세요'
+)
 
 
 class NaverExploreResult(FlightModel):
@@ -70,17 +77,19 @@ def explore(
     month: str | None = None,
     trip_days: int | None = None,
     direct: bool = False,
+    countries: list[str] | None = None,
     limit: int = EXPLORE_DEFAULT_LIMIT,
 ) -> NaverExploreResult:
     """국제선 목적지별 최저가를 싼 순으로 (요청 1회).
 
     국내선 목적지는 1차 범위 밖이라 `isDomestic: false` 로 묻는다. 서버는 인기순으로 주므로 `EXPLORE_FETCH_SIZE` 개를 받아
-    가격순으로 세운 뒤 자른다.
+    가격순으로 세운 뒤 자른다. 나라 조건은 서버가 건다 (`countryCodes`).
 
     Args:
         origin_code: 출발 IATA 공항·도시 코드.
         month: `YYYY-MM`. None 이면 서버 기본 범위.
         trip_days: 왕복 여행 일수 (가는 날·오는 날 포함). None 이면 편도.
+        countries: 목적지 나라 ISO 2자리 코드. None 이나 빈 목록이면 모든 나라.
     """
     round_trip = trip_days is not None
     # 출발·도착 코드는 자동완성 응답 값이라 검증 실패는 입력 오류가 아니다 (달·일수는 CLI 가 검사했다)
@@ -92,6 +101,7 @@ def explore(
             trip_days=[trip_days, trip_days] if trip_days is not None else None,
             is_nonstop=True if direct else None,
             is_domestic=False,
+            country_codes=countries or None,
             size=EXPLORE_FETCH_SIZE,
         )
     response = client.run_request_min_prices_by_destination(payload)
@@ -111,8 +121,18 @@ def explore(
         )
         for row in rows[:limit]
     ]
-    # 결과마다 붙는 안내는 가격의 뜻(추정가) 하나만 둔다. 나라 이름이 없는 것은 country: null 과 country_code 로 보인다 (docs/naver.md)
-    notes = [ESTIMATE_NOTE]
+    # 결과마다 붙는 안내는 가격의 뜻(추정가)과 날짜의 뜻(그 달 최저가 하루) 둘만 둔다. 나라 이름이 없는 것은 country: null 과 country_code
+    # 로 보인다 (docs/naver.md). 날짜 안내가 없으면 기간이 그 달 일부인 부탁에서 날짜가 기간 밖인 목적지를 빼 버린다 (2026-11-05 서울 12월
+    # 둘째 주 4일 직항: 연태는 12/6 이 최저가라 빠졌지만 달력으로 그 주 152,043~171,455원, 홍콩도 12/1 이 최저가였지만 그 주 247,300원).
+    # 달을 주지 않으면 여러 달에서 고른다 (2026-11-08 인천 출발 일본·베트남 51곳: 날짜가 2026-11 ~ 2027-07)
+    notes = [ESTIMATE_NOTE, EXPLORE_MONTH_DATE_NOTE if month else EXPLORE_RANGE_DATE_NOTE]
+    if not found:
+        # 빈 목록만 나가면 "갈 곳이 없다" 로 읽힌다. 나라 코드는 형식만 검사해 ISO 가 아닌 코드도 서버에 가고, 서버는 에러 없이 0곳을 준다
+        # (2026-11-08 인천 출발 --country UK 0곳, GB 는 LHR·LGW·GLA)
+        note = '조건에 맞는 목적지가 없습니다 (네이버가 최근 검색에서 모은 가격이 없습니다)'
+        if countries:
+            note += f'. --country 가 ISO 2자리 코드인지 확인하세요 (영국 GB, 미국 US): {",".join(countries)}'
+        notes.append(note)
     if len(rows) < len(found):
         # 가격순으로 세울 수 없어 뺀다. 알리지 않으면 인기 목적지가 말없이 빠진다
         notes.append(f'최저가를 주지 않은 목적지 {len(found) - len(rows)}곳은 뺐습니다')

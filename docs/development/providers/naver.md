@@ -163,6 +163,10 @@ GraphQL `autocompleteLocations(airportOnly: Boolean!, query: String!)`. 결과�
 - 결과마다 목적지 공항(`destination.airportCode`, 도시 이름), `minPrice`, `departureDate`·`returnDate`·`tripDays`, `stops`, `airlineCodes`, 출발 공항.
   서울 출발 11월 왕복 `size: 20` 에 국내선(제주·부산)이 섞여 왔다 → 국제선만 보려면 `isDomestic: false`.
 - 가격은 달력과 같이 모은 값이다.
+- `countryCodes`(`[String!]`)는 서버가 건다: 청주 출발 2027-01 4일 왕복 `["JP"]` → 24곳 모두 `JP` (2026-11-05). `--country` 가 쓴다.
+  ISO 코드가 아닌 값은 에러 없이 0곳이다 (2026-11-08 인천 출발 `["UK"]` 0곳, `["GB"]` 는 LHR·LGW·GLA) → 0곳이면 `notes` 로 코드 확인을 알린다.
+  날짜 범위 변수는 없어 목적지마다 그 달 최저가 하루만 온다 (`departureDate`). 기간이 그 달 일부인 부탁은 `calendar` 로 확인하게 `notes` 로 알린다.
+  `departureMonths` 를 주지 않으면 여러 달에서 고른다 (2026-11-08 인천 출발 일본·베트남 51곳: 2026-11 ~ 2027-07).
 
 ### 구현 메모 (2026-10-11 실측)
 
