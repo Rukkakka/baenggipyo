@@ -102,6 +102,12 @@ LOCATION_TYPE_BY_LETTER: dict[str, Literal['airport', 'city']] = {
 }
 
 
+NO_RESULT_NOTE: str = (
+    '조건에 맞는 항공권이 없습니다 (매진인지, 운항하지 않는지, 판매처가 결과를 주지 않았는지는 알 수 없습니다). '
+    '잠시 뒤 같은 조건으로 다시 찾거나, 직항·항공사·시각대·좌석 등급 조건이나 날짜를 바꿔 찾아 보세요'
+)
+
+
 class NaverItineraryDetail(NaverItinerary):
     """`flight` 결과: 항공권 한 건과 판매처별 가격."""
 
@@ -410,6 +416,10 @@ def search_flights(
         )
     if more:
         notes.append(f'조건에 맞는 항공권이 더 있을 수 있습니다. 정렬 순서 앞의 {limit}개만 보여 줍니다 (--limit 최대 {MAX_LIMIT})')
+    if not results:
+        # 빈 목록만 오면 왜 없는지 몰라 헤맨다. 이유는 응답으로 가릴 수 없다: 2026-11-05 인천↔호놀룰루 2027-02 --airline OZ 는 비즈니스석이 세 번
+        # 모두 0건, 일반석은 처음 0건(검색 완료로 옴)이다가 25분 뒤 두 번 모두 판매처 1곳의 3건이었다
+        notes.append(NO_RESULT_NOTE)
     summary = SearchSummary(
         trip_type=trip_type_of(legs),
         legs=[SearchLeg(origin=leg.origin.code, destination=leg.destination.code, date=leg.date) for leg in legs],
