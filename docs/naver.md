@@ -194,6 +194,7 @@ baenggipyo naver calendar SEL OSA --month 2026-12 --trip-days 4
 | `--month` | 출발 달 `YYYY-MM` (주지 않으면 네이버 기본 범위) |
 | `--trip-days` | 왕복 여행 일수. 주지 않으면 편도 |
 | `--direct` | 직항만 |
+| `--country` | 목적지 나라 ISO 2자리 코드만 (`JP`, `VN`, 영국 `GB`). 반복하거나 쉼표. 한글 이름(`일본`)은 받지 않는다 |
 | `--limit` | 목적지 수 (1~100, 기본 20) |
 
 반환: `origin`, `trip_type`, `month`, `trip_days`(왕복만), `returned`, `destinations[]` — `code`(목적지 공항 IATA 코드), `city`, `country_code`,
@@ -201,7 +202,11 @@ baenggipyo naver calendar SEL OSA --month 2026-12 --trip-days 4
 
 - 실시간이 아닌 추정가다 (`calendar` 와 같다).
 - 네이버는 인기 목적지 100곳을 주고, 그중 싼 순으로 자른다. 최저가를 주지 않은 목적지는 빼고 그 수를 `notes` 로 알린다.
+- 나라 조건(`--country`)은 네이버 서버가 건다. "일본이면 어디든"처럼 나라가 정해졌으면 `--limit` 을 늘려 직접 고르지 말고 이 옵션을 쓴다.
+  형식(대문자 2자)만 검사하므로 ISO 코드가 아닌 값(영국을 `UK`)은 에러 없이 목적지가 없다.
+- 목적지가 하나도 없으면 `destinations` 가 `[]` 이고 `notes` 로 알린다. 네이버가 모은 가격이 없다는 뜻이지 항공권이 없다는 뜻은 아니다.
 
 ```bash
 baenggipyo naver explore 서울 --month 2026-11 --trip-days 4
+baenggipyo naver explore 청주 --month 2027-01 --trip-days 4 --country JP
 ```

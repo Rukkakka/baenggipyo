@@ -9,9 +9,11 @@ from baenggipyo.providers.naver.api.request.common import (
 from typing import Annotated
 
 
+COUNTRY_CODE_PATTERN: str = r'^[A-Z]{2}$'
+
 MIN_PRICES_BY_DESTINATION_QUERY: str = """
-query minPricesByDestination($departureLocationCode: String, $departureMonths: [String!], $isDomestic: Boolean, $isNonstop: Boolean, $size: Int, $tripDays: [Int!], $tripType: String) {
-  minPricesByDestination(departureLocationCode: $departureLocationCode, departureMonths: $departureMonths, isDomestic: $isDomestic, isNonstop: $isNonstop, size: $size, tripDays: $tripDays, tripType: $tripType) {
+query minPricesByDestination($departureLocationCode: String, $departureMonths: [String!], $isDomestic: Boolean, $isNonstop: Boolean, $size: Int, $tripDays: [Int!], $tripType: String, $countryCodes: [String!]) {
+  minPricesByDestination(departureLocationCode: $departureLocationCode, departureMonths: $departureMonths, isDomestic: $isDomestic, isNonstop: $isNonstop, size: $size, tripDays: $tripDays, tripType: $tripType, countryCodes: $countryCodes) {
     destination {
       airportCode
       cityName
@@ -55,6 +57,10 @@ class NaverMinPricesByDestinationRequestPayloadModel(RequestModel):
     is_domestic: Annotated[
         bool | None,
         Field(description='국내선만(True)·국제선만(False)', alias='isDomestic')
+    ] = None
+    country_codes: Annotated[
+        list[Annotated[str, Field(pattern=COUNTRY_CODE_PATTERN)]] | None,
+        Field(description='목적지 나라 ISO 2자리 코드만 (2026-11-05 청주 출발 2027-01 4일 ["JP"] → 24곳 모두 JP)', alias='countryCodes')
     ] = None
     size: Annotated[
         int | None,
