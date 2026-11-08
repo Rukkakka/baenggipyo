@@ -120,6 +120,33 @@ def test_price_sort_keeps_cheap_fare_without_card_discount(monkeypatch: pytest.M
     assert [itinerary.price_per_adult_krw for itinerary in result.itineraries] == [250000, 280000]
 
 
+def test_price_sort_with_child_uses_total(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 소아가 있으면 성인 요금이 싼 항공권(ZE0605)이 합계로는 비쌀 수 있어 합계 순이다 (2026-11-05 인천↔다낭 성인 2·소아 1·유아 1: 합계 최저가가
+    # 성인 요금 순 10위). 소아 운임이 갈리는 응답은 실제 API 로 골라 재현할 수 없어 가짜 응답으로 본다
+    point = {'airportCode': 'ICN', 'dateTime': '202611150800'}
+    prices = {'ZE0605': (100000, 200000), 'ZE0607': (120000, 120000)}
+    event = NaverFlightInternationalSearchFlightsResponseModel.model_validate({
+        'itineraries': [
+            {'itineraryId': f'20261115ICNNRT{number}', 'segments': [
+                {'departure': point, 'arrival': point | {'airportCode': 'NRT'}, 'marketingCarrier': {'airlineCode': 'ZE', 'flightNumber': number[2:]}},
+            ]}
+            for number in prices
+        ],
+        'fareMappings': [
+            {'itineraryIds': f'20261115ICNNRT{number}', 'fares': [
+                {'partnerCode': 'P1', 'fareType': 'A01', 'adult': {'totalFare': adult}, 'child': {'totalFare': child}},
+            ]}
+            for number, (adult, child) in prices.items()
+        ],
+    })
+    monkeypatch.setattr(NaverClient, 'run_request_flight_international_search_flights', lambda self, payload: event)
+    monkeypatch.setattr('baenggipyo.providers.naver.service.flight.partner_names', lambda client: {})
+    legs = [NaverLeg(origin=NaverLocation(code='ICN', type='airport'), destination=NaverLocation(code='NRT', type='airport'), date='2026-11-15')]
+    with NaverClient() as client:
+        result = search_flights(client, legs, conditions=NaverFlightConditions(children=1), limit=2)
+    assert [itinerary.total_price_krw for itinerary in result.itineraries] == [240000, 300000]
+
+
 # --- 항공권 ID ---
 
 def test_flight_id_round_trips_search_conditions() -> None:

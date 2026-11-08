@@ -342,6 +342,11 @@ def _search_note(status: NaverSearchStatusModel | None) -> list[str]:
     return incomplete_note(status.is_completed, status.completed_partner_count, status.requested_partner_count)
 
 
+def _price_sort_key(price: int | None) -> tuple[bool, int]:
+    """가격순 정렬 키. 가격을 모르면(null) 뒤로."""
+    return price is None, price or 0
+
+
 def search_flights(
     client: NaverClient,
     legs: list[NaverLeg],
@@ -353,7 +358,8 @@ def search_flights(
     """편도·왕복·다구간 항공권을 찾는다 (판매처 이름 1회 + 검색 SSE 1회, 9~17초).
 
     서버가 건 조건(직항·좌석·항공사)은 다시 거르지 않는다. 대표 가격은 모든 결제수단 운임(A01) 최저가다. 가격순은 서버 기준(카드
-    할인 포함 최저가)이 대표 가격과 달라 `limit` 의 `PRICE_SORT_FETCH_FACTOR` 배를 받아 대표 가격 순으로 다시 세운 뒤 자른다.
+    할인 포함 최저가)이 대표 가격과 달라 `limit` 의 `PRICE_SORT_FETCH_FACTOR` 배를 받아 대표 가격(소아·유아가 있으면 합계) 순으로
+    다시 세운 뒤 자른다.
     """
     conditions = conditions or NaverFlightConditions()
     fetch_limit = limit * PRICE_SORT_FETCH_FACTOR if sort == '가격' else limit
@@ -384,7 +390,10 @@ def search_flights(
     if sort == '가격':
         # 대표 가격이 없는 항공권(카드 조건 운임만 있음 등)은 뒤로. 같은 값이면 서버 순서를 지킨다. 받은 묶음(limit 의 3배, 많아야 150개)을 모두
         # 출력 모델로 바꾼 뒤 세운다. 스카이스캐너처럼 원본으로 세워 앞의 limit 개만 바꿔도 3ms 남짓 아낄 뿐이다 (2026-10-23 150개 5.9ms, 50개 2.6ms)
-        results.sort(key=lambda itinerary: (itinerary.price_per_adult_krw is None, itinerary.price_per_adult_krw or 0))
+        # 소아·유아가 있으면 성인 1인 요금 순과 합계 순이 갈려 합계로 세운다 (2026-11-05 인천↔다낭 2/5~2/9 성인 2·소아 1·유아 1: 성인 요금
+        # 1위 합계 2,817,200원, 합계 최저 2,712,200원은 10위)
+        by_total = conditions.children > 0 or conditions.infants > 0
+        results.sort(key=lambda itinerary: _price_sort_key(itinerary.total_price_krw if by_total else itinerary.price_per_adult_krw))
     results = results[:limit]
     no_general = [itinerary for itinerary in results if itinerary.price_per_adult_krw is None]
     card_only = sum(1 for itinerary in no_general if itinerary.card_discount_price_per_adult_krw is not None)
