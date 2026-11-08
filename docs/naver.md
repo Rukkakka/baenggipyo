@@ -208,6 +208,8 @@ baenggipyo naver calendar SEL OSA --month 2026-12 --trip-days 4
 - 나라 조건(`--country`)은 네이버 서버가 건다. "일본이면 어디든"처럼 나라가 정해졌으면 `--limit` 을 늘려 직접 고르지 말고 이 옵션을 쓴다.
   형식(대문자 2자)만 검사하므로 ISO 코드가 아닌 값(영국을 `UK`)은 에러 없이 목적지가 없다.
 - 목적지가 하나도 없으면 `destinations` 가 `[]` 이고 `notes` 로 알린다. 네이버가 모은 가격이 없다는 뜻이지 항공권이 없다는 뜻은 아니다.
+- `departure_date` 는 목적지마다 **그 달에서 가장 싼 하루**다. `--month` 를 주지 않으면 네이버 기본 범위의 여러 달 중 하루다. 네이버가 달 단위로만
+  찾아 주 단위 기간은 받지 않는다. "12월 둘째 주"처럼 기간이 그 달 일부라면 날짜가 기간 밖인 목적지도 빼지 말고 `calendar` 로 그 기간 가격을 본다.
 
 ```bash
 baenggipyo naver explore 서울 --month 2026-11 --trip-days 4

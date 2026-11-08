@@ -253,7 +253,8 @@ def explore_command(
 ) -> None:
     """어디든지: 국제선 목적지별 최저가를 싼 순으로 (요청 2회: 공항 해석 + 조회). 실시간이 아닌 추정가다.
 
-    가격(min_price_per_adult_krw)은 성인 1명 기준이고, --trip-days 를 주면 왕복 합계다.
+    가격(min_price_per_adult_krw)은 성인 1명 기준이고, --trip-days 를 주면 왕복 합계다. 날짜는 목적지마다 그 달(--month 가 없으면 네이버
+    기본 범위, 여러 달)에서 가장 싼 하루다.
 
     예: baenggipyo naver explore SEL --month 2026-11 --trip-days 4 --country JP
     """

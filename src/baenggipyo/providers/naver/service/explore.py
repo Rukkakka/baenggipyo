@@ -25,6 +25,13 @@ from typing import Annotated
 EXPLORE_FETCH_SIZE: int = 100
 EXPLORE_DEFAULT_LIMIT: int = 20
 EXPLORE_MAX_LIMIT: int = EXPLORE_FETCH_SIZE
+EXPLORE_MONTH_DATE_NOTE: str = (
+    '날짜는 목적지마다 그 달에서 가장 싼 하루입니다. 원하는 기간이 그 달 일부라면 날짜가 기간 밖인 목적지도 빼지 말고 '
+    'calendar 로 그 기간 가격을 확인하세요'
+)
+EXPLORE_RANGE_DATE_NOTE: str = (
+    '날짜는 목적지마다 네이버 기본 범위(여러 달)에서 가장 싼 하루입니다. 원하는 기간이 있으면 --month 로 그 달을 정해 찾으세요'
+)
 
 
 class NaverExploreResult(FlightModel):
@@ -114,8 +121,11 @@ def explore(
         )
         for row in rows[:limit]
     ]
-    # 결과마다 붙는 안내는 가격의 뜻(추정가) 하나만 둔다. 나라 이름이 없는 것은 country: null 과 country_code 로 보인다 (docs/naver.md)
-    notes = [ESTIMATE_NOTE]
+    # 결과마다 붙는 안내는 가격의 뜻(추정가)과 날짜의 뜻(그 달 최저가 하루) 둘만 둔다. 나라 이름이 없는 것은 country: null 과 country_code
+    # 로 보인다 (docs/naver.md). 날짜 안내가 없으면 기간이 그 달 일부인 부탁에서 날짜가 기간 밖인 목적지를 빼 버린다 (2026-11-05 서울 12월
+    # 둘째 주 4일 직항: 연태는 12/6 이 최저가라 빠졌지만 달력으로 그 주 152,043~171,455원, 홍콩도 12/1 이 최저가였지만 그 주 247,300원).
+    # 달을 주지 않으면 여러 달에서 고른다 (2026-11-08 인천 출발 일본·베트남 51곳: 날짜가 2026-11 ~ 2027-07)
+    notes = [ESTIMATE_NOTE, EXPLORE_MONTH_DATE_NOTE if month else EXPLORE_RANGE_DATE_NOTE]
     if not found:
         # 빈 목록만 나가면 "갈 곳이 없다" 로 읽힌다. 나라 코드는 형식만 검사해 ISO 가 아닌 코드도 서버에 가고, 서버는 에러 없이 0곳을 준다
         # (2026-11-08 인천 출발 --country UK 0곳, GB 는 LHR·LGW·GLA)
