@@ -47,6 +47,7 @@ CLI 직접 조회나 원본 응답으로 확인한다.
 - **조회 결과는 stdout JSON, 에러는 stderr JSON.** 도움말·자동완성·`guide`·`--version` 은 CLI 텍스트이며 `--verbose` 진행 로그는 stderr 로 나간다. 새 에러는 `BaenggipyoError` 로 코드·힌트를 붙여 던진다.
 - **값이 없을 때:** 해당 없음 → 키 삭제, 모름 → `null`, 비어 있음 → `[]`.
 - **매진·만료 운임은 내보내지 않는다.** 목록에서는 거르고, 상세에서는 `FareUnavailableError`. 가격을 캐시하지 않는다.
+- **사이트가 보여 주는 사실과 어긋나지 않게 한다.** baenggipyo 는 사이트를 대체하는 도구가 아니라 사이트가 로그인 없이 보여 주는 것을 JSON 으로 그대로 받게 하는 창이라, 결과의 항공권·가격·순서·수는 그 사이트 웹에서도 같은 조건으로 볼 수 있는 것이어야 한다. 기능을 고치거나 새로 짤 때 그 화면이 쓰는 API·변수·기본값·정렬·계산을 먼저 확인하고, 웹에 없는 결과를 만들지 않는다 (다른 API 로 대신 찾기, 사용자가 고르지 않은 기준으로 받은 결과를 거르거나 합치기, 웹에서 고를 수 없는 기준으로 다시 줄 세우기, 후보 중 임의로 고르기, 웹에서 고를 수 없는 기본값·계산식). 웹도 받은 결과를 브라우저에서 정렬·거르므로, 웹 화면에서 고를 수 있는 정렬·필터와 같은 기준이면 받은 결과를 정렬·걸러도 된다. 가격은 계속 바뀌므로 웹과는 같은 때 본 결과끼리 비교한다. 웹에 있는데 baenggipyo 에 없는 기능은 괜찮다. 같은 API 로 더 편하게 다듬는 것(한 번에 더 받기, 사용자가 옵션으로 고른 조건으로 좁히기(웹에 없는 조건이어도 된다), 웹 UI 에 없지만 서버가 받는 조합)은 되지만, 웹과 다른 점은 그 소스 개발 가이드의 "웹과 다른 점" 절(없으면 만든다)에 무엇이 다르고 왜 사실이 어긋나지 않는지 적는다. 아래 "서버가 거른 결과를 다시 거르지 않는다" 는 이 원칙의 하위 규칙이다. ([README 원칙](README.md#원칙-사이트가-보여-주는-대로) · [웹 화면과의 대응](docs/development/provider-conventions.md#웹-화면과의-대응))
 - **서버가 거른 결과를 같은 조건으로 다시 거르지 않는다.** 소스의 분류(코드셰어 항공사 등)를 다른 기준으로 다시 판정하지 않는다. 직접 거르는 건 서버가 받지 않는 조건과 서버 필터 없는 대체 조회뿐이고, 확인할 수 없어 뺀 항공권은 사유를 `notes`로 알린다. ([서버 필터와 클라이언트 후처리](docs/development/provider-conventions.md#서버-필터와-클라이언트-후처리))
 - **원본 응답 통째·세션 토큰·쿠키·추적 ID 는 출력하지 않는다.** 예약은 `url` 의 원 사이트에서. 판매처 예약 링크는 원 사이트가 준 그대로 내며, 그 안의 검색 ID 는 예외다 ([내보내지 않는 정보](docs/development/output-contract.md#내보내지-않는-정보)).
 - **모든 HTTP 요청은 요청 제한 훅을 거친다.** 새 클라이언트도 `rate_limit_hooks()` 를 `event_hooks` 로 넘긴다. 폴링으로 다시 묻는 요청도 마찬가지다.
@@ -59,7 +60,7 @@ CLI 직접 조회나 원본 응답으로 확인한다.
 
 - [README.md](docs/development/README.md) — 개발 환경 설치, 검증과 테스트 원칙, 매일 API 감시
 - [architecture.md](docs/development/architecture.md) — 계층 구조, 요청 흐름, 요청 제한
-- [provider-conventions.md](docs/development/provider-conventions.md) — provider 모듈 작성 규칙 (action id 명명, 재시도, 폴링, 모델 배치, 서버 필터와 클라이언트 후처리)
+- [provider-conventions.md](docs/development/provider-conventions.md) — provider 모듈 작성 규칙 (action id 명명, 재시도, 폴링, 모델 배치, 웹 화면과의 대응, 서버 필터와 클라이언트 후처리)
 - [output-contract.md](docs/development/output-contract.md) — CLI 출력·에러·exit code 규약, 공통 항공권 필드 규칙
 - [code-style.md](docs/development/code-style.md) — 문자열, import 순서, pydantic 선언, 타입 힌트, docstring, 테스트 코드 형식
 - [workflow.md](docs/development/workflow.md) — 이슈 → 브랜치 → 커밋 → PR 절차
