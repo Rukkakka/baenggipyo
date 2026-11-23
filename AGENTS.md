@@ -1,6 +1,6 @@
 # AGENTS.md
 
-네이버 항공권·스카이스캐너에서 **지금 살 수 있는 항공권**을 조회하는 CLI (`baenggipyo`). 구조와 규약은 [jibsa](https://github.com/Rukkakka/jibsa)를 따른다.
+네이버 항공권·스카이스캐너에서 **지금 살 수 있는 항공권**을 조회하는 CLI (`baenggipyo`).
 LLM 에이전트가 셸로 호출하는 도구라, 출력 형식과 에러 형식이 곧 API 다.
 패키지 코드는 모두 `src/baenggipyo/` 아래에 있다.
 사용자 문서(CLI 사용법)는 `docs/` 바로 아래, 개발 문서(구현 규약·소스별 개발 가이드)는 `docs/development/`에 있다.

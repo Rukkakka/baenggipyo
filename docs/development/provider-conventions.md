@@ -3,7 +3,7 @@
 `providers/<source>/` 모듈을 쓰는 규칙. 형식 규칙은 [code-style.md](code-style.md),
 계층 구조와 요청 제한은 [architecture.md](architecture.md) 를 본다.
 
-> 이 문서는 jibsa 의 provider 규약을 그대로 가져왔다. 아래 예시의 엔드포인트·모델 이름은 규칙을 보여 주는 **가상 예**다.
+> 아래 예시의 엔드포인트·모델 이름은 규칙을 보여 주는 **가상 예**다.
 > 실제 목록은 각 소스 개발 가이드의 'Action id 목록' 에 있다.
 
 ## 모듈 구성
@@ -19,7 +19,7 @@ providers/<source>/
 └── service/          # 윗층: api 를 조합해 공통 항공권 모델로 정규화
     ├── __init__.py   # 모듈 안내 docstring 만 (re-export 없음)
     ├── common.py     # 두 모듈 이상이 쓰는 결과 모델·URL·안내 문구·상수
-    ├── airport.py    # 공항·도시 이름과 IATA 코드 해석 (jibsa 의 region.py 자리)
+    ├── airport.py    # 공항·도시 이름과 IATA 코드 해석
     └── <기능>.py      # CLI 명령 묶음 하나 (flight, calendar, explore …)
 ```
 
@@ -29,7 +29,7 @@ providers/<source>/
   모듈에 두고 `BaseModel` + `extra='forbid'` 로 만든다. 두 소스가 똑같은 모양으로 내는 결과(`AirportSearchResult`, `search` 의 `SearchSummary`)는
   공통 출력 모델처럼 `core/flight.py` 에 하나만 두고, 소스에만 있는 필드는 서브클래스로 붙인다 (`SkyscannerSearchSummary` 의 `total_count`).
 - 검색 결과 폴링, HTML 안의 JSON 꺼내기처럼 소스 고유의 응답 처리 단계가 있으면 `api/` 안의 별도 모듈로 뺀다
-  (jibsa 당근의 `api/relay.py`, `api/parser.py` 처럼).
+  (네이버의 SSE 를 읽는 `api/stream.py` 처럼).
 - import 는 `service` → `api` 한 방향이다. `api/` 는 소스 API 를 그대로 옮긴 아래층이라 service·CLI 를 모른다.
 
 ### service 모듈을 나누는 기준
@@ -139,7 +139,7 @@ def run_request_flights_search_v1(
 
 - **재시도.** 조회 전용이면 POST 라도 `should_retry_idempotent` (5xx/429 + timeout/transport).
   baenggipyo 에는 조회만 있고 상태를 바꾸는 호출(예약·결제)은 넣지 않으므로 그런 호출용 재시도 술어도 두지 않는다. 429 가 봇 차단이라
-  재시도하면 안 되는 소스는 소스 전용 술어를 두고 그 소스 개발 가이드에 적는다 (jibsa 네이버 부동산의
+  재시도하면 안 되는 소스는 소스 전용 술어를 두고 그 소스 개발 가이드에 적는다 (네이버의
   `should_retry_naver` 처럼).
 - **`raise_for_status`** 는 httpx 메서드가 아니라 `core.http.raise_for_status` 를 쓴다. 비공식 API 는
   거절 사유를 본문에만 담으므로 본문을 잘라(민감 키는 가림) 예외 메시지에 붙인다.
