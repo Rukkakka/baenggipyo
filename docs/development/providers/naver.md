@@ -30,7 +30,7 @@
 - API 는 `https://flight-api.naver.com` 하나다 (`/api/runtime-config` 의 `api.flight`). 예전 실험의 `airline-api.naver.com/graphql`
   `internationalList` 쿼리와 `flight-api.naver.com/graphql` `airportAutocomplete` 쿼리는 사라졌다.
 - **브라우저 `User-Agent` 와 `Accept-Language` 를 둘 다 보내야 한다.** 하나라도 빠지면 경로·본문과 상관없이 본문 없는 500
-  (`content-length: 0`)이 온다 (`GET /` 포함). 둘 다 있으면 쿠키 없이 된다. 우회가 아니라 일반 브라우저 헤더다.
+  (`content-length: 0`)이 온다 (`GET /` 포함). 둘 다 있으면 쿠키 없이 된다. 둘 다 일반 브라우저가 보내는 헤더다.
   `Origin`·`Referer` 는 `https://flight.naver.com` 으로 보낸다 (CORS 응답이 이 출처만 허용).
 - GraphQL 은 `POST /graphql` 이다. 인트로스펙션은 막혀 있어(`GRAPHQL_VALIDATION_FAILED`) 쿼리 문자열은 번들에 든 것을 그대로 쓴다.
   잘못된 변수는 HTTP 200 + `errors[].extensions.code: BAD_USER_INPUT` 로 온다 (예: `DeviceType` 에 `pc` 를 주면 실패, `PC` 가 맞다).

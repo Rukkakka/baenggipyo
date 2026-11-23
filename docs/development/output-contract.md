@@ -88,7 +88,7 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 | 알려 줬는데 비어 있음 | `[]` | 직항의 `stopover_airports` |
 
 - service 에서 "모름"과 "없음"을 섞지 않는다. 수하물 정보가 없으면 `baggage_included=None` 이지 `False` 가 아니다.
-- 키를 빼는 필드는 출력 모델의 `not_applicable_fields()` + `@model_serializer` 로 뺀다 (jibsa `Listing` 과 같은 방식).
+- 키를 빼는 필드는 출력 모델의 `not_applicable_fields()` + `@model_serializer` 로 뺀다.
 - 예외: `flight --offer-urls N` 으로 링크를 뺀 판매처 운임의 `url` 도 키를 뺀다 (`Offer.url_omitted`). 모르는 것이 아니라 빼 달라고 한 것이라 `null` 로
   두지 않는다. 기본(`--offer-urls 1`)으로도 링크를 빼므로 뺀 운임이 있으면 `notes` 로 알린다 (`core.flight.url_omitted_notes`). 키가 없으면
   해당 없음으로 읽혀 그 판매처엔 링크가 없다고 여기기 쉽다. `--offer-urls 0` 은 모두 빼 달라고 한 것이라 알리지 않는다.

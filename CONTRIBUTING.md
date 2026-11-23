@@ -8,7 +8,7 @@
 
 ## 코드 고치기
 
-1. [AGENTS.md](AGENTS.md)의 "꼭 지킬 것"을 먼저 읽는다. 로그인 없는 기능만, 출력 규약, 봇 차단 우회 금지 같은 원칙이 있다.
+1. [AGENTS.md](AGENTS.md)의 "꼭 지킬 것"을 먼저 읽는다. 로그인 없는 기능만, 사이트가 보여 주는 대로, 출력 규약 같은 원칙이 있다.
 2. [개발 환경](docs/development/README.md)대로 설치하고, 고친 뒤 ruff·mypy 를 돌리고 실제 API 로 확인한다.
 3. [작업 절차](docs/development/workflow.md)대로 이슈 → 브랜치 → 커밋 → PR 순서로 올린다. CI(ruff·mypy·pytest·설치 확인)를 통과해야 머지된다.
 

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-네이버 항공권·스카이스캐너에서 **지금 살 수 있는 항공권**을 조회하는 CLI (`baenggipyo`). 구조와 규약은 [jibsa](https://github.com/Rukkakka/jibsa)를 따른다.
+네이버 항공권·스카이스캐너에서 **지금 살 수 있는 항공권**을 조회하는 CLI (`baenggipyo`).
 LLM 에이전트가 셸로 호출하는 도구라, 출력 형식과 에러 형식이 곧 API 다.
 패키지 코드는 모두 `src/baenggipyo/` 아래에 있다.
 사용자 문서(CLI 사용법)는 `docs/` 바로 아래, 개발 문서(구현 규약·소스별 개발 가이드)는 `docs/development/`에 있다.
@@ -47,10 +47,10 @@ CLI 직접 조회나 원본 응답으로 확인한다.
 - **조회 결과는 stdout JSON, 에러는 stderr JSON.** 도움말·자동완성·`guide`·`--version` 은 CLI 텍스트이며 `--verbose` 진행 로그는 stderr 로 나간다. 새 에러는 `BaenggipyoError` 로 코드·힌트를 붙여 던진다.
 - **값이 없을 때:** 해당 없음 → 키 삭제, 모름 → `null`, 비어 있음 → `[]`.
 - **매진·만료 운임은 내보내지 않는다.** 목록에서는 거르고, 상세에서는 `FareUnavailableError`. 가격을 캐시하지 않는다.
+- **사이트가 보여 주는 사실과 어긋나지 않게 한다.** baenggipyo 는 사이트를 대체하는 도구가 아니라 사이트가 로그인 없이 보여 주는 것을 JSON 으로 그대로 받게 하는 창이라, 결과의 항공권·가격·순서·수는 그 사이트 웹에서도 같은 조건으로 볼 수 있는 것이어야 한다. 기능을 고치거나 새로 짤 때 그 화면이 쓰는 API·변수·기본값·정렬·계산을 먼저 확인하고, 웹에 없는 결과를 만들지 않는다 (다른 API 로 대신 찾기, 사용자가 고르지 않은 기준으로 받은 결과를 거르거나 합치기, 웹에서 고를 수 없는 기준으로 다시 줄 세우기, 후보 중 임의로 고르기, 웹에서 고를 수 없는 기본값·계산식). 웹도 받은 결과를 브라우저에서 정렬·거르므로, 웹 화면에서 고를 수 있는 정렬·필터와 같은 기준이면 받은 결과를 정렬·걸러도 된다. 가격은 계속 바뀌므로 웹과는 같은 때 본 결과끼리 비교한다. 웹에 있는데 baenggipyo 에 없는 기능은 괜찮다. 같은 API 로 더 편하게 다듬는 것(한 번에 더 받기, 사용자가 옵션으로 고른 조건으로 좁히기(웹에 없는 조건이어도 된다), 웹 UI 에 없지만 서버가 받는 조합)은 되지만, 웹과 다른 점은 그 소스 개발 가이드의 "웹과 다른 점" 절(없으면 만든다)에 무엇이 다르고 왜 사실이 어긋나지 않는지 적는다. 아래 "서버가 거른 결과를 다시 거르지 않는다" 는 이 원칙의 하위 규칙이다. ([README 원칙](README.md#원칙-사이트가-보여-주는-대로) · [웹 화면과의 대응](docs/development/provider-conventions.md#웹-화면과의-대응))
 - **서버가 거른 결과를 같은 조건으로 다시 거르지 않는다.** 소스의 분류(코드셰어 항공사 등)를 다른 기준으로 다시 판정하지 않는다. 직접 거르는 건 서버가 받지 않는 조건과 서버 필터 없는 대체 조회뿐이고, 확인할 수 없어 뺀 항공권은 사유를 `notes`로 알린다. ([서버 필터와 클라이언트 후처리](docs/development/provider-conventions.md#서버-필터와-클라이언트-후처리))
 - **원본 응답 통째·세션 토큰·쿠키·추적 ID 는 출력하지 않는다.** 예약은 `url` 의 원 사이트에서. 판매처 예약 링크는 원 사이트가 준 그대로 내며, 그 안의 검색 ID 는 예외다 ([내보내지 않는 정보](docs/development/output-contract.md#내보내지-않는-정보)).
 - **모든 HTTP 요청은 요청 제한 훅을 거친다.** 새 클라이언트도 `rate_limit_hooks()` 를 `event_hooks` 로 넘긴다. 폴링으로 다시 묻는 요청도 마찬가지다.
-- **봇 차단을 우회하지 않는다.** CLI 는 쓰는 사람의 컴퓨터에서 있는 그대로 요청한다. 차단 페이지가 오면 에러로 알리고, 지문 위조 같은 우회 기법은 쓰지 않는다. 검증용인 매일 API 감시만 예외로 스카이스캐너 요청의 접속 버릇(TLS 지문)을 바꾼다. 설치되는 CLI 에는 넣지 않고 캡차는 풀지 않는다. ([매일 API 감시](docs/development/README.md#매일-api-감시))
 - **명령을 추가·삭제하면 매일 API 감시 목록도 고친다.** `scripts/monitor/api_check.py` 의 `GROUPS` 에 넣고, 국제선·국내선이 다르게 동작하면 둘 다 넣는다. 빠뜨리면 `test_every_source_command_is_in_api_monitor` 가 실패한다. ([매일 API 감시](docs/development/README.md#매일-api-감시))
 - **검증은 실제 API 로, 테스트는 최소로.** 코드를 바꾸면 CLI 직접 조회 같은 실제 API 호출로 확인한다 (요청은 최소로). 테스트는 아주 드문 엣지케이스나 틀어지면 안 되는 핵심 동작일 때만 추가한다. 전체 `pytest` 는 먼저 묻고, 평소에는 바꾼 부분 테스트 몇 개만 이름으로 골라 한 번 돌린다. ([검증과 테스트](docs/development/README.md#검증과-테스트))
 
@@ -60,11 +60,13 @@ CLI 직접 조회나 원본 응답으로 확인한다.
 
 - [README.md](docs/development/README.md) — 개발 환경 설치, 검증과 테스트 원칙, 매일 API 감시
 - [architecture.md](docs/development/architecture.md) — 계층 구조, 요청 흐름, 요청 제한
-- [provider-conventions.md](docs/development/provider-conventions.md) — provider 모듈 작성 규칙 (action id 명명, 재시도, 폴링, 모델 배치, 서버 필터와 클라이언트 후처리)
+- [provider-conventions.md](docs/development/provider-conventions.md) — provider 모듈 작성 규칙 (action id 명명, 재시도, 폴링, 모델 배치, 웹 화면과의 대응, 서버 필터와 클라이언트 후처리)
 - [output-contract.md](docs/development/output-contract.md) — CLI 출력·에러·exit code 규약, 공통 항공권 필드 규칙
 - [code-style.md](docs/development/code-style.md) — 문자열, import 순서, pydantic 선언, 타입 힌트, docstring, 테스트 코드 형식
 - [workflow.md](docs/development/workflow.md) — 이슈 → 브랜치 → 커밋 → PR 절차
 - [release.md](docs/development/release.md) — 버전 번호 규칙, CHANGELOG 쓰는 법, 릴리스·태그·GitHub Release 절차
+- [agents.md](docs/development/agents.md) — 서브에이전트에 일을 나눠 맡기는 방식 (나눌지 정하기, 역할, 지시서, 띄우기 전 지시서 검사, 검증 분담, 동시 실행, 코드 리뷰 절차)
+- [review-checklist.md](docs/development/review-checklist.md) — 코드 리뷰 관점별로 지난 리뷰에서 나온 버그 패턴과 지적하지 말 것 (고친 사람도 끝내기 전에 대 본다)
 
 소스별 개발 가이드 (`docs/development/providers/`) — 그 소스에만 있는 구현·예외
 
@@ -89,14 +91,27 @@ README는 로고·배지·기능 요약·빠른 시작(실제 출력 예시 하�
 | 여러 소스에 공통인 개발 규약 | `docs/development/` 바로 아래 문서 |
 | 사용자(에이전트 포함)에게 보이는 변경 | `CHANGELOG.md` 의 `Unreleased` ([쓰는 법](docs/development/release.md#changelog-쓰는-법)) |
 
-한 소스에만 해당하는 규칙·예외는 공통 문서에 적지 않고 그 소스 문서에 적는다. 명령의 인자·기본값·조회 한도·반환값·오류·주의사항은 해당 명령 절에서 설명한다. 요약 표는 해당 절과 일치시키고 다른 명령 절에 설명을 복사하지 않는다. 공통 규칙은 복사하지 않고 링크로 연결한다.
+한 소스에만 해당하는 규칙·예외는 공통 문서에 적지 않고 그 소스 문서에 적는다. 명령의 인자·기본값·조회 한도·반환값·오류·주의사항은 해당 명령 절에서 설명한다. 요약 표는 해당 절과 일치시키고 다른 명령 절에 설명을 복사하지 않는다. 공통 규칙은 복사하지 않고 링크로 연결한다. 규칙 문장을 바꾸면 그 주제의 낱말로 `AGENTS.md`·`CLAUDE.md`·`docs/`·`.claude/` 를 검색해, 같은 규칙을 적은 다른 문장도 함께 고친다 (서브에이전트는 맡은 파일 밖에서 찾은 곳을 고치지 않고 보고한다).
 
 명령을 실제로 추가하면 해당 문서의 `예정` 표시를 지운다.
 
 ## 작업 절차
 
+**파일을 고치기 전에 계획을 설명하고 허락을 받는다.** 코드·문서·설정을 고치기 전에 아래를 쉬운 말로 자세히 설명하고,
+사용자가 허락한 뒤 시작한다. 코드 읽기·실제 조회·테스트처럼 파일을 바꾸지 않는 조사는 먼저 해도 된다.
+
+- 무엇을 왜 바꾸는지, 고칠 파일과 바뀌는 내용
+- 내가 가정한 것, 요청을 달리 읽을 수 있으면 그 해석들 (몰래 하나를 고르지 않는다), 더 간단한 방법이 있으면 그것,
+  요청대로 하는 것이 맞지 않아 보이면 반대 의견과 이유
+- 직접 할지 서브에이전트에 나눌지 (나누면 역할과 모델, [나눌지 정하기](docs/development/agents.md#나눌지-정하기))
+- 어떻게 확인할지 (고치기 전에 문제를 재현할 조회와 끝났다고 볼 기준), 하지 않을 것
+
+허락은 그때 설명한 범위에만 해당한다. 하다가 범위 밖 수정이 필요해지거나, 고치기 직전에 다시 확인한 내용이 계획과 다르면
+멈추고 다시 묻는다. 허락은 파일 수정까지이고 커밋·PR 은 아래 규칙대로 따로 시킬 때만 한다.
+
 **에이전트는 사용자가 시킬 때만 이슈·브랜치·커밋·PR 을 만든다.** 시키지 않았으면 지금 브랜치에서 파일만 고치고 멈춘다.
 [workflow.md](docs/development/workflow.md) 의 "파일을 고치기 전에 브랜치부터 딴다" 보다 이 규칙이 먼저다. 시켰을 때는 아래 절차를 따른다.
+일을 서브에이전트에 나눌지 정하거나 나눠 맡길 때(역할·검증 분담·코드 리뷰 절차)는 [agents.md](docs/development/agents.md) 를 따른다. 서브에이전트에는 git 쓰기를 맡기지 않는다.
 
 커밋 전에 **[docs/development/workflow.md](docs/development/workflow.md)** 를 읽는다. 요약:
 **커밋 전에 `.github/ISSUE_TEMPLATE/` 템플릿으로 이슈를 연다.** `main` 에 직접 커밋하지 않고

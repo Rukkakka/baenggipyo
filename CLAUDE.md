@@ -4,3 +4,62 @@
 AGENTS.md에서 연결한 공통 규약과 소스별 개발 가이드도 작업 범위에 맞게 참고한다.
 
 @AGENTS.md
+
+## Claude Code 에서 서브에이전트를 쓸 때
+
+운용 규칙은 [docs/development/agents.md](docs/development/agents.md) 다. 아래는 Claude Code 에만 해당하는 값이다.
+
+- 모델은 일에 맞춰 고른다. **effort 는 Sonnet·Opus 모두 medium 부터 high 까지**이고, 평소에는 medium, 더 생각해야 하는 일만 high 다.
+  xhigh 는 쓰지 않고 Haiku 도 쓰지 않는다 (2026-11-23 사용자 결정). 구현 묶음(`implement-bundles`)의 코드·문서 작업자와 혼자 띄우는
+  `coder`·`doc-writer` 는 판단이 얽힌 일이어도 Sonnet 으로 고정한다. 얽힘은 계획을 세운 주 에이전트가
+  지시서에서 풀고([맡길 때 지시서에 넣는 것](docs/development/agents.md#맡길-때-지시서에-넣는-것)), 더 생각해야 하는 묶음은 effort 를
+  medium 에서 high 로 올린다. 웹 대조 조사원(`web-parity-investigator`)은 결과가 곧 판단(아직 모르는 어긋남 찾기)이라 지시서로 대신할 수 없어
+  Opus 를 쓰고, 범위가 넓으면 high, 명령 하나·옵션 몇 개처럼 좁으면 medium 이다. 변경분 코드 리뷰는 리뷰어 하나만 띄우고(`/review-diff`),
+  모델은 변경의 복잡도로 간단하면 Sonnet medium, 중간이면 Opus medium, 복잡하면 Opus high 로 한다. 한 소스의 코드 전체 리뷰(`/review`)는
+  명령 묶음마다 리뷰어 하나이고 모두 Opus high 다. 지적이 다섯 건을 넘을 때 띄우는 검증자 하나는 Sonnet medium 이다 (지적마다 그 자리를 열고
+  CLI 를 1~2번 부르는 구체적인 일이다). 띄우기 전 지시서 검사(`brief-checker`)도 Sonnet medium 이다 (체크리스트 질문에 답하는 구체적인
+  일이다). 판단은 [리뷰 체크리스트](docs/development/review-checklist.md)로 돕는다. 이 기준은 여기에만 두고 에이전트 정의에는 옮겨 적지
+  않는다 (명령은 이 기준으로 그 일의 값을 정해 적는다). 정의된 에이전트(`claude-code-guide` 등)도 기본 모델이 낮을 수 있으니 띄울 때
+  `model` 을 명시한다.
+- 미리 정의한 역할은 `.claude/agents/` 에 있다: `web-parity-investigator`(웹 대조 조사, 읽기 전용), `coder`(코드 작업),
+  `doc-writer`(문서 작업), `reviewer`(한 맥락에서 리뷰 지적 모으기, 읽기 전용), `review-verifier`(리뷰 지적 재검증, 읽기 전용), `brief-checker`(띄우기 전 지시서 검사, 읽기 전용).
+  파일의 모델·effort 는 흔한 값이고 호출 때 덮어쓴다. 모두 git 은 읽기 명령만 쓴다 (작업 트리에 사용자의 커밋 전 변경이 있을 수 있다).
+- 슬래시 명령은 `.claude/skills/` 에 있다.
+  - `/review <소스> [명령, 명령...]` — 한 소스의 코드 전체를 명령 묶음마다 리뷰어 하나(Opus high)가 동시에 리뷰 → 재현(다섯 건을 넘으면 Sonnet 검증자 하나) → 분류 ([코드 리뷰](docs/development/agents.md#코드-리뷰)). 첫 인자가 소스가 아니면 안내만
+  - `/review-diff` — 변경분을 리뷰어 하나(복잡도로 모델을 정함)가 리뷰 → 재현·분류는 `/review` 와 같다
+  - `/web-parity` — 소스별 웹 대조 조사 (A 어긋남·B 의도한 차이·C 같음·D 웹에만 있음), 읽기 전용
+  - `/api-broken` — 매일 API 감시의 `api-broken` 이슈(고장 난 명령)를 재현하고 원인과 고칠 계획을 보고. `api-blocked` 는 고장이 아니라 확인 못 함이다
+  - `/new-endpoint` — 새 엔드포인트를 더하는 확인 순서와 구현 순서
+  - `/release` — 릴리스 절차. 사용자가 직접 칠 때만 돌고, 바깥으로 나가는 단계마다 다시 허락받는다
+  - `/pr-ready` — PR 열기 전 점검
+- 워크플로(여러 에이전트를 정해진 순서로 돌리는 스크립트)는 `.claude/workflows/` 에 있다.
+  - `web-parity-panel` — `/web-parity` 가 조사원이 둘 이상일 때 부른다. 소스·범위마다 `web-parity-investigator` 하나 (Opus, 같은 소스는 차례로, 네이버와 스카이스캐너는 동시에)
+  - `implement-bundles` — 허락받은 구현 계획의 묶음을 `coder` 로 돌린다 (공통 묶음 먼저, 소스마다 `first` 묶음 먼저, 나머지는
+    파일이 겹치지 않아 같은 소스도 동시에 셋까지, 소스끼리는 동시에. 동시에 돌 수 있는 묶음끼리 같은 파일을
+    고치면 시작하지 않는다) → `doc-writer` 하나 (둘 다 Sonnet). 띄우기 전에 `brief-checker` 결과를 지적마다 처리한 기록(`briefCheck`)이 있어야 시작한다
+    ([띄우기 전 지시서 검사](docs/development/agents.md#띄우기-전-지시서-검사)). 작업자는 자기 파일만 고치고 CHANGELOG·`docs/llm.md`·감시 목록 같은 공용 파일은
+    고칠 내용만 보고한다. 작업자는 실제 조회를 하지 않고, 고치기 전·후 출력 비교는 주 에이전트가 한다 (고치기 전 출력을 저장한
+    경로를 `baseline` 으로 넘겨야 시작한다). 인자 형식은 그 파일의
+    `meta.whenToUse` 에 있다.
+
+  **언제 돌리나.** 에이전트를 여러 개 써 비용이 크다.
+  - `web-parity-panel`: 사용자가 `/web-parity` 를 직접 쳤으면 돌린다. 치지 않았는데 요청을 보고 그 명령을 골랐으면 에이전트
+    수를 알리고 허락받은 뒤 돌린다.
+  - `implement-bundles`: "implement-bundles 로 구현한다" 고 적은 구현 계획을 사용자가 허락했을 때만 돌린다. 주 에이전트가
+    직접 하는 작은 수정 말고는 코드 수정을 작업자에게 맡기고, 파일이 겹치지 않는 묶음이 둘 이상이면(같은 소스여도) 계획에 그렇게 적어
+    나눠 제안한다. 묶음이 하나면 `coder` 하나를 띄운다 ([나눌지 정하기](docs/development/agents.md#나눌지-정하기),
+    2026-11-23 사용자 결정: 주 에이전트가 직접 고치면 느리고 토큰이 많이 든다).
+
+  **만들 때.** 저장한 워크플로는 슬래시 명령 목록에도 이름으로 올라가므로 명령과 이름이 겹치지 않게 짓는다. 인자 없이 불리면
+  아무것도 띄우지 않고 안내만 돌려주게 한다.
+
+## 명령 출력을 맥락에 적게 남기기
+
+Claude Code 의 `Read`·scratchpad 를 쓰는 규칙이라 `AGENTS.md` 가 아니라 여기에 둔다 (2026-11-23 사용자 결정).
+
+- `git diff` 는 바로 출력하지 않는다. 먼저 `git diff --stat`(또는 `--name-status`)으로 바뀐 파일과 줄 수를 본다. 바뀐 줄이
+  100줄 안쪽인 파일 하나는 경로를 붙여(`git diff HEAD -- <경로>`) 바로 봐도 된다. 그보다 크면 scratchpad 파일로 저장하고
+  (`git diff HEAD > <scratchpad>/diff.patch`) `grep -n` 으로 위치를 찾아 `Read` 의 offset·limit 로 필요한 부분만 읽는다.
+  리뷰어처럼 diff 전체를 읽어야 하는 일은 파일로 저장해 한 번 읽고, 다시 볼 때는 다시 출력하지 않고 그 파일에서 필요한 자리만
+  연다 (나눠 읽는다고 맥락이 줄지는 않는다. 줄어드는 것은 같은 diff 를 거듭 출력하는 몫이다). 한 번 출력한 diff 는 그 에이전트가
+  끝날 때까지 호출마다 다시 읽혀 맥락이 불어나기 때문이다.

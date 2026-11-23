@@ -97,8 +97,7 @@ CI 는 여전히 실제 API 를 부르지 않는다.
 - **스카이스캐너는 접속 버릇만 크롬처럼:** 러너는 데이터센터 IP 라 스카이스캐너 봇 차단에 첫 요청부터 막히곤 한다. 감시는 검증용이라
   스카이스캐너 묶음만 [disguise.py](../../scripts/monitor/disguise.py)(`api_check.py run --disguise`)로 부른다. `SkyscannerClient` 의 httpx
   전송만 curl_cffi(`impersonate='chrome'`, 워크플로에서 `curl_cffi==0.16.3` 설치)로 바꾸고, 요청 제한·로그 훅, 헤더, 응답 해석은 CLI 와 같다.
-  설치되는 CLI 에는 넣지 않고 캡차는 풀지 않는다 (막히면 확인 못 함). [AGENTS.md](../../AGENTS.md) 의 "봇 차단을 우회하지 않는다" 는 CLI
-  원칙이라 감시는 예외다.
+  설치되는 CLI 에는 넣지 않고 캡차는 풀지 않는다 (막히면 확인 못 함).
 - **판정:** 명령마다 셋으로 나눈다.
 
   | 판정 | 기준 |
