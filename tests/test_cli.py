@@ -142,6 +142,9 @@ def test_handle_errors_maps_exceptions_to_codes(
     '{"error": "{\\"requestId\\": \\"secret-session\\"}"}',  # JSON 값 안의 JSON 문자열
     '{"reason": "blocked", "redirect_to": "/sttc/px/captcha-v2/index.html?url=Lz8=&uuid=secret-session&vid=secret-session"}',  # 봇 차단의 캡차 주소
     '<html>captcha?uuid=secret-session&vid=secret-session</html>',  # 캡차 주소의 추적 ID
+    '<html><script>var s = "{\\"token\\":\\"secret-session\\"}";</script></html>',  # HTML 스크립트의 JS 문자열 안 JSON
+    'Authorization: Bearer secret-session',  # 인증 방식 낱말 뒤의 값
+    'Cookie: a=1; sid=secret-session',  # 이어진 쿠키의 두 번째 값
 ])
 def test_upstream_error_message_hides_quoted_session_ids(body: str, capsys: pytest.CaptureFixture[str]) -> None:
     # 서버 오류 본문은 에러 JSON 의 message 로 나간다. JSON 으로 읽히지 않는 본문의 따옴표 친 키도 세션·추적 ID 를 가려야 한다

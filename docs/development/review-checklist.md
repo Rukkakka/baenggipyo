@@ -153,10 +153,11 @@
     언제: `page.url`·`response.url`·리다이렉트 주소를 문자열에 넣는 `+` 줄.
 16. **에러에 싣는 응답 본문의 비밀 값을 글 모양마다 가리는가.** 4xx·5xx 본문을 에러 message 에 실을 때(`_body_preview`) JSON 으로 읽히는 본문은
     키로 가리지만(`_redact_json`), 그 밖의 본문은 `SENSITIVE_TEXT_PATTERN` 하나가 가린다. 키 뒤 따옴표만 건너뛰면 HTML 스크립트의 JS 문자열 안
-    JSON(`"{\"token\":\"…\"}"`)은 역슬래시에서 멈춰 값을 못 가리고, `Authorization: Bearer …` 는 `Bearer` 만 가려 그 뒤 값이 나간다
-    ([내보내지 않는 정보](output-contract.md#내보내지-않는-정보)). 확인: `{"accessToken":"X"}` 를 담은 HTML, `"{\"token\":\"X\"}"` 를 담은 HTML,
-    `Authorization: Bearer X`, `token=X` 를 본문으로 준 500 응답에 `raise_for_status` 를 불러 message 에 `X` 가 남지 않는지 본다.
-    예: `core/http.py:91` `SENSITIVE_TEXT_PATTERN` (따옴표 친 키는 가리지만 위 두 꼴은 값이 그대로 나간다, 2026-11-24 확인).
+    JSON(`"{\"token\":\"…\"}"`)은 역슬래시에서 멈춰 값을 못 가리고, `Authorization: Bearer …` 는 `Bearer` 만 가려 그 뒤 값이 나가며, 값을 공백에서
+    끊으면 `Cookie: a=…; b=…` 의 두 번째 쿠키부터 나간다 ([내보내지 않는 정보](output-contract.md#내보내지-않는-정보)). 확인: `{"accessToken":"X"}` 를 담은
+    HTML, `"{\"token\":\"X\"}"` 를 담은 HTML, `Authorization: Bearer X`, `Cookie: a=1; b=X`, `token=X` 를 본문으로 준 500 응답에 `raise_for_status` 를 불러
+    message 에 `X` 가 남지 않는지 본다. 예: `core/http.py:95` `SENSITIVE_TEXT_PATTERN`·`COOKIE_TEXT_PATTERN` (그때 따옴표 친 키만 가리고 뒤의 세 꼴은 값이
+    그대로 나갔다. 지금은 `\"`·인증 방식 낱말을 건너뛰고 쿠키 줄은 줄 끝까지 가린다, 2026-11-24).
     언제: `SENSITIVE_*` 패턴·`_redact_*`·`_body_preview` 를 바꾼 diff, 서버가 준 글자를 에러 message·로그에 새로 싣는 `+` 줄.
 
 ## `web` 웹 대응

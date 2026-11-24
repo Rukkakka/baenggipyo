@@ -26,6 +26,12 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 - 네이버는 브라우저가 보내는 CORS 사전 요청과 첫 화면이 스스로 보내는 요청도 요청 제한에 센다. 명령을 몰아 부르면 분당 상한에 더 빨리 닿는다
 - 스카이스캐너 봇 차단(`RATE_LIMITED`, `reason: blocked`)의 `hint` 를 "그동안 다른 소스를 쓰세요" 로 줄였다
 
+### 수정
+
+- 요청 제한 상태 파일(`<state_dir>/ratelimit/<소스>.json`)에 아주 큰 정수가 있으면 그 소스의 모든 명령과 `limits`·`limits --reset` 이 `INTERNAL_ERROR` 로 실패하거나, 스카이스캐너가 쿨다운 중에 다시 막힐 때 명령이 멈추던 문제. 이제 깨진 값으로 보고 버린다
+- `FARE_UNAVAILABLE` 에러에서 소스가 알려 주지 않은 `fare_status`·`reason` 이 키째 빠지던 문제. 이제 모름이라 `null` 로 낸다
+- 서버 오류 본문을 에러 `message` 에 실을 때 HTML 스크립트의 JS 문자열 안 JSON(`"{\"token\":\"…\"}"`), `Authorization: Bearer …`, 이어진 쿠키(`Cookie: a=…; b=…`)의 두 번째 값부터가 가려지지 않던 문제
+
 ## 0.8.0 — 2026-11-08
 
 ### 추가

@@ -24,13 +24,14 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 ## 에러
 
 ```json
-{"error": {"code": "FARE_UNAVAILABLE", "message": "...", "hint": "...", "source": "naver", "itinerary_id": "..."}}
+{"error": {"code": "FARE_UNAVAILABLE", "message": "...", "hint": "...", "source": "naver", "itinerary_id": "...", "fare_status": null, "reason": null}}
 ```
 
 - `code` 는 기계가 읽는 값, `message` 는 사람이 읽는 설명, `hint` 는 **다음에 할 행동**이다.
   LLM 이 hint 를 보고 재시도·옵션 수정·소스 변경을 고르므로, 새 에러에는 구체적인 hint 를 단다.
 - 애플리케이션 에러는 `core.errors.BaenggipyoError` (또는 서브클래스)로 던진다. 추가 필드는 `details` 에
-  넣으면 에러 JSON 에 평탄하게 실린다. 예외는 브라우저 안에서 나는 두 갈래다. 하나는 transport 의 전송 오류(`CorsBlockedError`·`ProxyError`·`CertificateError`)로 httpx `TransportError` 다. 다른 하나는 첫 화면 단계 에러 `EntryConnectError`(httpx `ConnectError`, 재시도한다)와 `EntryStatusError`(httpx `HTTPStatusError`, `TransportError` 가 아니다)다. 재시도 술어가 원래 httpx 종류대로 다루고(재시도할 오류는 `RETRYABLE_TRANSPORT_ERRORS`) `handle_errors` 가 code·hint 를 붙이므로, 모두 `BaenggipyoError` 가 아니라 httpx 예외로 둔다 (`core/browser.py` `EntryOpenError` docstring).
+  넣으면 에러 JSON 에 평탄하게 실린다. 값 없음 규칙은 조회 결과와 같다: `details` 의 None 은 모름이라 `null` 로 실리고(위 예처럼 소스가
+  매진 사유를 알려 주지 않은 `FARE_UNAVAILABLE`), 해당 없는 값은 `details` 에 넣지 않는다. 예외는 브라우저 안에서 나는 두 갈래다. 하나는 transport 의 전송 오류(`CorsBlockedError`·`ProxyError`·`CertificateError`)로 httpx `TransportError` 다. 다른 하나는 첫 화면 단계 에러 `EntryConnectError`(httpx `ConnectError`, 재시도한다)와 `EntryStatusError`(httpx `HTTPStatusError`, `TransportError` 가 아니다)다. 재시도 술어가 원래 httpx 종류대로 다루고(재시도할 오류는 `RETRYABLE_TRANSPORT_ERRORS`) `handle_errors` 가 code·hint 를 붙이므로, 모두 `BaenggipyoError` 가 아니라 httpx 예외로 둔다 (`core/browser.py` `EntryOpenError` docstring).
 - 응답 형식이 어긋난 것(이벤트 없는 SSE 등)은 client 가 `ValueError` 로 던져 위 표대로 `PARSE_ERROR` 가 된다. client 는 응답 검증만
   하고 `BaenggipyoError` 변환은 service 가 하므로([계층](architecture.md#계층)) 규칙 위반이 아니다. 앞 응답의 값으로 만드는 요청 모델은
   `built_from_response()` 안에서 만들어, 검증이 실패해도 `INVALID_ARGUMENT` 가 아닌 `PARSE_ERROR` 로 낸다.

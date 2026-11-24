@@ -784,7 +784,9 @@ def check_entry_errors() -> None:
         'empty-503': {},
         'redirect': {'other_url': other.url},
     }
-    results: dict[str, tuple[BaseException | None, RateLimiter]] = {}
+    # 경우마다 (에러, 그 경우가 끝난 직후 남은 쿨다운 초). 쿨다운은 그 자리에서 잰다. 네 경우를 다 돌린 뒤 재면 뒤 경우들이 Chromium 을
+    # 띄우는 시간만큼 줄어, 느린 macOS 러너에서 429 의 600초 쿨다운이 588초로 재여 590초 기준에 걸렸다 (2026-11-24 CI)
+    results: dict[str, tuple[BaseException | None, int]] = {}
     for mode, attrs in cases.items():
         site = Site(type('EmptyEntry', (EmptyEntryHandler,), {'mode': mode, **attrs}))
         source = f'browser-check-entry-{mode}'
@@ -795,20 +797,18 @@ def check_entry_errors() -> None:
                 checker.get(f'{site.url}api/data')
         except Exception as error:  # 종류를 아래에서 가른다
             caught = error
-        results[mode] = (caught, limiter)
+        results[mode] = (caught, limiter.status()['cooldown_remaining_seconds'])
 
     def describe(error: BaseException | None) -> str:
         return '예외 없음' if error is None else f'{type(error).__name__}: {str(error)[:120]}'
 
-    error, limiter = results['empty-403']
-    cooldown = limiter.status()['cooldown_remaining_seconds']
+    error, cooldown = results['empty-403']
     check(
         isinstance(error, RateLimitedError) and error.reason == 'blocked'
         and error.details.get('status') == 403 and error.details.get('entry_page') is True and cooldown >= 1,
         f'16. 본문 없는 403 첫 화면을 차단 쿨다운으로 판정함 (쿨다운 {cooldown}초, {describe(error)})',
     )
-    error, limiter = results['empty-429']
-    cooldown = limiter.status()['cooldown_remaining_seconds']
+    error, cooldown = results['empty-429']
     check(
         isinstance(error, RateLimitedError) and error.details.get('status') == 429 and cooldown >= 590,
         f'16. 본문 없는 429 첫 화면이 Retry-After 600 을 쿨다운에 반영함 (쿨다운 {cooldown}초, {describe(error)})',

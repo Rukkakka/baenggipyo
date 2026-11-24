@@ -114,12 +114,19 @@ def emit(
     typer.echo(_dumps(payload, pretty))
 
 
-def emit_error(code: str, message: str, hint: str | None = None, **extra: Any) -> None:
-    """`{"error": {...}}` 를 stderr 에 쓴다. 터미널이면 들여쓰기, 아니면 한 줄."""
+def emit_error(
+    code: str, message: str, hint: str | None = None, *, details: Mapping[str, Any] | None = None, **extra: Any
+) -> None:
+    """`{"error": {...}}` 를 stderr 에 쓴다. 터미널이면 들여쓰기, 아니면 한 줄.
+
+    `extra` 의 None 은 해당 없음이라 키를 뺀다 (`entry_page=... else None`). 에러의 `details`(`BaenggipyoError.details`)는 따로 받아
+    None 도 그대로 `null` 로 싣는다. details 의 None 은 모름이고, 해당 없는 값은 details 에 넣지 않는다 (출력 규약 "에러").
+    """
     error: dict[str, Any] = {'code': code, 'message': message}
     if hint:
         error['hint'] = hint
     error.update({key: value for key, value in extra.items() if value is not None})
+    error.update(details or {})
     # 들여쓰기는 stdout 이 아니라 에러를 쓰는 stderr 가 터미널인지로 정한다 (`baenggipyo ... | jq` 도 에러는 터미널에 보인다)
     typer.echo(_dumps({'error': error}, is_terminal(sys.stderr)), err=True)
 
@@ -150,7 +157,7 @@ def handle_errors(source: str) -> Iterator[None]:
         yield
     except BaenggipyoError as exc:
         # 다른 소스 때문에 난 에러는 details 의 source 가 이긴다
-        emit_error(exc.code, exc.message, exc.hint, **{'source': source, **exc.details})
+        emit_error(exc.code, exc.message, exc.hint, details={'source': source, **exc.details})
         # 조회 중에야 알 수 있는 입력 오류도 사용법 오류와 같은 exit code 2 로 맞춘다
         raise typer.Exit(code=2 if exc.code == 'INVALID_ARGUMENT' else 1)
     except ValidationError as exc:

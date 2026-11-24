@@ -163,8 +163,17 @@ class RateLimitPolicy(BaseModel):
 
 
 def _is_time(value: object) -> TypeGuard[float]:
-    """상태 파일의 시각 값으로 쓸 수 있는지 (유한한 숫자). bool 과 NaN·무한대는 뺀다."""
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    """상태 파일의 시각 값으로 쓸 수 있는지 (유한한 실수로 바꿀 수 있는 숫자). bool 과 NaN·무한대는 뺀다.
+
+    약 1.8×10³⁰⁸ 이상인 정수는 실수로 바꿀 수 없어 `isfinite` 가 OverflowError 를 낸다. 잡지 않으면 깨진 값을 버리려던 이 검사가
+    그 소스의 모든 요청과 `limits`·`limits --reset` 을 INTERNAL_ERROR 로 실패시켰다 (2026-11-24, 손으로 고친 상태 파일로 재현).
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _absolute_env_path(name: str) -> Path | None:
@@ -257,7 +266,8 @@ class RateLimiter:
     def _read_state(self) -> dict[str, Any]:
         """잠그지도 쓰지도 않고 상태를 읽는다. 쓰는 쪽은 임시 파일을 `replace` 로 바꿔 넣으므로 늘 온전한 한 벌을 읽는다.
 
-        값이 숫자가 아닌 항목(손으로 고친 파일, 다른 버전이 쓴 파일 등)은 버린다. 상태 파일 하나 때문에 모든 요청과 `limits` 가 실패하지 않게 한다.
+        값이 숫자가 아니거나 쓸 수 없는 숫자(실수로 바꿀 수 없는 큰 정수, `MAX_BLOCK_STREAK` 를 넘는 거듭 차단 횟수)인 항목(손으로 고친
+        파일, 다른 버전이 쓴 파일 등)은 버린다. 상태 파일 하나 때문에 모든 요청과 `limits` 가 실패하지 않게 한다.
         읽을 수 없는 파일(UTF-8 이 아닌 내용, 읽기 권한 없음)도 빈 상태로 본다. 그래야 `limits --reset` 이 그 파일을 새로 써서 고칠 수 있다.
         다만 `PermissionError` 는 몇 번 다시 읽어 본다. Windows 에서는 다른 프로세스가 파일을 바꿔 넣는 순간에도 나는데, 그때 빈 상태로 보면
         방금 걸린 쿨다운을 놓치고 요청을 보낸다.
@@ -286,7 +296,11 @@ class RateLimiter:
         return {
             'blocked_until': float(blocked_until) if _is_time(blocked_until) else 0.0,
             'recent': [float(slot) for slot in recent if _is_time(slot)] if isinstance(recent, list) else [],
-            'block_streak': streak if isinstance(streak, int) and not isinstance(streak, bool) and streak >= 0 else 0,
+            # `block` 은 `MAX_BLOCK_STREAK` 넘게 쓰지 않는다. 넘는 값은 깨진 값이다. 남기면 쿨다운 중 거듭 차단에서 `2 ** streak` 가
+            # 10⁴ 쯤이면 OverflowError 로 실패하고, 훨씬 크면 그 수를 끝까지 계산하느라 명령이 멈췄다 (2026-11-24 재현)
+            'block_streak': (
+                streak if isinstance(streak, int) and not isinstance(streak, bool) and 0 <= streak <= MAX_BLOCK_STREAK else 0
+            ),
         }
 
     @property
