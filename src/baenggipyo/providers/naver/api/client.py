@@ -1,13 +1,10 @@
 import json
-import time
 from functools import cached_property
 
 from httpx import (
     AsyncClient,
     Client,
     HTTPStatusError,
-    TimeoutException,
-    TransportError,
 )
 from pydantic import BaseModel
 from tenacity import (
@@ -16,7 +13,9 @@ from tenacity import (
     stop_after_attempt,
 )
 
+from baenggipyo.core.browser import STREAM_SECONDS_EXTENSION
 from baenggipyo.core.http import (
+    RETRYABLE_TRANSPORT_ERRORS,
     BaseHTTPClient,
     create_base_url,
     log_retry_before_sleep,
@@ -76,6 +75,7 @@ from baenggipyo.providers.naver.api.stream import (
 
 from typing import (
     ClassVar,
+    Literal,
     TypeVar,
 )
 
@@ -87,13 +87,14 @@ SEARCH_STREAM_SECONDS: float = 60.0
 
 
 def should_retry_naver(exc: BaseException) -> bool:
-    """5xx 와 timeout/transport 오류만 재시도한다.
+    """5xx 와 다시 보내면 나을 수 있는 전송 오류(`RETRYABLE_TRANSPORT_ERRORS`)만 재시도한다.
 
-    429 는 봇 차단이라 짧게 다시 보내면 차단을 늘릴 뿐이다 (요청 제한이 켜져 있으면 쿨다운으로 끝난다).
+    다시 보내도 같은 브라우저 오류(CORS·프록시·인증서, 첫 화면의 차단·다른 출처·시간 초과인 `EntryPageError`)는 재시도하지 않는다.
+    첫 화면 문서의 5xx(`EntryStatusError`)와 첫 화면 연결 실패(`EntryConnectError`)는 API 의 5xx·연결 실패처럼 재시도한다. 429 는 봇 차단이라 짧게 다시 보내면 차단을 늘릴 뿐이다 (요청 제한이 켜져 있으면 쿨다운으로 끝난다).
     """
     if isinstance(exc, HTTPStatusError):
         return exc.response.status_code >= 500
-    return isinstance(exc, (TimeoutException, TransportError))
+    return isinstance(exc, RETRYABLE_TRANSPORT_ERRORS)
 
 
 naver_retry = retry(
@@ -103,7 +104,7 @@ naver_retry = retry(
     reraise=True,
     before_sleep=log_retry_before_sleep,
 )
-"""조회 전용 공통 재시도: 실패하면 1초 뒤 한 번만 더 보낸다 (모두 2번), 5xx·timeout·transport 오류만. 검색 한 번이 판매처 20곳을 부르므로 한 번만 더 한다."""
+"""조회 전용 공통 재시도: 실패하면 1초 뒤 한 번만 더 보낸다 (모두 2번), 5xx 와 다시 보내면 나을 수 있는 전송 오류(`RETRYABLE_TRANSPORT_ERRORS`: 시간 초과·연결 실패·응답 중 끊김)만. 검색 한 번이 판매처 20곳을 부르므로 한 번만 더 한다."""
 
 
 def _search_event(event: str | None) -> dict[str, object]:
@@ -135,8 +136,10 @@ class NaverClient(BaseHTTPClient):
     action id 는 GraphQL 루트 필드 이름을 snake_case 로 쓴다 (`autocompleteLocations` → `autocomplete_locations`,
     사이트 오퍼레이션 이름이 `getOtaList` 인 `bookingOptions` → `booking_options`). REST 는 경로 세그먼트를 잇는다.
 
-    브라우저 `User-Agent` 와 `Accept-Language` 가 둘 다 없으면 모든 요청이 본문 없는 500 이다 (2026-10-11 실측).
-    `base_header` 에서 늘 함께 보낸다.
+    브라우저 `User-Agent` 와 `Accept-Language` 가 둘 다 없으면 모든 요청이 본문 없는 500 이다 (2026-10-11 실측). 브라우저가 늘 붙인다.
+
+    요청은 `https://flight.naver.com/` 을 연 브라우저에서 보내므로 `url_schema` 를 `http` 로 바꾸면 브라우저가 막는다 (CLI 는 이 값을 바꾸지 않는다).
+    API 호스트는 첫 화면과 다른 출처라 `credentials: 'include'` 로 쿠키를 싣는다 (웹과 같다).
 
     Args:
         host: 호스트 (스킴 제외). Defaults to 'flight-api.naver.com'.
@@ -163,7 +166,17 @@ class NaverClient(BaseHTTPClient):
         'cooldown': 900,
     }
 
+    browser_entry_url: ClassVar[str] = 'https://flight.naver.com/'
+    # 네이버 브라우저 식별 쿠키. 첫 화면이 열리면 1초 안에 생긴다 (2026-11-24 로컬 실측)
+    browser_ready_cookie: ClassVar[str | None] = 'NNB'
+    # 웹은 `credentials: 'include'` 로 보낸다 (API 는 첫 화면과 다른 출처)
+    browser_fetch_credentials: ClassVar[Literal['same-origin', 'include']] = 'include'
+
     host: str = 'flight-api.naver.com'
+
+    @property
+    def browser_api_hosts(self) -> frozenset[str]:
+        return frozenset({self.host})
 
     @property
     def base_url(self) -> str:
@@ -174,23 +187,20 @@ class NaverClient(BaseHTTPClient):
 
     @property
     def base_header(self) -> dict[str, str]:
+        # 브라우저가 연 첫 화면에서 보내므로 UA·Origin·Referer·쿠키·언어는 브라우저가 붙인다 (`core/browser.py`). 웹이 GraphQL 에 붙이는 Accept 만 둔다
         return {
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Origin': 'https://flight.naver.com',
-            'Referer': 'https://flight.naver.com/',
-            'User-Agent': self.user_agent,
+            'Accept': '*/*',
         }
 
     @cached_property
     def _client(self) -> Client:
+        # 프록시·인증서 검증은 브라우저가 맡는다. httpx 에 프록시를 넘기면 그 mount 가 transport 를 건너뛴다
         return Client(
             base_url=self.base_url,
             headers=self.base_header,
             event_hooks=self.rate_limit_hooks(),
-            verify=self.verify,
             timeout=self.timeout,
-            proxy=self.proxy
+            transport=self.browser_transport()
         )
 
     @cached_property
@@ -199,9 +209,8 @@ class NaverClient(BaseHTTPClient):
             base_url=self.base_url,
             headers=self.base_header,
             event_hooks=self.async_rate_limit_hooks(),
-            verify=self.verify,
             timeout=self.timeout,
-            proxy=self.proxy
+            transport=self.async_browser_transport()
         )
 
     @staticmethod
@@ -231,6 +240,8 @@ class NaverClient(BaseHTTPClient):
     def _stream_last_event(self, endpoint: str, payload: BaseModel, stream_seconds: float) -> dict[str, object]:
         """SSE 를 끝까지(또는 스트림이 열린 뒤 `stream_seconds` 까지) 읽어 마지막 이벤트를 JSON 으로 돌려준다.
 
+        스트림은 브라우저 안에서 읽고 마지막 이벤트 줄만 파이썬으로 넘어온다 (`STREAM_SECONDS_EXTENSION` 이 브라우저가 헤더를 받은 때부터 재는 마감이라 요청 제한 슬롯 대기가 스트림 시간을 깎지 않는다).
+
         이벤트가 없거나 검색 결과가 아닌 응답은 `BaenggipyoError` 가 아니라 `ValueError` 로 던진다. client 는 응답 검증만 하고 에러 코드를 정하지
         않으며(service 가 정한다), 형식이 어긋난 응답은 `handle_errors` 가 `ValueError` 를 `PARSE_ERROR`(차단 페이지·구조 변경 힌트)로
         낸다 (output-contract.md '에러'). JSON 이 아닌 응답의 `JSONDecodeError` 와 같은 경로다.
@@ -242,14 +253,13 @@ class NaverClient(BaseHTTPClient):
             'POST',
             url=endpoint,
             json=payload.model_dump(by_alias=True, exclude_none=True),
-            headers={'Accept': 'text/event-stream'}
+            headers={'Accept': 'text/event-stream'},
+            extensions={STREAM_SECONDS_EXTENSION: stream_seconds}
         ) as response:
             if response.is_error:
                 response.read()
                 raise_for_status(response=response)
-            # 요청 제한 훅의 슬롯 대기(최대 max_wait)가 스트림 시간을 깎지 않게 스트림이 열린 뒤부터 잰다
-            deadline = time.monotonic() + stream_seconds
-            event = last_event(response.iter_lines(), deadline)
+            event = last_event(response.iter_lines())
         return _search_event(event)
 
     async def _astream_last_event(self, endpoint: str, payload: BaseModel, stream_seconds: float) -> dict[str, object]:
@@ -258,13 +268,13 @@ class NaverClient(BaseHTTPClient):
             'POST',
             url=endpoint,
             json=payload.model_dump(by_alias=True, exclude_none=True),
-            headers={'Accept': 'text/event-stream'}
+            headers={'Accept': 'text/event-stream'},
+            extensions={STREAM_SECONDS_EXTENSION: stream_seconds}
         ) as response:
             if response.is_error:
                 await response.aread()
                 raise_for_status(response=response)
-            deadline = time.monotonic() + stream_seconds
-            event = await alast_event(response.aiter_lines(), deadline)
+            event = await alast_event(response.aiter_lines())
         return _search_event(event)
 
     @naver_retry
@@ -275,7 +285,7 @@ class NaverClient(BaseHTTPClient):
     ) -> NaverFlightInternationalSearchFlightsResponseModel:
         """Search international flights via `POST /flight/international/searchFlights` (SSE).
 
-        Retries once (2 attempts in all) on 5xx, timeouts and transport errors. 요청 제한이 켜져 있으면 429 는 재시도 없이
+        Retries once (2 attempts in all) on 5xx and retryable transport errors (`RETRYABLE_TRANSPORT_ERRORS`). 요청 제한이 켜져 있으면 429 는 재시도 없이
         `RateLimitedError` 로 끝난다.
 
         응답은 판매처 하나가 끝날 때마다 결과 전체를 다시 보내는 SSE 다. 스트림을 끝까지 읽고 마지막 이벤트만 검증한다

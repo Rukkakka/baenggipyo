@@ -1,4 +1,3 @@
-import httpx
 import pytest
 
 from baenggipyo.providers.naver.api.client import NaverClient
@@ -14,7 +13,6 @@ from baenggipyo.providers.naver.api.response.flight import (
     NaverFareModel,
     NaverFlightInternationalSearchFlightsResponseModel,
 )
-from baenggipyo.providers.naver.api.stream import last_event
 from baenggipyo.providers.naver.service.common import (
     NaverFlightConditions,
     NaverLeg,
@@ -191,20 +189,3 @@ def test_domestic_fare_follows_site_formula_and_round_trips_id() -> None:
     )
     assert [(leg.origin.code, leg.destination.code, leg.date) for leg in parsed_legs] == [('GMP', 'CJU', '2026-11-15'), ('CJU', 'GMP', '2026-11-17')]
     assert (parsed_conditions.adults, parsed_conditions.cabin, direction, itinerary_id, seat_class) == (2, '비즈니스석', 'arrival', '202611172120CJUGMP7C142', 'NB')
-
-
-# --- 검색 스트림 ---
-
-def test_stream_keeps_received_event_when_next_line_times_out() -> None:
-    # 늦은 판매처 때문에 다음 줄이 읽기 시간 상한 안에 오지 않는 상태는 실제 API 로 재현할 수 없어 가짜 줄로 본다
-    def stalled_after_one_event():
-        yield 'data:{"n": 1}'
-        raise httpx.ReadTimeout('stalled')
-
-    def stalled_before_any_event():
-        raise httpx.ReadTimeout('stalled')
-        yield
-
-    assert last_event(stalled_after_one_event()) == '{"n": 1}'
-    with pytest.raises(httpx.ReadTimeout):
-        last_event(stalled_before_any_event())

@@ -361,7 +361,7 @@ def search_flights(
     sort: NaverFlightSort = '가격',
     limit: int = DEFAULT_LIMIT,
 ) -> NaverFlightSearchResult[NaverItinerary]:
-    """편도·왕복·다구간 항공권을 찾는다 (판매처 이름 1회 + 검색 SSE 1회, 9~17초).
+    """편도·왕복·다구간 항공권을 찾는다 (판매처 이름 1회 + 검색 SSE 1회, 10~20초).
 
     서버가 건 조건(직항·좌석·항공사)은 다시 거르지 않는다. 대표 가격은 모든 결제수단 운임(A01) 최저가다. 가격순은 서버 기준(카드
     할인 포함 최저가)이 대표 가격과 달라 `limit` 의 `PRICE_SORT_FETCH_FACTOR` 배를 받아 대표 가격(소아·유아가 있으면 합계) 순으로
