@@ -53,8 +53,6 @@ FLIGHT: tuple[str, ...] = ('{id}', '--limit', '3', '--offer-urls', '0')
 # 네이버 국내선 왕복은 가는 편·오는 편을 따로 찾아(`legs[]`) 상세도 두 편 ID 로 왕복 예약 가격을 묻는다
 ROUND_TRIP_SEARCH: tuple[str, ...] = ('--depart', '{depart}', '--return', '{return}', '--limit', '2', '--brief')
 ROUND_TRIP_FLIGHT: tuple[str, ...] = ('{id}', '{return_id}', '--limit', '3', '--offer-urls', '0')
-# `run --disguise` 면 스카이스캐너 명령을 이것으로 부른다 (접속 버릇만 크롬처럼, curl_cffi 필요)
-DISGUISE: Path = Path(__file__).with_name('disguise.py')
 
 # 러너 하나가 묶음 하나를 돈다. 스카이스캐너 명령을 모두 부르면 요청이 40번 남짓이라 한 러너로는 시간당 상한(30회)에 막혀 한 시간 넘게
 # 기다리므로 국제선·국내선을 나눈다 (한 묶음 15~25번). 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (막힌 날은 확인 못 함으로 남긴다).
@@ -99,7 +97,8 @@ OK: str = 'ok'
 BROKEN: str = 'broken'
 UNKNOWN: str = 'unknown'
 STATUS_LABELS: dict[str, str] = {OK: '✅ 정상', BROKEN: '❌ 고장', UNKNOWN: '⚠️ 확인 못 함'}
-# 사이트가 바뀐 것인지 알 수 없는 에러. 그 밖의 에러 코드(PARSE_ERROR, INTERNAL_ERROR, NOT_FOUND, AIRPORT_NOT_FOUND 등)는 고장이다
+# 사이트가 바뀐 것인지 알 수 없는 에러. 아래 `_is_unknown` 이 BROWSER_UNAVAILABLE 의 Chromium 시간 초과(reason LAUNCH_TIMEOUT)와
+# 첫 화면 문서 5xx(UPSTREAM_ERROR, entry_page)도 확인 못 함으로 본다. 그 밖의 에러 코드(PARSE_ERROR, INTERNAL_ERROR, NOT_FOUND, AIRPORT_NOT_FOUND 등)는 고장이다
 UNKNOWN_CODES: frozenset[str] = frozenset({'RATE_LIMITED', 'NETWORK_ERROR', 'FARE_UNAVAILABLE'})
 # 결과 수를 셀 키. 네이버 국내선 왕복 검색만 `legs[].itineraries` 다
 COUNT_KEYS: tuple[str, ...] = ('offers', 'itineraries', 'airports', 'days', 'destinations')
@@ -137,12 +136,23 @@ def _is_unknown(error: dict[str, object]) -> bool:
     code = error.get('code')
     if code in UNKNOWN_CODES:
         return True
+    # Chromium 이 제시간에 뜨지 않은 것은 러너가 바쁜 것이라 사이트가 바뀐 것이 아니다. Chromium·라이브러리 없음, 드라이버 실행 실패는 고장이다.
+    # baenggipyo 를 import 하지 않는 잡에서도 쓰여 문자열로 쓴다 (`core/browser.py` 의 reason 과 같아야 한다)
+    if code == 'BROWSER_UNAVAILABLE':
+        return error.get('reason') == 'LAUNCH_TIMEOUT'
     if code != 'UPSTREAM_ERROR':
         return False
+    # 사이트 첫 화면이 접속을 막은 에러(`blocked: true`, 401·403·451)는 러너 IP·봇 차단이라 확인 못 함이다. 사흘 이어지면 api-blocked 로 알린다.
+    # 첫 화면의 404 와 다른 출처로 넘어감은 첫 화면 주소가 바뀌었을 수 있어 고장이다
+    if error.get('blocked') is True:
+        return True
     # 검색이 시간 상한에 끊긴 것과 서버 일시 오류(502·503 등)는 사이트가 바뀐 것이 아니다. 4xx 는 요청 형식이 맞지 않게 된 것이라 고장이다.
-    # 500 도 고장이다. 두 소스 모두 요청 형식이 맞지 않으면 늘 같은 500 을 준다 (각 api/client.py 설명. 네이버는 헤더가 빠지면, 스카이스캐너
+    # 첫 화면 문서(홈 HTML GET)의 5xx(`entry_page: true`)는 요청 형식과 상관없는 사이트 장애라 확인 못 함이다. 첫 화면 4xx 는 고장이다
+    # API 응답의 500 도 고장이다. 두 소스 모두 요청 형식이 맞지 않으면 늘 같은 500 을 준다 (각 api/client.py 설명. 네이버는 헤더가 빠지면, 스카이스캐너
     # 달력은 도시를 SEL 로 주면). 사이트가 잠깐 아파 500 을 준 날에는 고장으로 잘못 알릴 수 있다
     status = error.get('status')
+    if error.get('entry_page') is True and isinstance(status, int) and status >= 500:
+        return True
     return error.get('reason') == 'SEARCH_INCOMPLETE' or (isinstance(status, int) and status > 500)
 
 
@@ -202,14 +212,13 @@ def _outside_hours(data: dict[str, object], hours: tuple[tuple[int, int], ...]) 
     return outside
 
 
-def _run_step(step: Step, values: dict[str, str], *, disguise: bool = False) -> tuple[str, str, dict[str, object] | None]:
-    """(판정, 내용, stdout JSON). `disguise` 면 스카이스캐너 명령을 disguise.py 로 부른다."""
+def _run_step(step: Step, values: dict[str, str]) -> tuple[str, str, dict[str, object] | None]:
+    """(판정, 내용, stdout JSON)."""
     command = [*step.command, *(arg.format(**values) for arg in step.args)]
-    entry = [str(DISGUISE)] if disguise and step.command[0] == 'skyscanner' else ['-m', 'baenggipyo']
-    print(f"::group::baenggipyo {' '.join(command)}{' (disguise)' if entry[0] == str(DISGUISE) else ''}", flush=True)
+    print(f"::group::baenggipyo {' '.join(command)}", flush=True)
     try:
         done = subprocess.run(
-            [sys.executable, *entry, '--verbose', *command],
+            [sys.executable, '-m', 'baenggipyo', '--verbose', *command],
             capture_output=True, text=True, encoding='utf-8', timeout=COMMAND_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
@@ -244,7 +253,7 @@ def _run_step(step: Step, values: dict[str, str], *, disguise: bool = False) -> 
     return (UNKNOWN if _is_unknown(error) else BROKEN), f'{detail}: {message[:200]}', None
 
 
-def run_group(name: str, *, disguise: bool = False) -> dict[str, object]:
+def run_group(name: str) -> dict[str, object]:
     """묶음 하나의 명령을 차례로 부른다. 상세는 바로 앞 검색 결과의 첫 항공권 ID 로 부르고, 그 검색이 실패했으면 건너뛴다."""
     depart = _today() + datetime.timedelta(days=DAYS_AHEAD)
     values = {
@@ -260,7 +269,7 @@ def run_group(name: str, *, disguise: bool = False) -> dict[str, object]:
         if any(f'{{{key}}}' in step.args and not values[key] for key in ('id', 'return_id')):
             steps.append({'label': step.label, 'command': line, 'status': UNKNOWN, 'detail': '앞 검색이 결과를 주지 않아 건너뜀'})
             continue
-        status, detail, data = _run_step(step, values, disguise=disguise)
+        status, detail, data = _run_step(step, values)
         if step.command[-1] == 'flights':
             directions = _directions(data) if data else []
             values['id'] = _first_id(directions, 0)
@@ -429,14 +438,13 @@ def main() -> int:
     run = commands.add_parser('run', help='묶음 하나의 명령을 부르고 결과를 JSON 파일로 쓴다')
     run.add_argument('group', choices=list(GROUPS))
     run.add_argument('--out', required=True)
-    run.add_argument('--disguise', action='store_true', help='스카이스캐너 명령을 접속 버릇만 크롬처럼 바꿔 부른다 (disguise.py, curl_cffi 필요)')
     collect = commands.add_parser('report', help='결과 파일을 모아 표를 남기고 이슈를 고친다')
     collect.add_argument('paths', nargs='*')
     collect.add_argument('--issues', action='store_true', help='고장·연속 확인 못 함을 이슈로 알린다 (예약·수동 실행만)')
     collect.add_argument('--dry-run', action='store_true', help='이슈·라벨을 바꾸지 않고 보낼 gh 명령만 출력한다')
     options = parser.parse_args()
     if options.action == 'run':
-        result = run_group(options.group, disguise=options.disguise)
+        result = run_group(options.group)
         Path(options.out).write_text(json.dumps(result, ensure_ascii=False), encoding='utf-8')
         print(_table([result]))
         return 0
