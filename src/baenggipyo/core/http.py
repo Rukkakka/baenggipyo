@@ -27,6 +27,8 @@ from httpx import (
     AsyncClient,
     Client,
     HTTPStatusError,
+    NetworkError,
+    RemoteProtocolError,
     Request,
     Response,
     TimeoutException,
@@ -39,6 +41,13 @@ from pydantic import (
 )
 from tenacity import RetryCallState
 
+from baenggipyo.core.browser import (
+    DISCARD_STATE_STATUSES,
+    READY_COOKIE_TIMEOUT_SECONDS,
+    AsyncBrowserTransport,
+    BrowserOptions,
+    BrowserTransport,
+)
 from baenggipyo.core.ratelimit import (
     RateLimiter,
     RateLimitPolicy,
@@ -54,13 +63,14 @@ from typing import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_USER_AGENT: str = (
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
-    '(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36'
-)
-
 BODY_PREVIEW_LIMIT: int = 2048
 RETRY_BODY_PREVIEW_LIMIT: int = 200
+# 재시도 대기 상한 (초). `Retry-After` 가 이보다 길어도 이만큼만 기다린다
+RETRY_MAX_WAIT_SECONDS: float = 60.0
+# 다시 보내면 나을 수 있는 전송 오류: 시간 초과, 연결·읽기·쓰기 실패, 서버가 응답 중 끊음. 프록시 거절(ProxyError)·
+# 지원하지 않는 URL(UnsupportedProtocol)·요청 형식 오류(LocalProtocolError)처럼 다시 보내도 같은 TransportError 는 빼서
+# 재시도 대기와 요청 제한 슬롯을 쓰지 않는다. 브라우저 transport 를 쓰는 클라이언트의 재시도 술어가 이것을 쓴다
+RETRYABLE_TRANSPORT_ERRORS: tuple[type[TransportError], ...] = (TimeoutException, NetworkError, RemoteProtocolError)
 
 # 경로에 세션 ID 같은 응답 값을 넣는 요청은 이 요청 확장(`extensions`) 키로 자리표시자를 남긴 엔드포인트(`/…/{session_id}`)를 넘긴다.
 # 에러 메시지·재시도 로그·요청 로그는 실제 경로 대신 이것을 쓴다 (본문 가리기는 URL 에 닿지 않는다)
@@ -224,7 +234,8 @@ def should_retry_idempotent(exc: BaseException) -> bool:
     if isinstance(exc, HTTPStatusError):
         code = exc.response.status_code
         return code >= 500 or code == 429
-    return isinstance(exc, (TimeoutException, TransportError))
+    # 모든 클라이언트가 브라우저로 보내, 다시 보내도 같은 브라우저 오류(CORS·프록시·인증서)는 재시도하지 않는다
+    return isinstance(exc, RETRYABLE_TRANSPORT_ERRORS)
 
 
 def retry_after_seconds(header: str) -> float | None:
@@ -258,7 +269,7 @@ def retry_after_seconds(header: str) -> float | None:
 def wait_retry_after(
     retry_state: RetryCallState,
     default: float = 1.0,
-    maximum: float = 60.0,
+    maximum: float = RETRY_MAX_WAIT_SECONDS,
 ) -> float:
     """Honour a rate-limit `Retry-After` header, capped at `maximum` seconds.
 
@@ -309,7 +320,6 @@ class BaseHTTPClient(BaseModel, ABC):
         verify: TLS certificate verification flag. Defaults to True.
         proxy: Optional proxy URL. Defaults to None.
         timeout: Request timeout in seconds. Defaults to 20.
-        user_agent: `User-Agent` header value. Defaults to a desktop Chrome UA.
         rate_limit: 프로세스 간 공유 요청 제한 정책. None 이면 클래스의
             `default_rate_limit` 을 쓴다. Defaults to None.
 
@@ -319,10 +329,40 @@ class BaseHTTPClient(BaseModel, ABC):
         rate_limiter: `source_name` 과 정책으로 만든 `RateLimiter`. 서브클래스는
             `rate_limit_hooks()` / `async_rate_limit_hooks()` 를 httpx 클라이언트의
             `event_hooks` 로 넘긴다.
+        browser_entry_url: 브라우저가 처음 열 사이트 화면 (서브클래스가 지정). 브라우저로 요청하는 서브클래스는
+            `browser_transport()` / `async_browser_transport()` 를 httpx 클라이언트의 `transport` 로 넘긴다.
+        browser_ready_cookie: 첫 화면을 연 뒤 생길 때까지 기다리고, 남긴 쿠키를 쓸 수 있는지 볼 쿠키 이름.
+        browser_api_hosts: 첫 화면이 보낸 요청을 요청 제한에 셀 사이트 API 호스트. 비면 `browser_entry_url` 의 호스트.
+            호스트 필드에서 만드는 property 라, 호스트 필드를 바꿔도 맞는다 (서브클래스가 덮어쓴다). 요청은 첫 화면 탭에서
+            보내므로 호스트를 다른 출처로 바꾸면 그 서버가 첫 화면 출처의 CORS 를 허용해야 한다.
+        browser_discard_statuses: 우리 요청이 받으면 남긴 쿠키를 버릴 HTTP 상태.
+        browser_fetch_credentials: 브라우저 fetch 의 `credentials`. 'include' 면 첫 화면과 다른 출처 API 에도 쿠키를 싣는다
+            (`BrowserOptions.fetch_credentials`).
+        browser_keep_cookies: 쿠키를 파일에 남기고 다음 명령이 이어 쓴다 (`BrowserOptions.keep_cookies`).
+        browser_persistent_profile: 브라우저 기록 폴더(`<state_dir>/browser/<source>-profile`)를 통째로 이어 쓴다
+            (`BrowserOptions.persistent_profile`).
+        browser_stay_on_entry_page: 첫 화면을 빈 페이지로 바꾸지 않고 그 탭에서 요청한다 (`BrowserOptions.stay_on_entry_page`).
+        browser_count_entry_requests: 첫 화면이 스스로 보낸 요청을 요청 제한에 센다 (`BrowserOptions.count_entry_requests`).
+        browser_block_entry_resources: 첫 화면을 여는 동안 정적 파일을 막는다 (`BrowserOptions.block_entry_resources`).
+        browser_ready_timeout: `browser_ready_cookie` 를 기다리는 시간 상한(초) (`BrowserOptions.ready_timeout`).
+        browser_entry_settle_seconds: 새로 연 첫 화면에서 쿠키 준비 뒤 더 기다리는 시간(초) (`BrowserOptions.entry_settle_seconds`).
+        browser_entry_block_cooldown: 첫 화면 문서가 401·403·451 로 막히면 요청 제한에 차단 쿨다운을 건다 (`BrowserOptions.entry_block_cooldown`).
     """
 
     source_name: ClassVar[str] = 'default'
     default_rate_limit: ClassVar[dict[str, object]] = {}
+    browser_entry_url: ClassVar[str] = ''
+    browser_ready_cookie: ClassVar[str | None] = None
+    browser_discard_statuses: ClassVar[frozenset[int]] = DISCARD_STATE_STATUSES
+    browser_fetch_credentials: ClassVar[Literal['same-origin', 'include']] = 'same-origin'
+    browser_keep_cookies: ClassVar[bool] = True
+    browser_persistent_profile: ClassVar[bool] = False
+    browser_stay_on_entry_page: ClassVar[bool] = False
+    browser_count_entry_requests: ClassVar[bool] = True
+    browser_block_entry_resources: ClassVar[bool] = True
+    browser_ready_timeout: ClassVar[float] = READY_COOKIE_TIMEOUT_SECONDS
+    browser_entry_settle_seconds: ClassVar[float] = 0.0
+    browser_entry_block_cooldown: ClassVar[bool] = False
 
     model_config = ConfigDict(
         extra='forbid',
@@ -338,8 +378,6 @@ class BaseHTTPClient(BaseModel, ABC):
         int,
         Field(gt=0)
     ] = 20
-
-    user_agent: str = DEFAULT_USER_AGENT
 
     rate_limit: RateLimitPolicy | None = None
 
@@ -360,6 +398,34 @@ class BaseHTTPClient(BaseModel, ABC):
         hooks = self.rate_limiter.async_event_hooks()
         hooks['response'].insert(0, _alog_response)
         return hooks
+
+    @property
+    def browser_api_hosts(self) -> frozenset[str]:
+        # 비면 첫 화면 호스트를 쓴다 (`BrowserOptions`). 서브클래스는 호스트 필드에서 만든다. 클래스 상수로 따로 적으면 호스트
+        # 필드를 바꿨을 때 어긋나, 첫 화면이 그 호스트로 보낸 요청과 CORS 사전 요청을 요청 제한에 세지 못하고 첫 화면에서 받은
+        # 그 호스트의 429 도 놓친다 (`core/browser.py` 의 `count_request`·`count_preflight`·`on_entry_rate_limited`)
+        return frozenset()
+
+    def _browser_options(self) -> BrowserOptions:
+        return BrowserOptions(
+            source=self.source_name, entry_url=self.browser_entry_url, ready_cookie=self.browser_ready_cookie,
+            api_hosts=self.browser_api_hosts, discard_statuses=self.browser_discard_statuses,
+            rate_limiter=self.rate_limiter, proxy=self.proxy, verify=self.verify, timeout=self.timeout,
+            fetch_credentials=self.browser_fetch_credentials, keep_cookies=self.browser_keep_cookies,
+            persistent_profile=self.browser_persistent_profile, stay_on_entry_page=self.browser_stay_on_entry_page,
+            count_entry_requests=self.browser_count_entry_requests,
+            block_entry_resources=self.browser_block_entry_resources, ready_timeout=self.browser_ready_timeout,
+            entry_settle_seconds=self.browser_entry_settle_seconds,
+            entry_block_cooldown=self.browser_entry_block_cooldown,
+        )
+
+    def browser_transport(self) -> BrowserTransport:
+        """사이트 첫 화면을 연 브라우저로 요청을 보내는 transport (`core/browser.py`). 프록시도 브라우저가 쓴다."""
+        return BrowserTransport(self._browser_options())
+
+    def async_browser_transport(self) -> AsyncBrowserTransport:
+        """`browser_transport()` 의 비동기판."""
+        return AsyncBrowserTransport(BrowserTransport(self._browser_options()))
 
     @property
     @abstractmethod
@@ -405,13 +471,13 @@ class BaseHTTPClient(BaseModel, ABC):
 
     async def aclose(self) -> None:
         """
-        Close the async client and, since a sync close is safe to call from
-        async code, the sync client too.
+        Close the async client and the sync client too. 동기 클라이언트의 브라우저는 브라우저 스레드가 앞의 일(첫 화면이면 Chromium 띄우기에 문서
+        40초·load 10초에 소스별 쿠키 기다림(기본 5초, 스카이스캐너 15초)과 스카이스캐너의 홈 기다림 3초까지)을 마친 뒤 닫아(`core/browser.py` `_BrowserThread`), 다른 스레드에서 기다려 이벤트 루프를 막지 않는다.
         """
         async_client: AsyncClient | None = self.__dict__.pop('_async_client', None)
         if async_client is not None:
             await async_client.aclose()
-        self.close()
+        await asyncio.to_thread(self.close)
 
     def __enter__(self: _T) -> _T:
         return self

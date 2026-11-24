@@ -16,6 +16,7 @@ import typer
 from httpx import (
     HTTPError,
     HTTPStatusError,
+    ProxyError,
 )
 from pydantic import (
     BaseModel,
@@ -26,6 +27,13 @@ from typer._click.exceptions import (
 )
 from typer._click.globals import get_current_context
 
+from baenggipyo.core.browser import (
+    CERT_HINT,
+    PROXY_HINT,
+    CertificateError,
+    CorsBlockedError,
+    EntryStatusError,
+)
 from baenggipyo.core.errors import BaenggipyoError
 from baenggipyo.core.flight import (
     BRIEF_CONTEXT_KEY,
@@ -175,7 +183,29 @@ def handle_errors(source: str) -> Iterator[None]:
             404: 'ID·공항 코드가 맞는지, 검색 결과가 만료되지 않았는지 확인하세요',
             429: '요청이 너무 잦습니다. 잠시 기다린 뒤 다시 시도하거나 그사이 다른 소스를 쓰세요',
         }.get(status, '비공식 API 라 스펙이 바뀌었을 수 있습니다')
-        emit_error(code, str(exc), hint, source=source, status=status)
+        if isinstance(exc, EntryStatusError) and status >= 500:
+            # 사이트 첫 화면 문서의 5xx 는 API 스펙 변경이 아니라 사이트 장애다 (재시도한 뒤에도 같았다). 스펙 변경으로 안내하면
+            # 에이전트가 업데이트를 권한다
+            hint = '사이트 첫 화면이 서버 오류를 줬습니다. 사이트 장애일 수 있으니 잠시 뒤 한 번만 다시 부르고, 같으면 다른 소스를 쓰세요'
+        # 첫 화면 문서의 상태 코드로 낸 에러는 API 응답 에러와 갈라 볼 수 있게 표시한다 (매일 감시가 쓴다)
+        emit_error(code, str(exc), hint, source=source, status=status, entry_page=True if isinstance(exc, EntryStatusError) else None)
+        raise typer.Exit(code=1)
+    except CorsBlockedError as exc:
+        # 사이트 CORS 설정이 바뀌어 응답을 읽지 못했다. 다시 불러도 같아 다른 소스로 돌린다
+        emit_error(
+            'UPSTREAM_ERROR',
+            f'{type(exc).__name__}: {exc}',
+            '사이트가 이 요청의 응답을 막았습니다. 비공식 API 가 바뀌었을 수 있으니 다른 소스를 쓰세요',
+            source=source,
+        )
+        raise typer.Exit(code=1)
+    except ProxyError as exc:
+        # 프록시 설정 문제는 다시 불러도 같아 설정을 가리킨다 (주소 해석 실패·지원하지 않는 프록시·프록시 연결 실패)
+        emit_error('NETWORK_ERROR', f'{type(exc).__name__}: {exc}', PROXY_HINT, source=source)
+        raise typer.Exit(code=1)
+    except CertificateError as exc:
+        # 브라우저가 인증서를 믿지 못했다. 다시 불러도 같아 OS 에 인증서를 넣으라고 가리킨다 (첫 화면은 `_entry_error` 가 같은 hint)
+        emit_error('NETWORK_ERROR', f'{type(exc).__name__}: {exc}', CERT_HINT, source=source)
         raise typer.Exit(code=1)
     except HTTPError as exc:
         emit_error(
