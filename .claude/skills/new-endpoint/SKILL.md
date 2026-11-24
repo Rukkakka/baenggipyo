@@ -20,5 +20,5 @@ effort: high
    - 명령을 더했으면 `docs/llm.md` 와 `scripts/monitor/api_check.py` 의 `GROUPS` (국제선·국내선이 다르게 동작하면 둘 다)
    - `CHANGELOG.md` 의 `Unreleased`
    - 소스 개발 가이드의 Action id 목록, 웹과 다르게 한 곳은 "웹과 다른 점" 절
-3. **구현한다.** 위 순서대로. 헤더는 웹이 그 API 에 실제로 붙이는 것만 실측해 넣고, 요청은 요청 제한 훅(`rate_limit_hooks()`)을 거친다. 테스트는 `docs/development/README.md` "검증과 테스트" 기준에 맞을 때만 더하고, 픽스처는 실제 응답 구조에 값은 모두 가상으로 바꾼다.
+3. **구현한다.** 위 순서대로. 헤더는 웹이 그 API 에 실제로 붙이는 것만 실측해 넣고(UA·Origin·Referer·Accept-Language 는 브라우저가 붙이므로 넣지 않는다), 요청은 브라우저(`transport=self.browser_transport()`)로 보내고 요청 제한 훅(`rate_limit_hooks()`)을 거친다. 테스트는 `docs/development/README.md` "검증과 테스트" 기준에 맞을 때만 더하고, 픽스처는 실제 응답 구조에 값은 모두 가상으로 바꾼다.
 4. **확인한다.** `.venv/bin/ruff check`·`.venv/bin/mypy` 0건, 바꾼 테스트만 이름으로, 새 동작을 CLI 로 실제 조회 1회. 명령을 더했으면 `tests/test_cli.py::test_every_source_command_is_in_api_monitor`. 결과를 보고하고 멈춘다 (커밋은 시킬 때만).

@@ -96,12 +96,17 @@ GraphQL 은 오퍼레이션의 루트 필드 이름을 snake_case 로 쓴다. �
   - `source_name: ClassVar[str]` — 요청 제한 상태 파일 이름. `Source` Literal 값과 같게.
   - `default_rate_limit: ClassVar[dict[str, object]]` — `RateLimitPolicy` 필드
   - `host: str` 필드와 `base_url` property (`create_base_url` 사용)
-  - `base_header` property — `User-Agent` 는 `self.user_agent`
-- `_client` / `_async_client` 는 `@cached_property` 로 만들고 반드시
-  `event_hooks=self.rate_limit_hooks()` (async 는 `async_rate_limit_hooks()`), `verify`, `timeout`,
-  `proxy` 를 넘긴다.
+  - 브라우저 설정 — `browser_entry_url: ClassVar[str]`(브라우저가 처음 열 사이트 화면, 필수)과 필요한 `browser_*` 클래스 변수
+    (`browser_ready_cookie`·`browser_fetch_credentials` 등), `browser_api_hosts` property(호스트 필드에서 만든다). 값은 소스 개발 가이드에 근거와 함께 적는다
+    ([브라우저 요청](architecture.md#브라우저-요청)).
+  - `base_header` property — 사이트 웹이 그 API 에 실제로 붙이는 헤더(`Accept` 등)만 실측해 넣는다. `User-Agent`·`Origin`·`Referer`·`Accept-Language`·쿠키는
+    브라우저가 붙이므로 넣지 않는다.
+- `_client` / `_async_client` 는 `@cached_property` 로 만들고 반드시 `transport=self.browser_transport()` (async 는 `async_browser_transport()`),
+  `event_hooks=self.rate_limit_hooks()` (async 는 `async_rate_limit_hooks()`), `timeout` 을 넘긴다. `verify`·`proxy` 는 httpx 에 넘기지 않는다.
+  브라우저가 `BaseHTTPClient` 의 같은 이름 필드로 프록시·인증서를 처리하고, httpx 에 넘기면 그 mount 가 transport 를 건너뛰어 브라우저를 거치지 않는다.
 - 호스트가 여럿인 소스(검색 API 와 공항 API 가 다른 호스트 등)는 엔드포인트 ClassVar 에 전체 URL 을 두거나 호스트별
-  httpx 클라이언트를 둔다. 어느 쪽이든 모든 클라이언트가 요청 제한 훅을 거친다.
+  httpx 클라이언트를 둔다. 어느 쪽이든 모든 클라이언트가 브라우저 transport 와 요청 제한 훅을 거친다. 요청은 첫 화면 탭에서 `fetch` 로 보내므로 호스트가 첫 화면과
+  다른 출처면 그 서버가 첫 화면 출처의 CORS 를 허용해야 하고, `browser_api_hosts` 에 그 호스트를 넣어야 첫 화면이 보낸 요청이 요청 제한에 센다.
 - 익명 세션 토큰·쿠키처럼 사이트가 발급하는 값은 client 가 받아 쓰고, 필드에 둘 때는 `Field(repr=False)`. 사용자에게서
   받지 않는다 (로그인 없는 기능만).
 
@@ -137,7 +142,11 @@ def run_request_flights_search_v1(
     return SkyscannerFlightsSearchV1ResponseModel.model_validate(response.json())
 ```
 
-- **재시도.** 조회 전용이면 POST 라도 `should_retry_idempotent` (5xx/429 + timeout/transport).
+- **재시도.** 조회 전용이면 POST 라도 `should_retry_idempotent` (5xx/429 + 전송 오류 중 다시 보내면 나을 수 있는 것). 전송 오류는
+  `core.http.RETRYABLE_TRANSPORT_ERRORS`(timeout·연결 오류·원격 프로토콜 오류)만 다시 보낸다. 브라우저 transport 의 CORS 막힘·프록시 오류·인증서 오류는 다시 보내도 같아
+  재시도하지 않으므로, 소스 전용 술어도 전송 오류를 `httpx.TransportError` 통째가 아니라 이 목록으로 가른다.
+  소스 전용 술어가 상태 코드에 소스 고유 뜻을 붙이면(스카이스캐너의 "API 응답 500 은 재시도하지 않는다") 첫 화면 단계 에러(`EntryOpenError`)는
+  빼고 판정한다. 첫 화면 문서의 5xx 는 사이트 장애다 (`should_retry_skyscanner`).
   baenggipyo 에는 조회만 있고 상태를 바꾸는 호출(예약·결제)은 넣지 않으므로 그런 호출용 재시도 술어도 두지 않는다. 429 가 봇 차단이라
   재시도하면 안 되는 소스는 소스 전용 술어를 두고 그 소스 개발 가이드에 적는다 (네이버의
   `should_retry_naver` 처럼).

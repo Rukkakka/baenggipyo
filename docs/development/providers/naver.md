@@ -29,9 +29,18 @@
 
 - API 는 `https://flight-api.naver.com` 하나다 (`/api/runtime-config` 의 `api.flight`). 예전 실험의 `airline-api.naver.com/graphql`
   `internationalList` 쿼리와 `flight-api.naver.com/graphql` `airportAutocomplete` 쿼리는 사라졌다.
-- **브라우저 `User-Agent` 와 `Accept-Language` 를 둘 다 보내야 한다.** 하나라도 빠지면 경로·본문과 상관없이 본문 없는 500
-  (`content-length: 0`)이 온다 (`GET /` 포함). 둘 다 있으면 쿠키 없이 된다. 둘 다 일반 브라우저가 보내는 헤더다.
-  `Origin`·`Referer` 는 `https://flight.naver.com` 으로 보낸다 (CORS 응답이 이 출처만 허용).
+- **요청은 첫 화면 `https://flight.naver.com/` 을 연 브라우저 안의 `fetch` 로 보낸다** ([브라우저 요청](../architecture.md#브라우저-요청)).
+  브라우저 `User-Agent` 와 `Accept-Language` 가 둘 다 없으면 경로·본문과 상관없이 본문 없는 500(`content-length: 0`)이 온다 (`GET /` 포함, 2026-10-11 실측).
+  그래서 `User-Agent`·`Accept-Language`·`Origin`·`Referer`·쿠키는 브라우저가 늘 붙이고 `base_header` 에는 넣지 않는다. 실측(2026-11-24, 첫 화면을 연 페이지에서 `fetch`):
+  이 헤더들을 따로 넣지 않아도 GraphQL 은 200, 검색 SSE 는 201 로 응답 모델에 맞는 본문이 온다.
+- **웹이 붙이는 헤더만 넣는다.** GraphQL 은 `Accept: */*`(`base_header`), 검색 SSE 는 `Accept: text/event-stream` 이다. 웹이 GraphQL 요청에 붙이는 추적용 `traceparent` 는
+  넣지 않는다 (없어도 200·201 이다, 2026-11-24).
+- **API 호스트가 첫 화면과 다른 출처다.** 웹은 `credentials: 'include'` 로 `NNB`·`NAC` 등 쿠키를 싣는다. `browser_fetch_credentials = 'include'` 로 웹과 같게 보낸다 (기본
+  `same-origin` 이면 쿠키가 안 실리지만 그래도 200 이다). 브라우저가 보내는 CORS 사전 요청(OPTIONS)에는 서버가 204 와 `access-control-allow-credentials: true`,
+  `allow-origin: https://flight.naver.com` 으로 답한다.
+- **첫 화면과 `NNB` 쿠키.** 첫 화면이 열리면 1초 안에 `NNB` 쿠키가 생긴다 (2026-11-24 실측). 그래서 준비 쿠키로 `NNB` 를 두고 최대 5초 기다린다 (`browser_ready_cookie`).
+  첫 화면은 `flight-api.naver.com` 에 `POST /graphql`(`searchHistories`) 2번과 사전 요청 2번을 스스로 보낸다. 쿠키는 `<state_dir>/browser/naver.json` 에 남겨 30분 안이면
+  다음 명령이 첫 화면을 다시 열지 않고 남긴 쿠키로 빈 페이지를 띄워 바로 요청한다. 첫 화면을 여는 동안 이미지·글꼴·스타일시트는 받지 않는다. 다른 설정은 기본값이다.
 - GraphQL 은 `POST /graphql` 이다. 인트로스펙션은 막혀 있어(`GRAPHQL_VALIDATION_FAILED`) 쿼리 문자열은 번들에 든 것을 그대로 쓴다.
   잘못된 변수는 HTTP 200 + `errors[].extensions.code: BAD_USER_INPUT` 로 온다 (예: `DeviceType` 에 `pc` 를 주면 실패, `PC` 가 맞다).
 
@@ -43,15 +52,20 @@
   마지막 이벤트만 쓰면 된다. 편도 ICN→NRT 9초, 왕복 SEL↔TYO 17초.
 - **스트림은 끝까지 읽어야 한다.** 첫 이벤트만 받고 끊으면 서버가 검색을 버려, 바로 뒤 캐시 조회가 `isExpired: true` 다.
   이벤트 간격은 길어야 5초였다 (ICN→NRT 20곳, 2026-10-11). 그래도 다음 이벤트가 읽기 시간 상한(client `timeout` 20초) 안에 오지 않거나
-  전체 60초가 지나면 받은 마지막 이벤트로 끝내고(`isCompleted: false`) `notes` 로 알린다 (`api/stream.py`). 60초는 스트림이 열린 뒤부터 잰다.
+  전체 60초가 지나면 받은 마지막 이벤트로 끝내고(`isCompleted: false`) `notes` 로 알린다 (`core/browser.py` 의 `FETCH_SCRIPT`). 60초는 스트림이 열린 뒤, 곧 응답 헤더가 브라우저에 온
+  때부터 잰다.
   요청 제한 훅이 슬롯을 기다린 시간까지 세면 앞 명령 때문에 검색이 잘린다 (2026-10-12 실측: 슬롯 대기 55초 뒤 ICN↔NRT 왕복이 판매처 12/20곳에서
   끊겼고, 고친 뒤 같은 조건에서 끝까지 받았다).
-  받은 이벤트를 남기는 것은 이 두 시간 상한뿐이다. 연결이 끊긴 것 같은 다른 전송 오류는 받은 이벤트를 버리고 `naver_retry` 로 검색을 한 번 더
+  받은 이벤트를 남기는 것은 이 두 시간 상한뿐이다. 읽다 연결이 끊긴 것 같은 다른 전송 오류는 받은 이벤트를 쓰지 않고 전송 오류로 올려 `naver_retry` 로 검색을 한 번 더
   한다. 늦은 판매처는 다시 해도 늦지만 끊긴 연결은 대개 일시적이라 다시 하면 끝까지 받기 때문이다 (일부러 그렇게 둔다, 2026-10-11 리뷰).
   끊는 순간 서버가 검색을 버리는 것도 확인했다: 새 검색을 2초에 끊으면(판매처 11/20곳) 그 version 의 캐시 조회가 `isExpired` 였다 (ICN→OKA 12/4).
 - 응답이 크다. 이벤트마다 항공편 목록(`itineraries`)을 통째로 다시 보내기 때문이다. 편도 `limit: 200` 은 이벤트 20개 27MB,
-  왕복 `limit: 20` 은 4.9MB 였다. `limit` 은 운임 묶음(`fareMappings`) 수만 줄이고 `itineraries` 는 그대로다. 읽으면서
-  마지막 이벤트만 남기고 버린다.
+  왕복 `limit: 20` 은 4.9MB 였다. `limit` 은 운임 묶음(`fareMappings`) 수만 줄이고 `itineraries` 는 그대로다. 웹 화면의 국제선 검색 한 번은 이벤트 20개(0.9~5.6초에
+  걸쳐 최대 1초 간격), 디코드한 전체 약 30MB 이고 마지막 이벤트가 약 270만 자였다 (2026-11-24 실측). 이 본문을 파이썬으로 모두 옮기지 않으려고 스트림은 **브라우저 안에서**
+  줄(`'\n'`) 단위로 읽어 마지막 `data:` 줄 하나만 넘긴다 (`STREAM_SECONDS_EXTENSION`, [스트림 모드](../architecture.md#브라우저-요청)). 파이썬 `iter_lines`
+  (`api/stream.py`)는 그 한 줄을 받아 다시 가르는데, httpx 가 `str.splitlines` 처럼 U+2028·U+2029·U+0085 에서도 줄을 갈라 JSON 문자열 값에 그런 문자가 있으면 `data:` 줄이
+  잘린다. 네이버 응답에는 없어 그대로 둔다 (2026-11-01 검색 원문 약 1,400만 자에 0개). 2xx 가 아닌 응답은 스트림으로 읽지 않고 본문 전체를 에러에 싣는다.
+- 본문을 끝까지 읽은 뒤 캐시 조회(`initialRequest: false`, `version`)는 0.13초에 이벤트 1개가 만료 없이 온다 (2026-11-24 실측).
 - 요청 본문 (번들의 zod 스키마):
 
   | 필드 | 값 |
@@ -284,9 +298,16 @@ SSE 응답은 한 줄씩 읽어 마지막 이벤트만 검증하는 단계가 �
 429·차단 한계는 재지 않았다. `default_rate_limit`(1초·분당 30회·쿨다운 15분)은 그대로 둔다.
 검색 한 번이 판매처 20곳을 서버에서 부르고 수 MB 를 받으므로, 명령 하나가 검색을 여러 번 하지 않게 한다.
 
+- **첫 화면이 스스로 보낸 요청과 CORS 사전 요청(OPTIONS)도 센다.** 요청 제한 훅을 거치지 않는 이 요청들을 transport 가 `RateLimiter.record` 로 센다
+  ([브라우저 요청](../architecture.md#브라우저-요청)). API 호스트가 첫 화면과 다른 출처라 브라우저가 사전 요청을 따로 보낸다. 그래서 검색 한 번은 실제 요청이 3개인데
+  사전 요청까지 5개로 세어, 명령을 몰아 부르면 분당 30회에 더 빨리 닿는다. 사용자 결정으로 그대로 둔다.
+- **재시도 (`should_retry_naver`).** 429 는 봇 차단이라 짧게 다시 보내면 차단을 늘릴 뿐이라 재시도하지 않는다 (요청 제한이 켜져 있으면 쿨다운으로 끝난다). 5xx 와
+  `RETRYABLE_TRANSPORT_ERRORS`(timeout·연결 오류·원격 프로토콜 오류)는 1초 뒤 한 번만 더 보낸다 (모두 2번). CORS 막힘·프록시·인증서와 첫 화면의 차단·다른 출처·시간 초과(`EntryPageError`)는 다시 보내도 같아
+  재시도하지 않는다. 첫 화면 연결 실패는 연결 오류라 재시도한다. 5xx 응답에 `Retry-After` 가 있으면 1초가 아니라 그만큼 쉰다. 첫 화면 문서의 5xx 도 한 번 더 열어 본다 (그 `Retry-After` 가 60초를 넘으면 열지 않고 멈춘다).
+
 ## API 변경 시 점검
 
-번들의 GraphQL 문서(`{kind:"Document",…}`)와 `searchFlights` 본문 zod 스키마가 출발점이다. 헤더 조건(User-Agent + Accept-Language) →
-SSE 이벤트 구조와 완료 표시 → 캐시 조회(`initialRequest`·`version`) → `fareType` 코드 → `getOtaList` 변수 순으로 확인한다.
+번들의 GraphQL 문서(`{kind:"Document",…}`)와 `searchFlights` 본문 zod 스키마가 출발점이다. 첫 화면(`https://flight.naver.com/`)이 열리고 `NNB` 쿠키가 생기는지 →
+그 페이지에서 UA·Accept-Language 를 따로 넣지 않은 `fetch` 가 200(GraphQL)·201(SSE)인지 → SSE 이벤트 구조와 완료 표시 → 캐시 조회(`initialRequest`·`version`) → `fareType` 코드 → `getOtaList` 변수 순으로 확인한다.
 `getOtaList` 문서와 변수를 만드는 함수(`otaFares` 를 채우는 곳)는 첫 화면 번들이 아니라 국제선 상세 페이지 번들
 (`_buildManifest.js` 의 `/flights/international/detail/[...routes]`)에 있다. 경로에 `[]` 가 있어 curl 은 `-g` 로 받는다.
