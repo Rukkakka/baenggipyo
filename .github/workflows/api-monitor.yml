@@ -23,7 +23,7 @@ concurrency:
 jobs:
   check:
     name: 조회 (${{ matrix.group }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     # 명령 하나의 시간 상한(api_check.py COMMAND_TIMEOUT_SECONDS 300초) × 가장 긴 묶음(네이버 12개) = 60분보다 길게 둔다.
     # 잡이 상한에 끊기면 결과 파일이 없어 고장으로 판정된다. 평소에는 2분 안팎에 끝난다 (2026-10 실행 기록)
     timeout-minutes: 65
@@ -31,8 +31,15 @@ jobs:
       fail-fast: false
       matrix:
         # 스카이스캐너 명령을 모두 부르면 40번 남짓이라 한 러너로는 시간당 상한(30회)에 막혀 한 시간 넘게 기다리므로 국제선·국내선을 나눈다.
-        # 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (막힌 날은 확인 못 함으로 남긴다)
-        group: [naver, skyscanner-international, skyscanner-domestic]
+        # 막힌 묶음을 다른 러너로 다시 돌리지는 않는다 (막힌 날은 확인 못 함으로 남긴다).
+        # 스카이스캐너 묶음은 macOS 러너에서 돈다. ubuntu·windows 러너에서는 검색·달력이 봇 차단(캡차)에 자주 막혀 확인하지 못한다
+        include:
+          - group: naver
+            os: ubuntu-latest
+          - group: skyscanner-international
+            os: macos-latest
+          - group: skyscanner-domestic
+            os: macos-latest
     env:
       PYTHONUTF8: '1'
     steps:
@@ -45,9 +52,11 @@ jobs:
       # PyPI 릴리스가 아니라 이 커밋의 코드를 본다
       - run: pip install .
       # baenggipyo 는 네이버·스카이스캐너 요청을 모두 사이트 첫 화면을 연 Chromium 으로 보낸다 (core/browser.py). 감시도 사용자와 같은
-      # 방식으로 부르므로 모든 묶음에 설치한다. 러너는 비밀번호 없이 sudo 가 되어 Chromium 이 쓰는
-      # 시스템 라이브러리도 깐다. install-browser 는 받은 Chromium 을 한 번 띄워 확인까지 한다
-      - run: sudo "$(command -v python)" -m patchright install-deps chromium
+      # 방식으로 부르므로 모든 묶음에 설치한다. Linux 러너는 비밀번호 없이 sudo 가 되어 Chromium 이 쓰는
+      # 시스템 라이브러리도 깐다 (macOS 는 필요 없다). install-browser 는 받은 Chromium 을 한 번 띄워 확인까지 한다
+      - name: 시스템 라이브러리 설치 (Linux)
+        if: runner.os == 'Linux'
+        run: sudo "$(command -v python)" -m patchright install-deps chromium
       - run: python -m baenggipyo install-browser
       - run: python scripts/monitor/api_check.py run ${{ matrix.group }} --out result-${{ matrix.group }}.json
       - uses: actions/upload-artifact@v7
