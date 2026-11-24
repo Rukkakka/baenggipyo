@@ -87,10 +87,20 @@ SENSITIVE_KEYWORDS: str = (
 )
 SENSITIVE_KEY_PATTERN: re.Pattern[str] = re.compile(f'({SENSITIVE_KEYWORDS})', re.IGNORECASE)
 # JSON 으로 읽히지 않는 본문(HTML 안의 JSON, 잘린 JSON)과 JSON 값 안에 든 JSON 문자열은 키·값이 따옴표에 싸여 온다. 따옴표를 건너뛰지 않으면
-# `"sessionId": "…"` 를 가리지 못한다
+# `"sessionId": "…"` 를 가리지 못한다. HTML 스크립트의 JS 문자열 안 JSON 은 따옴표가 `\"` 로 와서 역슬래시도 건너뛴다. 값은 `\"` 에서 멈추되
+# `https:\/\/` 처럼 따옴표가 아닌 글자 앞의 역슬래시는 값으로 읽는다. `Authorization: Bearer …` 는 인증 방식 낱말 뒤의 값까지 가린다
+# (2026-11-24: 앞의 둘은 값이 그대로 나갔다. `raise_for_status` 로 재현)
+_QUOTE: str = r'\\?["\']?'
+_SECRET_VALUE: str = r'(?:[^"\'\\,\s&}\n]|\\(?!["\']))+'
 SENSITIVE_TEXT_PATTERN: re.Pattern[str] = re.compile(
-    rf'([\w-]*(?:{SENSITIVE_KEYWORDS})[\w-]*["\']?\s*[=:]\s*["\']?)'
-    r'([^"\',\s&}\n]+)',
+    rf'([\w-]*(?:{SENSITIVE_KEYWORDS})[\w-]*{_QUOTE}\s*[=:]\s*{_QUOTE}(?:(?:Bearer|Basic|Token|Digest)\s+)?)'
+    rf'({_SECRET_VALUE})',
+    re.IGNORECASE,
+)
+# 쿠키 줄(`Cookie: a=1; b=2`, `"set-cookie": "…"`)은 `;`·공백으로 이어진 쿠키를 모두 가리도록 줄 끝이나 따옴표까지 가린다. 위 패턴은 값을
+# 공백에서 끊어 두 번째 쿠키부터 그대로 나갔다 (2026-11-24 재현)
+COOKIE_TEXT_PATTERN: re.Pattern[str] = re.compile(
+    rf'([\w-]*cookie{_QUOTE}\s*[=:]\s*{_QUOTE})((?:[^"\'\\\n<]|\\(?!["\']))+)',
     re.IGNORECASE,
 )
 
@@ -120,7 +130,7 @@ def _redact_json(value: object) -> object:
 
 
 def _redact_text(value: str) -> str:
-    return SENSITIVE_TEXT_PATTERN.sub(r'\1<redacted>', value)
+    return SENSITIVE_TEXT_PATTERN.sub(r'\1<redacted>', COOKIE_TEXT_PATTERN.sub(r'\1<redacted>', value))
 
 
 def _safe_request_url(url: object, path: str | None = None) -> str:
