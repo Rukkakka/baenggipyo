@@ -8,6 +8,9 @@ version = '0.8.0'
 description = '네이버 항공권·스카이스캐너 항공권을 조회하는 LLM 친화 CLI'
 readme = 'README.md'
 license = 'MIT'
+# 상한은 두지 않는다. 두면 새 Python 의 pip 는 상한이 없던 옛 버전을 에러 없이 받고, uv 는 상한을 아예 보지 않는다.
+# 보장하는 버전(CI 가 확인한 3.11~3.14)은 아래 classifiers 와 문서에 적고, 한 줄 설치 스크립트가 그 범위의 Python 을 고른다
+# (docs/development/release.md '새 Python 지원')
 requires-python = '>=3.11'
 keywords = [
     'flights',
@@ -29,6 +32,10 @@ classifiers = [
     'Natural Language :: Korean',
     'Operating System :: OS Independent',
     'Programming Language :: Python :: 3 :: Only',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
+    'Programming Language :: Python :: 3.14',
     'Topic :: Utilities',
 ]
 dependencies = [
