@@ -7,6 +7,7 @@ LLM 에이전트가 셸로 호출하는 도구라, 출력 형식과 에러 형�
 처음 기여하는 사람용 안내는 `CONTRIBUTING.md` 다.
 README 데모 GIF 는 `docs/demo/`, 그 녹화 도구(VHS 대본·후처리 스크립트)는 `scripts/demo/` 에 있다.
 README 로고 `docs/logo.svg` 는 `scripts/logo/build_logo.py` 로 만든다. 글자를 외곽선으로 바꾼 파일이라 직접 고치지 않고 스크립트를 고쳐 다시 만든다.
+처음 설치하는 사람용 한 줄 설치 스크립트는 `scripts/install/` 이다 ([한 줄 설치](docs/install.md#한-줄-설치)).
 매일 새벽 두 소스의 모든 CLI 명령을 실제로 불러 보는 감시는 `scripts/monitor/` 와 `.github/workflows/api-monitor.yml` 이다 ([매일 API 감시](docs/development/README.md#매일-api-감시)).
 
 **지금 상태: 두 소스 모두 구현.** 네이버·스카이스캐너 모두 `search airports`·`search flights`·`flight`·`calendar`·`explore` 가 실제 API 로
@@ -88,6 +89,7 @@ README는 로고·배지·기능 요약·빠른 시작(실제 출력 예시 하�
 | 명령 추가·삭제, 에이전트가 틀리기 쉬운 해석 규칙(단위·누락값·ID·현지 시각 등)·에러 대응 | `docs/llm.md` |
 | 공통 사용법(출력·에러 대응)·요청 제한 정책 | `docs/common.md` |
 | 설치·업데이트·삭제 방법, 준비물·PATH | `docs/install.md` (README 설치 절의 요약 표도 맞춘다) |
+| 설치 스크립트(`scripts/install/`)가 하는 일 | `docs/install.md` 의 한 줄 설치 절. 사용자가 main 의 파일을 바로 받아 실행하므로 머지하는 즉시 적용된다. 머지 전에 CI 의 `브라우저 확인`이 세 운영체제에서 실제로 돌려 본다 |
 | 한 소스의 구현·예외·API 조사 결과 | `docs/development/providers/<source>.md` |
 | 여러 소스에 공통인 개발 규약 | `docs/development/` 바로 아래 문서 |
 | 사용자(에이전트 포함)에게 보이는 변경 | `CHANGELOG.md` 의 `Unreleased` ([쓰는 법](docs/development/release.md#changelog-쓰는-법)) |
