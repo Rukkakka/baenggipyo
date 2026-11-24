@@ -1,3 +1,4 @@
+import json
 import multiprocessing
 import time
 from pathlib import Path
@@ -157,6 +158,22 @@ def test_block_never_shortens_existing_cooldown() -> None:
     cooled = limiter(cooldown=10)
     long_until = cooled.block(retry_after=300)
     assert cooled.block() == long_until
+
+
+@pytest.mark.parametrize('field', ['blocked_until', 'recent', 'block_streak'])
+def test_huge_integers_in_state_file_are_dropped(field: str) -> None:
+    # 손으로 고친 상태 파일의 아주 큰 정수는 깨진 값으로 버린다. 남기면 실수로 바꾸다 OverflowError 로 그 소스의 모든 요청과
+    # limits·limits --reset 이 실패했고, 거듭 차단 횟수면 쿨다운 중 다시 막힐 때 2 ** streak 를 계산하느라 멈췄다.
+    # 실제 API 로는 만들 수 없는 상태라 파일로 본다
+    huge = 10 ** 400
+    blocked = limiter(min_interval=0, cooldown=60, max_cooldown=200)
+    # 쿨다운 중이어야 거듭 차단 갈래가 파일의 횟수를 그대로 쓴다
+    state: dict[str, object] = {'blocked_until': time.time() + 30, 'recent': [], 'block_streak': 0}
+    state[field] = [huge] if field == 'recent' else huge
+    blocked.path.parent.mkdir(parents=True, exist_ok=True)
+    blocked.path.write_text(json.dumps(state))
+    blocked.status()
+    assert blocked.block() > time.time()
 
 
 def test_disabled_policy_is_noop() -> None:
