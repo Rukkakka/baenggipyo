@@ -145,7 +145,7 @@ def test_poll_error_message_and_log_hide_session_id_in_path(caplog: pytest.LogCa
         base_url=client.base_url, transport=httpx.MockTransport(lambda request: httpx.Response(404)), event_hooks=client.rate_limit_hooks(),
     )
     with client, pytest.raises(httpx.HTTPStatusError) as exc:
-        client.run_request_radar_web_unified_search_poll_v2(SkyscannerRadarWebUnifiedSearchPollV2RequestParameterModel(session_id='secret-session'))
+        client.run_request_radar_web_unified_search_poll_v2(SkyscannerRadarWebUnifiedSearchPollV2RequestParameterModel(session_id='secret-session'), everywhere=False)
     assert 'secret-session' not in str(exc.value) + caplog.text
     assert '/web-unified-search/{session_id}' in str(exc.value)
     assert '/web-unified-search/{session_id} -> 404' in caplog.text

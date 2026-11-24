@@ -211,7 +211,7 @@ def run_search(
         except RateLimitedError as exc:
             return response, False, exc
         del response
-        response = client.run_request_radar_web_unified_search_poll_v2(parameter)
+        response = client.run_request_radar_web_unified_search_poll_v2(parameter, everywhere=bool(payload.target_geo_level))
         polls += 1
     status = response.context.status if response.context else None
     if status == 'complete':

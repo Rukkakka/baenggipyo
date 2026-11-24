@@ -32,3 +32,7 @@ class SkyscannerAutosuggestSearchSearchFlightV1RequestParameterModel(RequestMode
         bool,
         Field(description='사이트가 늘 true 로 보낸다')
     ] = True
+    autosuggest_exp: Annotated[
+        str,
+        Field(description='사이트가 늘 빈 값으로 보낸다', alias='autosuggestExp')
+    ] = ''
