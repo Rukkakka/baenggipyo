@@ -89,9 +89,9 @@ Windows 는 `.venv/bin/pytest` 대신 `.venv\Scripts\pytest` 로 부른다.
 
 ### 브라우저 확인 (CI)
 
-pytest 는 Chromium 을 띄우지 않아 운영체제마다 달라지는 브라우저 쪽(띄우기, 브라우저 안의 요청, 막힌 응답 알아보기, 첫 화면 오류 판정, 스트림 읽기, 남긴 쿠키·기록 폴더, Ctrl+C, 끝난 뒤 프로세스 정리)은 [CI](../../.github/workflows/ci.yml) 의 `브라우저 확인 (ubuntu-latest·macos-latest·windows-latest)` 잡이 본다. `pip install .` → (Linux) `patchright install-deps chromium` → `baenggipyo install-browser` → [scripts/ci/browser_check.py](../../scripts/ci/browser_check.py)(가짜 사이트 둘을 띄워 확인, 실제 사이트에는 요청하지 않는다) → `install-browser` 한 번 더(이미 있으면 건너뛰는지) 순서로 돈다.
+pytest 는 Chromium 을 띄우지 않아 운영체제마다 달라지는 브라우저 쪽(띄우기, 브라우저 안의 요청, 막힌 응답 알아보기, 첫 화면 오류 판정, 스트림 읽기, 남긴 쿠키·기록 폴더, Ctrl+C, 끝난 뒤 프로세스 정리)은 [CI](../../.github/workflows/ci.yml) 의 `브라우저 확인 (ubuntu-latest·macos-latest·windows-latest)` 잡이 본다. 세 운영체제에서 한 줄 설치 스크립트([`scripts/install/`](../../scripts/install/))로 이 커밋의 코드를 설치하고(`BAENGGIPYO_INSTALL_SPEC` 로 PyPI 대신 이 커밋을 넘긴다. Windows 는 PowerShell 5.1 에서 스크립트 내용을 그대로 실행한다) → 설치된 `baenggipyo --version` → 그 Python 으로 [scripts/ci/browser_check.py](../../scripts/ci/browser_check.py)(가짜 사이트 둘을 띄워 확인, 실제 사이트에는 요청하지 않는다) → `baenggipyo install-browser` 한 번 더(이미 있으면 건너뛰는지) 순서로 돈다.
 
-- 브라우저 계층(`core/browser.py`·`core/http.py`·`core/ratelimit.py`), `cli/app.py`, `scripts/ci/`, `pyproject.toml`, `ci.yml` 을 바꾼 PR 과 main push·릴리스에서 돈다. 다른 PR 은 `바뀐 파일 분류` 잡이 건너뛴다. 이 잡 이름은 main 보호 규칙의 필수 검사가 **아니다**.
+- 브라우저 계층(`core/browser.py`·`core/http.py`·`core/ratelimit.py`), `cli/app.py`, `scripts/install/`, `scripts/ci/`, `pyproject.toml`, `ci.yml` 을 바꾼 PR 과 매주·수동·릴리스 실행에서 돈다. 다른 PR 은 `바뀐 파일 분류` 잡이 건너뛴다. 돌면 마지막 `CI 결과` 잡이 이 잡도 보므로 통과해야 머지된다 (이 잡 이름 자체는 필수 검사가 아니고 `CI 결과` 하나가 필수 검사다).
 - 로컬에서는 `.venv/bin/python scripts/ci/browser_check.py` 로 돌린다 (Chromium 이 이미 받아져 있어야 한다. Windows 는 `.venv\Scripts\python`). 브라우저 계층을 고쳤으면 PR 전에 한 번 돌린다.
 
 ## 매일 API 감시

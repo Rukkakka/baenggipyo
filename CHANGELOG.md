@@ -15,6 +15,7 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 
 ### 추가
 
+- 한 줄 설치 스크립트: Windows 는 PowerShell 에서 `irm https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/scripts/install/install.ps1 | iex`, macOS·Linux 는 `curl -LsSf https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/scripts/install/install.sh | sh` 한 줄로 uv·baenggipyo 설치, PATH 등록, Windows 한글 출력 설정(`PYTHONUTF8=1`), Chromium 받기, Codex·Claude Code 지침 한 줄까지 한다. 다시 실행하면 최신 버전으로 올리고, Windows 스크립트는 지금 창에도 PATH 를 넣어 그 창에서 바로 쓸 수 있다
 - `baenggipyo install-browser` 명령: 요청에 쓰는 Chromium 을 받고 뜨는지 확인한다
 - 에러 code `BROWSER_UNAVAILABLE`(Chromium 이 없거나 띄우지 못함)·`BROWSER_INSTALL_FAILED`(`install-browser` 가 받지 못함)
 - 사이트 첫 화면이 막혔을 때 `UPSTREAM_ERROR` 에 `blocked: true`(스카이스캐너는 봇 차단처럼 쿨다운을 걸고 `RATE_LIMITED`), 프록시·인증서 오류에는 `NETWORK_ERROR` 와 설정 안내 `hint`
@@ -25,6 +26,7 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 - 네이버·스카이스캐너 요청을 사이트 첫 화면을 연 브라우저로 보낸다. 스카이스캐너 봇 차단을 덜 받으려는 것이고, 명령마다 몇 초 더 걸린다
 - 네이버는 브라우저가 보내는 CORS 사전 요청과 첫 화면이 스스로 보내는 요청도 요청 제한에 센다. 명령을 몰아 부르면 분당 상한에 더 빨리 닿는다
 - 스카이스캐너 봇 차단(`RATE_LIMITED`, `reason: blocked`)의 `hint` 를 "그동안 다른 소스를 쓰세요" 로 줄였다
+- 보장하는 Python 을 3.11~3.14 로 명시함. CI 가 Windows·macOS·Linux 에서 네 버전을 모두 확인한다. 3.15 는 확인한 뒤 보장한다. 패키지의 `requires-python` 에는 상한을 두지 않는다 (두면 새 Python 의 pip 가 옛 버전을 에러 없이 받는다). 설치 스크립트는 보장 범위의 Python 으로 설치한다
 
 ### 수정
 

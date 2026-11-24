@@ -12,6 +12,7 @@ allowed-tools: Bash(git diff *) Bash(git status *) Bash(.venv/bin/ruff *) Bash(.
 1. 바뀐 파일을 세 곳에서 모은다: 이 브랜치의 커밋(`git diff --name-status <기준>...HEAD`), 커밋 전 변경(`git diff --name-status HEAD`), 추적 안 된 파일(`git status --short` 의 `??`). 에이전트는 시키지 않으면 커밋하지 않아 변경이 대개 커밋 전에 있다.
 2. `AGENTS.md` 의 "문서 갱신" 표와 `docs/development/workflow.md` 의 "PR 을 열기 전에" 를 읽고, 바뀐 파일마다 함께 고쳐야 하는 것이 diff 에 있는지 본다.
    - `src/baenggipyo/cli/<source>.py` 또는 `providers/<source>/` → `docs/<source>.md`, 명령 추가·삭제나 에이전트가 틀리기 쉬운 해석 규칙·에러 대응이 바뀌었으면 `docs/llm.md`(200줄 이하), 명령 추가·삭제면 `scripts/monitor/api_check.py` 의 `GROUPS` (국제선·국내선이 다르게 동작하면 둘 다).
+   - `scripts/install/` → `docs/install.md` 한 줄 설치 절.
    - 사용자(에이전트 포함)에게 보이는 변경 → `CHANGELOG.md` 의 `Unreleased`.
    - 모듈 추가·이름 변경·삭제 → `AGENTS.md` 구조 표와 `docs/development/providers/<source>.md`.
    - 웹과 다르게 한 곳 → 그 소스 가이드 "웹과 다른 점" 절.

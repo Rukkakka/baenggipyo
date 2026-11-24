@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://pypi.org/project/baenggipyo/"><img src="https://img.shields.io/pypi/v/baenggipyo" alt="PyPI"></a>
-  <a href="https://pypi.org/project/baenggipyo/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+"></a>
+  <a href="https://pypi.org/project/baenggipyo/"><img src="https://img.shields.io/badge/python-3.11--3.14-blue" alt="Python 3.11–3.14"></a>
   <a href="https://github.com/Rukkakka/baenggipyo/actions/workflows/ci.yml"><img src="https://github.com/Rukkakka/baenggipyo/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/Rukkakka/baenggipyo/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
 </p>
@@ -106,7 +106,21 @@ baenggipyo naver search flights ICN KIX --depart 2026-11-20 --limit 2
 
 ## 설치
 
-Python 3.11 이상이 필요하고 (uv 로 설치하면 없어도 된다), macOS·Linux·Windows 에서 쓸 수 있다. 셋 중 하나만 하면 된다.
+**처음이면 설치 스크립트 한 줄로 끝난다.** uv(설치 도구)·baenggipyo 설치, PATH 등록, Windows 한글 출력 설정, baenggipyo 가 요청을 보낼 브라우저(Chromium) 받기, Codex·Claude Code 지침 한 줄까지 한 번에 한다. 다시 실행하면 baenggipyo 를 최신 버전으로 올린다.
+
+```powershell
+# Windows: 시작 메뉴에서 PowerShell 을 열어 (cmd 아님) 붙여 넣는다. 끝나면 그 창에서 바로 쓸 수 있다
+irm https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/scripts/install/install.ps1 | iex
+```
+
+```bash
+# macOS·Linux: 터미널에 붙여 넣는다
+curl -LsSf https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/scripts/install/install.sh | sh
+```
+
+스크립트가 하는 일과 설치 뒤 에이전트에서 쓸 때 주의할 점은 [설치 문서의 한 줄 설치](https://github.com/Rukkakka/baenggipyo/blob/main/docs/install.md#한-줄-설치)에 있다.
+
+baenggipyo 는 현재 Python 3.11~3.14 만 보장한다 (CI 가 macOS·Linux·Windows 에서 확인한 버전, 3.15 는 확인 전). 직접 설치하려면 이 범위의 Python 이 필요하고 (uv 로 설치하면 없어도 된다. 다만 uv 는 Python 이 없으면 가장 새 버전을 받으니 `uv tool install --python 3.14 baenggipyo` 처럼 고른다), macOS·Linux·Windows 에서 쓸 수 있다. 셋 중 하나만 하면 된다.
 
 | 방법 | 설치 | 업데이트 |
 | --- | --- | --- |
@@ -114,7 +128,7 @@ Python 3.11 이상이 필요하고 (uv 로 설치하면 없어도 된다), macOS
 | pipx | `pipx install baenggipyo` | `pipx upgrade baenggipyo` |
 | pip + 가상환경 | `python3 -m venv ~/.venvs/baenggipyo && ~/.venvs/baenggipyo/bin/pip install baenggipyo` | `~/.venvs/baenggipyo/bin/pip install -U baenggipyo` |
 
-설치한 뒤에는 요청에 쓰는 Chromium 브라우저를 받는다. Chromium 은 위 설치 명령으로 함께 오지 않아서, 처음 한 번 (업데이트한 뒤에도 한 번) 실행해야 한다. 수백 MB 를 받고, 브라우저를 띄우느라 조회 명령마다 몇 초 더 걸린다.
+직접 설치했으면 요청에 쓰는 Chromium 브라우저를 받는다 (설치 스크립트는 대신 한다). Chromium 은 위 설치 명령으로 함께 오지 않아서, 처음 한 번 (업데이트한 뒤에도 한 번) 실행해야 한다. 수백 MB 를 받고, 브라우저를 띄우느라 조회 명령마다 몇 초 더 걸린다.
 
 ```bash
 baenggipyo install-browser   # Chromium 을 받고 뜨는지 확인. 이미 받았으면 확인만 한다
@@ -134,6 +148,8 @@ baenggipyo limits            # 요청 제한 상태 JSON. 네트워크 요청은
 항공권을 찾을 때는 baenggipyo CLI 를 쓴다. 처음 쓰기 전에 `baenggipyo guide` 를 실행해 읽고 그 규칙을 따른다.
 ```
 
+[설치 스크립트](https://github.com/Rukkakka/baenggipyo#설치)는 Codex(`~/.codex/AGENTS.md`)·Claude Code(`~/.claude/CLAUDE.md`)를 쓰고 있으면 이 줄을 넣어 준다.
+
 [맨 위 영상](https://github.com/Rukkakka/baenggipyo#readme)이 이 한 줄을 적어 둔 폴더에서 Claude Code 에 항공권을 찾게 한 장면이다. 지침 파일의 두 번째 줄("(README 데모) 스카이스캐너는 쓰지 않고 네이버 항공권만 쓴다.")은 데모용이다.
 
 ## 설정
@@ -151,7 +167,7 @@ baenggipyo limits            # 요청 제한 상태 JSON. 네트워크 요청은
 
 ### Windows 에서 쓸 때
 
-Windows 의 Python 은 출력 인코딩이 기본으로 UTF-8 이 아니다 (한국어 Windows 는 cp949). LLM 에이전트가 baenggipyo 를 부르면 출력이 파이프로 넘어가는데, 이때 한글이 깨지거나 cp949 에 없는 문자(이모지 등)에서 오류가 날 수 있다. 아래처럼 사용자 환경 변수를 설정하고 새 터미널을 연다. macOS·Linux 는 따로 할 것이 없다.
+Windows 의 Python 은 출력 인코딩이 기본으로 UTF-8 이 아니다 (한국어 Windows 는 cp949). LLM 에이전트가 baenggipyo 를 부르면 출력이 파이프로 넘어가는데, 이때 한글이 깨지거나 cp949 에 없는 문자(이모지 등)에서 오류가 날 수 있다. 아래처럼 사용자 환경 변수를 설정하고 새 터미널을 연다 ([설치 스크립트](https://github.com/Rukkakka/baenggipyo#설치)로 설치했으면 이미 되어 있다). macOS·Linux 는 따로 할 것이 없다.
 
 ```powershell
 setx PYTHONUTF8 1
