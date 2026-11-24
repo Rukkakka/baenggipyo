@@ -30,7 +30,7 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 - `code` 는 기계가 읽는 값, `message` 는 사람이 읽는 설명, `hint` 는 **다음에 할 행동**이다.
   LLM 이 hint 를 보고 재시도·옵션 수정·소스 변경을 고르므로, 새 에러에는 구체적인 hint 를 단다.
 - 애플리케이션 에러는 `core.errors.BaenggipyoError` (또는 서브클래스)로 던진다. 추가 필드는 `details` 에
-  넣으면 에러 JSON 에 평탄하게 실린다.
+  넣으면 에러 JSON 에 평탄하게 실린다. 예외는 브라우저 안에서 나는 두 갈래다. 하나는 transport 의 전송 오류(`CorsBlockedError`·`ProxyError`·`CertificateError`)로 httpx `TransportError` 다. 다른 하나는 첫 화면 단계 에러 `EntryConnectError`(httpx `ConnectError`, 재시도한다)와 `EntryStatusError`(httpx `HTTPStatusError`, `TransportError` 가 아니다)다. 재시도 술어가 원래 httpx 종류대로 다루고(재시도할 오류는 `RETRYABLE_TRANSPORT_ERRORS`) `handle_errors` 가 code·hint 를 붙이므로, 모두 `BaenggipyoError` 가 아니라 httpx 예외로 둔다 (`core/browser.py` `EntryOpenError` docstring).
 - 응답 형식이 어긋난 것(이벤트 없는 SSE 등)은 client 가 `ValueError` 로 던져 위 표대로 `PARSE_ERROR` 가 된다. client 는 응답 검증만
   하고 `BaenggipyoError` 변환은 service 가 하므로([계층](architecture.md#계층)) 규칙 위반이 아니다. 앞 응답의 값으로 만드는 요청 모델은
   `built_from_response()` 안에서 만들어, 검증이 실패해도 `INVALID_ARGUMENT` 가 아닌 `PARSE_ERROR` 로 낸다.
@@ -41,7 +41,9 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 | `BaenggipyoError` | 예외의 `code` | 1 (`INVALID_ARGUMENT` 는 2) |
 | pydantic `ValidationError` — 요청 모델(`RequestModel`) | `INVALID_ARGUMENT` | 2 |
 | pydantic `ValidationError` — 응답 모델·공통 출력 모델 (응답 형식 변경) | `PARSE_ERROR` | 1 |
-| `HTTPStatusError` 404 / 429 / 그 밖 | `NOT_FOUND` / `RATE_LIMITED` / `UPSTREAM_ERROR` | 1 |
+| `HTTPStatusError` 404 / 429 / 그 밖 (사이트 첫 화면의 5xx `EntryStatusError` 는 hint 가 사이트 장애를 가리킨다) | `NOT_FOUND` / `RATE_LIMITED` / `UPSTREAM_ERROR` | 1 |
+| `CorsBlockedError` (브라우저가 CORS 로 응답을 막음) | `UPSTREAM_ERROR` | 1 |
+| `ProxyError`·`CertificateError` (브라우저의 프록시·인증서 오류) | `NETWORK_ERROR` (hint: 프록시·인증서 설정) | 1 |
 | 그 밖의 `HTTPError` | `NETWORK_ERROR` | 1 |
 | `UnicodeEncodeError` (결과를 쓰는 출력 인코딩이 UTF-8 이 아님. PYTHONUTF8 없는 Windows 파이프의 cp949) | `INTERNAL_ERROR` (hint: `PYTHONUTF8=1`) | 1 |
 | 요청 제한 상태 디렉터리를 만들거나 쓰지 못함 (`StateDirError`, 읽기 전용 홈·샌드박스. 모든 소스가 같이 실패한다) | `INTERNAL_ERROR` (hint: `BAENGGIPYO_STATE_DIR`) | 1 |
@@ -52,7 +54,8 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 | `KeyboardInterrupt` (Typer 가 `Exit(130)` 으로 바꾼 것), Click `Abort` (`run()` 에서) | `INTERRUPTED` | 130 (`Abort` 는 1) |
 
 - 쓰이는 코드: `INVALID_ARGUMENT`, `AIRPORT_NOT_FOUND`, `AIRPORT_AMBIGUOUS`, `ROUTE_NOT_SUPPORTED`, `FARE_UNAVAILABLE`, `NOT_FOUND`,
-  `RATE_LIMITED`, `UPSTREAM_ERROR`, `NETWORK_ERROR`, `PARSE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`, `CLI_ERROR`.
+  `RATE_LIMITED`, `UPSTREAM_ERROR`, `NETWORK_ERROR`, `PARSE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`, `CLI_ERROR`, `BROWSER_UNAVAILABLE`,
+  `BROWSER_INSTALL_FAILED`.
   새 코드를 만들면 공통 사용 문서의 exit code 표와 오류 대응에 추가한다.
 - 봇 차단(스카이스캐너 403 캡차)은 새 코드를 만들지 않고 `RATE_LIMITED` (`reason: blocked`)로 낸다. 할 일이 429 와 같기
   때문이다 (기다리거나 다른 소스). 소스 client 의 응답 훅이 차단을 알아보고 쿨다운을 걸어, 쿨다운 동안은 요청을 보내지 않는다.
@@ -61,6 +64,31 @@ baenggipyo 는 LLM 에이전트가 셸로 호출하는 도구라, CLI 의 출력
 - 요청 모델 검증 실패의 message 는 검증 함수가 던진 문구 그대로다 (pydantic 이 붙이는 `Value error, ` 를 뗀다).
   hint 는 사용법 오류와 같은 `'<명령> --help' 로 사용법을 확인하세요` 다.
 - 에러 JSON 의 `source` 는 기본으로 명령의 소스지만, `BaenggipyoError.details['source']` 가 있으면 그 값이 이긴다.
+
+### 브라우저 에러
+
+모든 요청을 브라우저로 보내므로([브라우저 요청](architecture.md#브라우저-요청)) Chromium 을 띄우거나 사이트 첫 화면을 여는 단계에서 나는 에러가 있다. 구현은
+`core/browser.py`(`_launch_error`·`_entry_error`·`_BrowserState.finish_entry`)와 `cli/output.py`(`handle_errors`)다. message·hint 문구는 코드가 원문이다.
+
+| code | 언제 | `details` 와 hint 의 요지 |
+| --- | --- | --- |
+| `BROWSER_UNAVAILABLE` | Chromium 이 없거나 띄우지 못함. 모든 소스가 같이 실패한다 | 갈래가 다섯이다. 설치되어 있지 않으면 hint 가 `'baenggipyo install-browser' 로 Chromium 을 설치하세요 (baenggipyo 를 업데이트한 뒤에도 한 번 실행합니다)` 다. 드라이버(patchright)를 실행하지 못했으면 설치가 깨졌거나 보안 프로그램이 막았을 수 있다는 안내, 제시간에 안 떴으면 `reason: "LAUNCH_TIMEOUT"`(이 갈래만)과 잠시 뒤 한 번 다시 실행하라는 안내, 시스템 라이브러리가 없으면(Linux) `patchright install-deps chromium` 뒤 `install-browser` 로 확인하라는 안내, 그 밖의 실행 실패면 message 가 `Chromium 을 띄우지 못했습니다: <원인 첫 줄>` 이고 hint 는 Linux 면 시스템 라이브러리 안내, 아니면 설치·실행을 확인하고 같으면 원인을 사용자에게 알리라는 안내다 |
+| `BROWSER_INSTALL_FAILED` | `install-browser` 가 Chromium 을 내려받지 못함 | `details.output`(내려받기 진행 출력의 마지막 몇 줄, 터미널이거나 `--verbose` 가 아닐 때만)에 원인이 있다는 안내 |
+| `NETWORK_ERROR` | 첫 화면을 시간 안에 열지 못함, 프록시가 사이트 연결을 거절하거나 닿지 못함, 인증서를 믿지 못함 | 프록시·인증서는 설정을 가리키는 hint(`PROXY_HINT`·`CERT_HINT`), 시간 초과는 잠시 뒤 한 번만 다시 부르고 같으면 다른 소스를 쓰라는 안내 |
+| `UPSTREAM_ERROR` | 첫 화면 문서가 401·403·451 (스카이스캐너는 이때 차단 쿨다운을 걸고 `RATE_LIMITED`, `reason: blocked`) | `blocked: true`, `status`, `entry_page: true`. 스카이스캐너의 `RATE_LIMITED` 는 message 가 `skyscanner 첫 화면 응답(HTTP <상태>)이 접속을 막았습니다. N초 동안 이 소스로 요청을 보내지 않습니다` 이고 `status`·`entry_page: true`·`retry_after_seconds`·`reason` 이 붙는다 (API 403 캡차의 `RATE_LIMITED` 에는 `status`·`entry_page` 가 없다). hint: `사이트가 이 접속을 막았을 수 있습니다. 업데이트로는 풀리지 않으니 다른 소스를 쓰세요`. 이때 에이전트는 업데이트를 권하지 않는다 |
+| `UPSTREAM_ERROR` | 첫 화면 문서가 그 밖의 4xx | `status`, `entry_page: true`. hint: `사이트 첫 화면 주소가 바뀌었을 수 있습니다. 다른 소스를 쓰세요` |
+| `UPSTREAM_ERROR` | 첫 화면이 다른 출처(로그인·보안 확인 화면)로 넘어감 | message: `<소스> 첫 화면이 다른 출처(<scheme>://<host>)로 넘어갔습니다` (포트가 있으면 `:<port>` 까지, 쿼리·경로·사용자 정보는 싣지 않음). hint: `사이트가 보안 확인·로그인 화면으로 넘겼거나 첫 화면 주소가 바뀌었을 수 있습니다. 다른 소스를 쓰세요` |
+| `UPSTREAM_ERROR` | 첫 화면 문서가 5xx (재시도한 뒤에도 같거나 재시도하지 않는 5xx) | `status`, `entry_page: true`. hint 가 사이트 장애를 가리킨다 (`handle_errors`). `Retry-After` 가 60초(재시도 대기 상한)를 넘으면 재시도 없이 바로 이 에러이고 `retry_after_seconds` 도 붙는다 (요청 제한을 끈 429 면 code 가 `RATE_LIMITED` 이고 `status`·`entry_page: true` 가 붙는다) |
+| `RATE_LIMITED` | 첫 화면 문서나 그 페이지의 사이트 API 요청이 429 (요청 제한이 켜져 있을 때) | 요청 제한 쿨다운이다 (`reason: cooldown`, `retry_after_seconds`). 정책 값과 429 의 `Retry-After` 중 긴 쪽이다. 첫 화면 문서가 429 일 때만 `status`·`entry_page: true` 가 붙고, 첫 화면의 다른 요청만 429 를 받아 건 쿨다운에는 붙지 않는다 |
+| `UPSTREAM_ERROR` | 브라우저가 CORS 로 응답을 막음 (`CorsBlockedError`) | 사이트가 이 요청의 응답을 막았으니 다른 소스를 쓰라는 안내 |
+
+- `entry_page: true` 는 첫 화면 **문서**의 HTTP 상태 코드 때문에 낸 에러라는 표시이고 `status` 와 함께 붙는다. API 응답의 HTTP 에러, 다른 출처로 넘어감, 시간 초과·프록시·인증서에는 붙지 않는다. 매일 API 감시가 첫 화면 5xx(사이트 장애)를 API 응답 500 과 가르는 데 쓴다.
+- `blocked: true` 는 사이트가 접속(IP·봇)을 막았다는 표시다. 매일 API 감시는 hint 문구가 아니라 이 표시를 보고 고장이 아니라 확인 못 함으로 센다
+  ([매일 API 감시](README.md#매일-api-감시)).
+- 첫 화면 시간 초과·프록시·인증서·막힘·다른 출처·Chromium 문제는 다시 해도 같아 재시도하지 않는다. 첫 화면 5xx 와 연결 오류는 소스의 재시도 술어대로 재시도한다 (스카이스캐너가 재시도하지 않는 500 은 API 응답 500 뿐이고 첫 화면 문서 5xx 는 다른 5xx 처럼 재시도한다. 요청 제한을 끈 429 도 그 술어를 따른다)
+  ([재시도](provider-conventions.md#요청-메서드)).
+- `baenggipyo install-browser` 는 결과를 JSON 하나로 stdout 에 쓴다: `browser`(`chromium`)·`version`·`executable`(실행 파일 경로). 내려받기 진행은 stderr 가
+  터미널이거나 `--verbose` 일 때만 stderr 에 나가고, 에이전트처럼 stderr 를 읽을 때는 에러 JSON 만 간다.
 
 ## 항공권 출력
 
@@ -167,6 +195,7 @@ baenggipyo 는 **찾기까지만** 한다. 예약을 대신하게 되는 정보�
 - 예외: 판매처 예약 링크(`offers[].url`)에 든 검색·견적 ID 는 원 사이트가 그 예약을 판매처로 이어 주는 데 쓰는 값이라 링크째 낸다. 네이버
   `tivan.naver.com` 링크는 경로 전체가 불투명한 값이라 뗄 토큰이 없고, 스카이스캐너 딥링크의 `fps_session_id`·`request_id`·`q_ids` 는 그 검색을
   가리킬 뿐 로그인·쿠키 값이 아니다 (2026-10-11 확인, 소스 개발 가이드). 로그인·쿠키처럼 사용자를 가리키는 값이 링크에 들어 있으면 내보내지 않는다.
+- 사이트가 준 주소(첫 화면이 넘어간 주소, 리다이렉트 주소)는 에러 message·hint·details·`--verbose` 로그에 출처(scheme·host·port)만 싣고 경로·쿼리·사용자 정보는 싣지 않는다 (로그인·보안 확인 화면은 거기에 토큰을 싣는다).
 - 승객 이름·여권·결제 정보는 받지도 내보내지도 않는다.
 - 응답 모델(`api/response/`)에는 이런 필드가 있어도 되지만 공통 출력 모델로 옮기지 않는다.
 

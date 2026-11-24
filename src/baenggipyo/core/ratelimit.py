@@ -3,6 +3,7 @@ import json
 import math
 import os
 import sys
+import threading
 import time
 from collections.abc import (
     Awaitable,
@@ -61,16 +62,23 @@ class RateLimitedError(BaenggipyoError):
         retry_after: 다시 시도할 수 있을 때까지 남은 초.
         reason: 'cooldown' (429·봇 차단 이후 대기 중), 'blocked' (방금 봇 차단을 받음) 또는 'budget' (분당·시간당 상한 초과).
         window: budget 일 때 넘은 상한 ('분당' 또는 '시간당'). Defaults to '분당'.
+        entry_status: 첫 화면 문서의 상태 코드 때문에 낸 것이면 그 코드. 있으면 details 에 `status`·`entry_page: true` 를 싣고,
+            reason 이 'blocked' 면 message 도 첫 화면이 막았다고 쓴다. Defaults to None.
     """
 
-    def __init__(self, source: str, retry_after: float, reason: str, window: str = '분당') -> None:
+    def __init__(
+        self, source: str, retry_after: float, reason: str, window: str = '분당', *, entry_status: int | None = None
+    ) -> None:
         seconds = max(int(retry_after + 0.999), 1)
         if reason == 'cooldown':
             message = f'{source} 가 요청을 막아(429 또는 봇 차단) 쿨다운 중입니다. {seconds}초 뒤 다시 시도하세요'
             hint = '쿨다운 중에는 요청을 보내지 않습니다. 그동안 다른 소스를 쓰세요'
         elif reason == 'blocked':
-            message = f'{source} 가 봇 차단(캡차)으로 요청을 막았습니다. {seconds}초 동안 이 소스로 요청을 보내지 않습니다'
-            hint = 'baenggipyo 는 차단을 우회하지 않습니다. 그동안 다른 소스를 쓰세요'
+            if entry_status is None:
+                message = f'{source} 가 봇 차단(캡차)으로 요청을 막았습니다. {seconds}초 동안 이 소스로 요청을 보내지 않습니다'
+            else:
+                message = f'{source} 첫 화면 응답(HTTP {entry_status})이 접속을 막았습니다. {seconds}초 동안 이 소스로 요청을 보내지 않습니다'
+            hint = '그동안 다른 소스를 쓰세요'
         elif window == '시간당':
             message = f'{source} 시간당 요청 상한에 도달했습니다. {seconds}초 뒤 다시 시도하세요'
             hint = '봇 차단을 피하려고 시간당 요청 수를 묶어 둔 것입니다. 기다리는 동안 다른 소스를 쓰세요'
@@ -78,12 +86,10 @@ class RateLimitedError(BaenggipyoError):
             message = f'{source} 분당 요청 상한에 도달했습니다. {seconds}초 뒤 다시 시도하세요'
             # 요청 수를 줄이는 옵션은 없다 (--limit 은 요청 수와 상관없다). 명령이 한꺼번에 몰린 것이라 기다리라고만 한다
             hint = '짧은 시간에 명령이 몰린 것입니다. retry_after_seconds 만큼 기다렸다 다시 부르세요'
-        super().__init__(
-            code='RATE_LIMITED',
-            message=message,
-            hint=hint,
-            details={'retry_after_seconds': seconds, 'reason': reason},
-        )
+        details: dict[str, Any] = {'retry_after_seconds': seconds, 'reason': reason}
+        if entry_status is not None:
+            details.update({'status': entry_status, 'entry_page': True})
+        super().__init__(code='RATE_LIMITED', message=message, hint=hint, details=details)
         self.retry_after = retry_after
         self.reason = reason
 
@@ -194,10 +200,11 @@ def _retry_sharing(action: Callable[[], T]) -> T:
 def write_json_atomic(path: Path, data: object) -> None:
     """상태 디렉터리의 JSON 파일을 임시 파일에 쓴 뒤 `replace` 로 바꿔 넣는다. 읽는 쪽은 잠그지 않아도 늘 온전한 한 벌을 읽는다.
 
-    임시 파일 이름에 프로세스 ID 를 넣어, 잠금 없이 쓰는 곳(판매처 이름표)에서 두 프로세스가 같은 임시 파일을 덮어쓰지 않게 한다. 쓰다 실패하면 임시 파일을 지우고 `OSError` 를 그대로 올린다.
+    임시 파일 이름에 프로세스 ID 와 스레드 ID 를 넣어, 잠금 없이 쓰는 곳(판매처 이름표, 브라우저 쿠키)에서 두 프로세스나 한 프로세스의 두 스레드가
+    같은 임시 파일을 덮어쓰지 않게 한다. 쓰다 실패하면 임시 파일을 지우고 `OSError` 를 그대로 올린다.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(f'{path.name}.{os.getpid()}.tmp')
+    temp = path.with_name(f'{path.name}.{os.getpid()}.{threading.get_ident()}.tmp')
     try:
         temp.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
         _retry_sharing(lambda: temp.replace(path))
@@ -430,6 +437,22 @@ class RateLimiter:
             state['blocked_until'] = blocked_until
             state['block_streak'] = streak
             return blocked_until
+
+    def record(self, count: int) -> None:
+        """요청 제한 훅을 거치지 않고 이미 나간 요청 `count` 건을 최근 요청으로 남긴다.
+
+        브라우저가 사이트 첫 화면을 열 때 페이지 JS 가 스스로 부르는 사이트 API 가 그런 요청이다. 기다리지 않고
+        지금 시각으로 남겨, 이어지는 요청의 간격·분당·시간당 상한 계산에 들어가게 한다. 예약해 둔 미래 슬롯이 있어도
+        슬롯 목록은 오름차순으로 둔다 (`_next_slot` 이 마지막 슬롯을 최근 요청으로 읽는다).
+
+        Raises:
+            StateDirError: 상태 디렉터리를 쓸 수 없을 때.
+        """
+        if not self.policy.enabled or count <= 0:
+            return
+        with self._locked_state() as state:
+            now = time.time()
+            state['recent'] = sorted(self._live_slots(state, now) + [now] * count)
 
     def reset(self) -> None:
         """쿨다운과 요청 기록을 지운다."""

@@ -58,6 +58,7 @@ Claude Code 에 "11월 20일 인천에서 오사카 가는 편도 항공권 중 
 
 ```bash
 uv tool install baenggipyo        # 또는 pipx install baenggipyo
+baenggipyo install-browser        # 요청에 쓰는 Chromium 을 받는다 (처음 한 번)
 baenggipyo naver search flights ICN KIX --depart 2026-11-20 --limit 2
 ```
 
@@ -113,14 +114,17 @@ Python 3.11 이상이 필요하고 (uv 로 설치하면 없어도 된다), macOS
 | pipx | `pipx install baenggipyo` | `pipx upgrade baenggipyo` |
 | pip + 가상환경 | `python3 -m venv ~/.venvs/baenggipyo && ~/.venvs/baenggipyo/bin/pip install baenggipyo` | `~/.venvs/baenggipyo/bin/pip install -U baenggipyo` |
 
+설치한 뒤에는 요청에 쓰는 Chromium 브라우저를 받는다. Chromium 은 위 설치 명령으로 함께 오지 않아서, 처음 한 번 (업데이트한 뒤에도 한 번) 실행해야 한다. 수백 MB 를 받고, 브라우저를 띄우느라 조회 명령마다 몇 초 더 걸린다.
+
 ```bash
-baenggipyo --help      # 명령 목록이 나오면 성공
-baenggipyo limits      # 요청 제한 상태 JSON. 네트워크 요청은 보내지 않는다
+baenggipyo install-browser   # Chromium 을 받고 뜨는지 확인. 이미 받았으면 확인만 한다
+baenggipyo --help            # 명령 목록이 나오면 성공
+baenggipyo limits            # 요청 제한 상태 JSON. 네트워크 요청은 보내지 않는다
 ```
 
-설치하지 않고 한 번 써 보려면 `uvx baenggipyo --help` 로 부른다. 아직 릴리스하지 않은 최신 수정은 `uv tool install git+https://github.com/Rukkakka/baenggipyo` 로 받는다.
+설치하지 않고 한 번 써 보려면 `uvx baenggipyo install-browser` 로 Chromium 을 먼저 받은 뒤 `uvx baenggipyo --help` 처럼 부른다. 아직 릴리스하지 않은 최신 수정은 `uv tool install git+https://github.com/Rukkakka/baenggipyo` 로 받는다.
 
-**준비물(Python·git) 설치, Windows·PowerShell 명령, `command not found` 일 때 PATH 설정, 특정 버전 설치, 삭제**는 [설치 문서](https://github.com/Rukkakka/baenggipyo/blob/main/docs/install.md)에 있다. 버전마다 바뀐 점은 [변경 기록](https://github.com/Rukkakka/baenggipyo/blob/main/CHANGELOG.md)에 있다.
+**준비물(Python·git) 설치, Windows·PowerShell 명령, Linux 에서 Chromium 에 필요한 시스템 라이브러리, `command not found` 일 때 PATH 설정, 특정 버전 설치, 삭제**는 [설치 문서](https://github.com/Rukkakka/baenggipyo/blob/main/docs/install.md)에 있다. 버전마다 바뀐 점은 [변경 기록](https://github.com/Rukkakka/baenggipyo/blob/main/CHANGELOG.md)에 있다.
 
 ## LLM 에이전트에 연결하기
 
@@ -134,7 +138,7 @@ baenggipyo limits      # 요청 제한 상태 JSON. 네트워크 요청은 보�
 
 ## 설정
 
-로그인·API 키·설정 파일은 없다. 환경 변수 네 개만 쓴다.
+로그인·API 키·설정 파일은 없다. 아래 환경 변수만 쓴다.
 
 | 환경 변수 | 하는 일 |
 | --- | --- |
@@ -142,6 +146,8 @@ baenggipyo limits      # 요청 제한 상태 JSON. 네트워크 요청은 보�
 | `XDG_CACHE_HOME` | 절대 경로로 설정해 두었으면 그 아래 `baenggipyo` 를 쓴다 (`BAENGGIPYO_STATE_DIR` 이 우선) |
 | `PYTHONUTF8` | Windows 에서 `1` 로 설정한다 (아래) |
 | `BAENGGIPYO_PLAIN` | `1` 이면 터미널에서 불러도 JSON 을 한 줄로, `--help` 를 꾸밈 없는 평문으로 쓴다. 명령을 터미널 화면(PTY)으로 돌리는 에이전트(VS Code Copilot, Gemini CLI 대화형 셸 등)에 설정하면 도움말이 3분의 1, 결과 JSON 이 60% 남짓으로 준다. Claude Code 처럼 파이프로 부르는 에이전트는 설정하지 않아도 같다 |
+| `HTTPS_PROXY`·`ALL_PROXY` | 프록시 주소. 없으면 OS 프록시 설정을 쓴다 ([자세히](https://github.com/Rukkakka/baenggipyo/blob/main/docs/common.md#프록시와-인증서)) |
+| `NO_PROXY` | 프록시를 건너뛸 호스트 (`HTTPS_PROXY`·`ALL_PROXY` 가 있을 때만 쓴다). `*` 면 OS 프록시도 건너뛰고 바로 연결 |
 
 ### Windows 에서 쓸 때
 
@@ -185,7 +191,7 @@ LLM 에게 항공권을 찾아 달라고 하면 엉뚱한 걸 찾아올 때가 �
 사용 문서
 
 - [LLM 사용 가이드](https://github.com/Rukkakka/baenggipyo/blob/main/docs/llm.md): 에이전트용 요약. 처음 읽을 문서
-- [설치](https://github.com/Rukkakka/baenggipyo/blob/main/docs/install.md): 준비물, 설치 방법 세 가지, PATH, 업데이트·삭제
+- [설치](https://github.com/Rukkakka/baenggipyo/blob/main/docs/install.md): 준비물, 설치 방법 세 가지, 브라우저(Chromium) 설치, PATH, 업데이트·삭제
 - [공통 사용 규칙](https://github.com/Rukkakka/baenggipyo/blob/main/docs/common.md): JSON 출력, 금액·시각·누락값, 오류 대응, 요청 제한과 `limits`
 - [네이버 항공권 CLI 사용법](https://github.com/Rukkakka/baenggipyo/blob/main/docs/naver.md)
 - [스카이스캐너 CLI 사용법](https://github.com/Rukkakka/baenggipyo/blob/main/docs/skyscanner.md)

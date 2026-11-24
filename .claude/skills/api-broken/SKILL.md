@@ -17,7 +17,7 @@ effort: high
    - 로컬도 막히면 차단·요청 제한 상태만 알리고, 같은 시험을 거듭하지 않는다.
 3. **재현** (`api-broken`). 고장 난 명령을 표에 나온 그대로 `.venv/bin/baenggipyo ...` 로 부른다. 요청은 최소로 한다 (스카이스캐너는 `limits` 의 남은 수 안에서). 결과를 판정 사유와 견준다.
    - 지금은 정상이면 그날만 난 장애일 수 있다. 재현 결과와 함께 보고하고 멈춘다.
-   - `RATE_LIMITED`·`NETWORK_ERROR` 면 고장이 아니라 확인 못 함이다. 요청 제한이 풀린 뒤 다시 본다.
+   - `RATE_LIMITED`·`NETWORK_ERROR`, 또는 첫 화면이 접속을 막은 `UPSTREAM_ERROR`(`blocked: true`)면 고장이 아니라 확인 못 함이다. 요청 제한이 풀린 뒤 다시 본다.
 4. **원인 찾기.** 그 소스 가이드(`docs/development/providers/<소스>.md`) "API 변경 시 점검" 의 순서대로 보고, 코드는 client → request → response → service → CLI 순으로 본다. 받은 원본 응답을 저장해 응답 형식이 바뀌었는지, 엔드포인트·헤더가 바뀌었는지, 코드 버그인지 가른다.
    - 고장 난 소스가 하나면 직접 찾는다. 웹이 지금 쓰는 API·헤더·필드를 캡처해야 하면 출력이 커서 `web-parity-investigator` 하나에 맡긴다 (Opus medium, 질문: "이 명령이 왜 깨졌나. 웹이 지금 보내는 요청·응답과 baenggipyo 의 것이 어디서 다른가").
    - 두 소스가 모두 고장이면 소스마다 조사원 하나를 한 번에 띄운다 (같은 소스에 조사원이 더 필요하면 차례로. `docs/development/agents.md` "동시에 띄울 때").

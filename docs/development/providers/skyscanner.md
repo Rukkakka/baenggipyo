@@ -27,24 +27,37 @@
 
 ### 봇 차단
 
-- 홈 페이지가 PerimeterX 스크립트(`/rf8vapwA/init.js`)와 `_pxhd` 쿠키를 준다. baenggipyo 는 홈 페이지를 열지 않아 이 쿠키를 받지 않는다.
-  다만 검색 응답(`radar`)은 세션 쿠키 `__Secure-session_id` 를 주고, httpx 기본 동작대로 클라이언트가 들고 있다가 같은 명령의 다음 요청에 다시 보낼 수
-  있다 (ICN→BKK 12/4 검색, 2026-11-01. 자동완성 응답에는 쿠키가 없었다). 명령이 끝나면 버리고 파일에 남기지 않는다.
+- 홈 페이지가 PerimeterX 스크립트(`/rf8vapwA/init.js`)와 `_pxhd` 쿠키를 주고, 그 스크립트가 도는 동안 봇 검사 쿠키 `_px3` 를 심는다. 검색 응답(`radar`)은 세션 쿠키
+  `__Secure-session_id` 를 준다 (ICN→BKK 12/4 검색, 2026-11-01. 자동완성 응답에는 쿠키가 없었다). 요청은 이 쿠키를 가진 브라우저가 보낸다.
 - 차단 응답은 `403 {"reason": "blocked", "redirect_to": "/sttc/px/captcha-v2/index.html?url=…&uuid=…"}` 다. 몇 시간씩 이어지기도 하고, 거듭 막힐수록
   길어지는 것으로 보인다.
 - `SkyscannerClient` 의 응답 훅(`_check_blocked`)이 403 본문의 `"blocked"`·`captcha` 로 알아보고 요청 제한 쿨다운(30분, 거듭되면 두 배씩 최대 4시간)을
   건 뒤 `RateLimitedError(reason='blocked')` 를 낸다. 쿨다운 동안은 다른 프로세스도 요청을 보내지 않는다. 에러 코드는 `RATE_LIMITED` 다
-  ([에러 코드](../output-contract.md#에러)). 차단 중에 확인할 때는 쿨다운이 끝난 뒤 가벼운 요청 1회만 보낸다.
-- 같은 컴퓨터의 브라우저로는 열리는데 baenggipyo 만 막히기도 한다. IP 만이 아니라 클라이언트(검사 스크립트 실행·`_px*` 쿠키·TLS 지문)를 보고 막는 것이다.
-  지금 CLI 는 막히면 쿨다운이 끝날 때까지 기다린다.
-- 매일 API 감시는 GitHub 러너(데이터센터 IP)에서 막히는 날을 줄이려고 스카이스캐너 요청의 TLS 지문을 크롬처럼 바꾼다
-  (`scripts/monitor/disguise.py`, [매일 API 감시](../README.md#매일-api-감시)). 쿠키·캡차는 다루지 않고 설치되는 CLI 에는 넣지 않는다.
-- 스카이스캐너 실측은 하루에 검색 한두 번으로 줄이고 나머지는 가짜 응답으로 확인한다.
+  ([에러 코드](../output-contract.md#에러)). hint 는 `그동안 다른 소스를 쓰세요` 다. 차단 중에 확인할 때는 쿨다운이 끝난 뒤 가벼운 요청 1회만 보낸다.
+- IP 만이 아니라 클라이언트(검사 스크립트 실행·`_px*` 쿠키·TLS 지문)를 보고 막는다 (같은 컴퓨터의 브라우저로는 열리는데 요청 프로그램만 막히기도 한다). 그래서
+  모든 요청을 일반 Chrome 과 같은 지문의 브라우저가 홈을 연 채 보낸다 ([브라우저 요청](../architecture.md#브라우저-요청)). 그래도 막히면 쿨다운이 끝날 때까지 기다린다.
+- **홈을 띄워 둔 채 그 페이지에서 요청한다** (`browser_stay_on_entry_page`). 빈 페이지로 바꾸지 않는다. 홈의 `_px3` 가 새로 심길 때까지 최대 15초 기다리고
+  (`browser_ready_timeout`, 로컬 실측 2026-11-24: 홈 문서를 연 뒤 약 2초 안에 생긴다), 기록 폴더를 이어 쓸 때는 폴더에 이미 쿠키가 있어도 사이트가 쿠키를 새로 심을 때까지
+  (0.5초 바뀌지 않을 때까지) 기다린 뒤 3초 더 기다린다 (`browser_entry_settle_seconds`). 첫 화면 준비의 단계별 상한은 문서 40초(넘으면 `NETWORK_ERROR`), load 10초(`browser_block_entry_resources = False` 라 길어질 수 있고 넘어도 계속한다), `_px3` 15초, settle 3초다. 이어 쓸 때 실측은 6~7초다 (2026-11-24).
+- **쿠키 파일 대신 브라우저 기록 폴더를 이어 쓴다** (`browser_keep_cookies = False`, `browser_persistent_profile`). `<state_dir>/browser/skyscanner-profile` 을 명령 사이에
+  통째로 이어 쓴다. 쿠키만 떼어 옮기면 막히고 같은 기록 폴더를 이어 쓰면 통과한다는 것은 로컬 실측이다 (2026-11-11·24). 잠금 파일 `skyscanner-profile.lock` 으로,
+  다른 명령이 그 폴더를 쓰는 중이면 이번 명령은 임시 폴더로 띄우고 닫을 때 지운다. 우리 요청이 403 을 받았거나 첫 화면이 4xx(429 제외)이거나 다른 출처로 넘어갔으면 닫은 뒤 기록 폴더를
+  지워 다음 명령이 새로 시작한다. 5xx·429 로는 지우지 않는다.
+- **홈 문서 자체가 401·403·451 로 막혀도 차단 쿨다운을 건다** (`browser_entry_block_cooldown`). 우리 요청의 403 차단과 같은 `RateLimiter.block()` 쿨다운·`RATE_LIMITED`(`reason: blocked`)라,
+  막힌 동안 명령마다 홈을 다시 열지 않는다 (2026-11-24 사용자 결정).
+- **홈이 스스로 보내는 요청은 요청 제한에 세지 않는다** (`browser_count_entry_requests = False`). 홈이 `/g/...` 로 보내는 요청과 봇 검사 요청이다. 첫 화면 문서의 상태만 첫 화면
+  실패·429 판정에 쓴다. 첫 화면의 정적 파일(이미지·글꼴·스타일시트)도 막지 않는다 (`browser_block_entry_resources = False`).
+- 매일 API 감시도 CLI 와 같은 브라우저 길로 부른다. GitHub 러너(데이터센터 IP)에서 막히면 확인 못 함으로 센다 ([매일 API 감시](../README.md#매일-api-감시)).
 
 ### 헤더와 시장·통화
 
-- `User-Agent`·`Accept-Language` 는 브라우저 값을 보낸다. 검색 API 는 `X-Skyscanner-ChannelId: website`, `X-Skyscanner-Market: KR`,
+- `User-Agent`·`Accept-Language`·`Origin`·`Referer`·쿠키는 브라우저가 붙이고 `base_header` 에는 `Accept` 만 둔다. 검색 API 는 `X-Skyscanner-ChannelId: website`, `X-Skyscanner-Market: KR`,
   `X-Skyscanner-Locale: ko-KR`, `X-Skyscanner-Currency: KRW`, `X-Skyscanner-ViewId: <uuid>` 로 불렀다. 이 값으로 금액이 KRW 로 온다.
+- **웹 헤더 (2026-11-24 웹 실측).** 자동완성은 `PageType: HOME_PAGE`·`Platform: Desktop`·`Skyscanner-Client-Name: banana`·`Skyscanner-UTID:`(빈 값)를 붙이고 쿼리에 빈
+  `autosuggestExp=` 가 붙는다. 항공권 검색 POST 와 폴링 GET 은 위 다섯에 웹 결과 화면이 더 붙이는 다섯(`X-Skyscanner-TrustedFunnelId`(=ViewId 와 같은 값),
+  `X-Skyscanner-Ads-Sponsored-View-Type: ADS_SPONSORED_VIEW_DAY_VIEW`, `X-Skyscanner-Combined-Results-Rail: true`, `X-Skyscanner-Consent-Adverts: false`,
+  `X-Skyscanner-Skip-Accommodation-Carhire: true`)을 더한다 (`flight_search_header`). 어디든지 검색은 웹 화면의 헤더를 확인하지 못해 위 다섯만 보낸다 (어디든지는 첫
+  응답이 `complete` 라 폴링하지 않는다). 폴링도 첫 POST 와 같은 갈래를 쓴다 (`_search_headers`: 어디든지는 위 다섯, 항공권 검색은 열. 서버가 `incomplete` 를 주면 어디든지도 다섯으로 폴링한다). 가격 달력은 위 다섯 그대로다.
 - 달력 API 는 같은 값을 본문의 `headers` 객체(`xSkyscannerClient`, `xSkyscannerCurrency`, `xSkyscannerLocale`, `xSkyscannerMarket`)로 받는다.
 
 ### 장소 ID
@@ -61,8 +74,8 @@ ID 가 세 종류다. 명령 사이에서 섞이지 않게 한다.
 
 ### 공항 검색 (자동완성)
 
-`GET /g/autosuggest-search/api/v1/search-flight/KR/ko-KR/{검색어}?isDestination=…&enable_general_search_v2=true`, `Accept: application/json`,
-`Platform: web`. 결과 배열의 항목마다 `PlaceId`, `PlaceName`, `IataCode`(도시만), `CityId`, `CityName`, `CountryId`·`CountryName`, `GeoId`,
+`GET /g/autosuggest-search/api/v1/search-flight/KR/ko-KR/{검색어}?isDestination=…&enable_general_search_v2=true&autosuggestExp=`(빈 값), `Accept: application/json`,
+웹 자동완성 헤더 넷(`PageType`·`Platform`·`Skyscanner-Client-Name`·`Skyscanner-UTID`, [헤더와 시장·통화](#헤더와-시장통화)). 결과 배열의 항목마다 `PlaceId`, `PlaceName`, `IataCode`(도시만), `CityId`, `CityName`, `CountryId`·`CountryName`, `GeoId`,
 `Tags`(`NEARBY_CITY` 등). '도쿄' → `TYOA`(도쿄), `NRT`, `HND` …
 
 ### 항공권 검색 (`web-unified-search`)
@@ -237,13 +250,12 @@ KRW 를 요청하면 원으로 온다 (`price.raw` 는 `175500.0` 처럼 실수,
 
 `default_rate_limit` 은 3초·분당 12회·**시간당 30회**·쿨다운 30분(거듭 차단되면 두 배씩, 최대 4시간)이다. 분당 상한만으로는 수십 분에 걸친 누적을
 막지 못해 시간당 상한과 늘어나는 쿨다운을 둔다. 막히지 않는다는 보장은 아니고, 막히면 에이전트가 네이버로 넘어가게 안내한다 (`docs/llm.md`).
-폴링도 요청 제한 훅을 거친다.
-재시도 술어는 `should_retry_skyscanner` 다. 공통 술어(`should_retry_idempotent`)에서 500 을 뺀다. 500 은 요청 값 때문에 늘 같은 응답이 오는 경우가 있어
-(달력에 도시 IATA `SEL` → 500 `Application error processing RPC`) 다시 보내면 시간당 30회 중 3회를 같은 실패에 쓴다. 502·503·504 같은 중계 오류와
-timeout·transport 오류는 그대로 다시 보낸다.
-검증할 때는 큰 검색(국내선 왕복)을 되풀이하지 않는다.
+폴링도 요청 제한 훅을 거친다. 값은 브라우저 방식으로 바꾼 뒤에도 그대로이고, 첫 화면(홈)이 스스로 보내는 요청은 세지 않는다 ([봇 차단](#봇-차단)).
+재시도 술어는 `should_retry_skyscanner` 다. 공통 술어(`should_retry_idempotent`)에서 API 응답 500 을 뺀다. API 응답 500 은 요청 값 때문에 늘 같은 응답이 오는 경우가 있어
+(달력에 도시 IATA `SEL` → 500 `Application error processing RPC`) 다시 보내면 시간당 30회 중 3회를 같은 실패에 쓴다. 첫 화면 문서 5xx(`EntryStatusError`)는 요청 값과 상관없는 사이트 장애라 빼지 않고 다른 5xx 처럼 다시 보낸다. 502·503·504 같은 중계 오류와
+timeout·연결 오류·원격 프로토콜 오류(`RETRYABLE_TRANSPORT_ERRORS`)는 그대로 다시 보낸다 (두 번까지 더, 모두 3번). CORS 막힘·프록시·인증서 오류는 다시 보내도 같아 재시도하지 않는다.
 
 ## API 변경 시 점검
 
-번들 경로가 시장마다 다를 수 있으니(`www.skyscanner.co.kr` 홈 = `banana`) 홈 HTML 의 `runtime-main.*.js` 청크 표부터 본다. 헤더(`X-Skyscanner-*`)
+번들 경로가 시장마다 다를 수 있으니(`www.skyscanner.co.kr` 홈 = `banana`) 홈 HTML 의 `runtime-main.*.js` 청크 표부터 본다. 브라우저로 홈을 열었을 때 `_px3` 가 생기는지 → 자동완성·검색의 웹 헤더(`X-Skyscanner-*`·`PageType` 등)
 → 검색 본문 `legs` 모양 → 폴링 상태값 → `pricingOptions`·`agents` → 달력 본문의 `headers` 객체 순으로 확인한다.

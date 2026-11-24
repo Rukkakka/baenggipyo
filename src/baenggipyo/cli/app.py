@@ -26,6 +26,7 @@ from baenggipyo.cli.output import (
     handle_errors,
     split_csv,
 )
+from baenggipyo.core.browser import install_chromium
 from baenggipyo.core.errors import BaenggipyoError
 from baenggipyo.core.ratelimit import state_dir
 from baenggipyo.providers.naver.api.client import NaverClient
@@ -117,6 +118,20 @@ def limits_command(
             },
             pretty,
         )
+
+
+@app.command('install-browser')
+def install_browser_command(
+    pretty: PrettyOption = None,
+) -> None:
+    """baenggipyo 가 사이트에 요청할 때 쓰는 Chromium 을 내려받고 실제로 한 번 띄워 본다.
+
+    처음 한 번, 그리고 baenggipyo 를 업데이트한 뒤 실행한다 (이미 있으면 내려받지 않는다). 결과(Chromium 버전·실행 파일 경로)는
+    JSON 으로 stdout 에 쓴다. 내려받기 진행은 터미널에서 실행했거나 `baenggipyo --verbose install-browser` 로 실행했을
+    때만 stderr 에 보인다 (--verbose 는 install-browser 앞에 붙는 전역 옵션이다).
+    """
+    with handle_errors('install-browser'):
+        emit(install_chromium(), pretty)
 
 
 @app.command('guide')

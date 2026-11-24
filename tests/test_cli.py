@@ -49,7 +49,7 @@ def stderr_error(capsys: pytest.CaptureFixture[str]) -> dict:
         ['nope'],                              # 없는 명령
         ['naver', 'nope'],                     # 없는 하위 명령
         ['limits', '--foo'],                   # 없는 옵션
-        ['limits', '--reset', 'zigbang'],      # split_csv 의 BadParameter
+        ['limits', '--reset', 'nope'],         # split_csv 의 BadParameter
         ['naver', 'search', 'flights', 'ICN', 'NRT', '--depart', '2020-01-01'],  # 지난 날짜
         ['naver', 'search', 'flights', 'ICN', 'NRT', '--depart', '2030-01-01', '--cabin', '3등석'],  # 없는 좌석 등급
     ],

@@ -3,7 +3,7 @@
 [README](../README.md) · [공통 사용 규칙](common.md) · [LLM 가이드](llm.md)
 
 > 한 줄 설치와 첫 조회는 [README 의 빠른 시작](../README.md#빠른-시작)에 있다. 이 문서는 준비물, 설치 방법 세 가지,
-> PATH 문제, 업데이트·삭제까지 자세히 적는다.
+> 브라우저(Chromium) 설치, PATH 문제, 업데이트·삭제까지 자세히 적는다.
 
 macOS·Linux·Windows 에서 쓸 수 있다. 운영체제마다 명령이 다른 곳은 나눠 적었다. Windows 명령은 PowerShell 기준이고 (명령 프롬프트 cmd 는 아님), WSL 안에서 쓴다면 Linux 를 따른다.
 
@@ -47,7 +47,7 @@ uv tool install baenggipyo
 uv tool update-shell     # ~/.local/bin 을 PATH 에 추가 (처음 한 번). 새 터미널을 연다
 ```
 
-uv 는 Python 3.11 이 없으면 알아서 받아 쓴다. 설치하지 않고 한 번 써 보려면 `uvx baenggipyo --help` 처럼 `uvx` 로 부른다.
+uv 는 Python 3.11 이 없으면 알아서 받아 쓴다. 설치하지 않고 한 번 써 보려면 `uvx baenggipyo --help` 처럼 `uvx` 로 부른다. 조회까지 해 보려면 `uvx baenggipyo install-browser` 를 먼저 한 번 실행한다 ([3. 브라우저 설치](#3-브라우저chromium-설치)).
 
 **B. pipx**
 
@@ -103,7 +103,24 @@ Windows 는 링크를 만들려면 관리자 권한이 필요하다. `baenggipyo
 
 **아직 릴리스하지 않은 최신 수정을 받으려면** PyPI 대신 GitHub 주소로 설치한다: `uv tool install git+https://github.com/Rukkakka/baenggipyo` (pipx·pip 도 같은 주소). 이렇게 설치하면 `upgrade` 할 때 `main` 의 최신 커밋을 받고, `baenggipyo --version` 이 설치한 커밋을 함께 보여 준다. 버전마다 바뀐 점은 [변경 기록](../CHANGELOG.md)에 있다.
 
-## 3. 설치 확인
+## 3. 브라우저(Chromium) 설치
+
+baenggipyo 는 사이트에 요청을 보낼 때 Chromium 브라우저를 띄워 쓴다. Chromium 은 위 설치 명령으로 함께 오지 않으니 **설치한 뒤 한 번 실행한다.** 안 하면 조회 명령이 `BROWSER_UNAVAILABLE` 에러로 멈춘다. 조회 명령이 도중에 알아서 받지는 않는다 (받는 동안 에이전트가 기다리다 시간 초과되지 않게).
+
+```bash
+baenggipyo install-browser
+```
+
+- 수백 MB 를 받는다. 이미 받았으면 다시 받지 않고, Chromium 이 뜨는지 한 번 확인만 한다
+- 끝나면 `{"browser", "version", "executable"}` JSON 이 나온다. `executable` 이 받은 Chromium 의 위치다
+- **baenggipyo 를 업데이트한 뒤에도 한 번 실행한다.** 새 버전이 다른 Chromium 을 요구할 수 있다
+- Linux 는 Chromium 이 쓰는 시스템 라이브러리가 없으면 `BROWSER_UNAVAILABLE` 이 나온다. 에러의 `hint` 에 있는 명령(`sudo <baenggipyo 의 Python 경로> -m patchright install-deps chromium`, 관리자 권한)을 실행한 뒤 `baenggipyo install-browser` 로 다시 확인한다
+- 받다가 실패하면 `BROWSER_INSTALL_FAILED` 다. 에러의 `output`·`hint` 에 원인(네트워크·권한)이 있다 ([공통 사용 규칙의 에러 대응](common.md#에러-대응))
+- 회사망·프록시·보안 프로그램이 있는 곳에서 쓰면 [프록시와 인증서](common.md#프록시와-인증서)를 본다. 브라우저는 `SSL_CERT_FILE` 을 쓰지 않고, 프록시 환경 변수가 없으면 OS 프록시 설정을 쓴다
+
+브라우저를 띄우느라 조회 명령마다 몇 초 더 걸린다.
+
+## 4. 설치 확인
 
 명령은 모든 운영체제에서 같다.
 
@@ -112,7 +129,7 @@ baenggipyo --help             # 명령 목록이 나오면 성공
 baenggipyo --version          # 설치한 버전, GitHub 주소로 설치했으면 커밋도 (텍스트)
 baenggipyo limits             # 요청 제한 상태 JSON. 네트워크 요청은 보내지 않는다
 baenggipyo guide              # LLM 에이전트용 사용 가이드 (텍스트). 소스별 주의점은 guide naver / guide skyscanner
-baenggipyo naver search airports 오사카   # 실제 조회 한 번
+baenggipyo naver search airports 오사카   # 실제 조회 한 번. 위 3 의 install-browser 를 먼저 해야 한다
 ```
 
 `baenggipyo: command not found` (Windows 는 `'baenggipyo' 용어가 ... 인식되지 않습니다`) 가 나오면 PATH 문제다. 먼저 새 터미널을 연다. 그래도 안 되면 `baenggipyo` 가 설치된 `~/.local/bin` (Windows 는 `C:\Users\<이름>\.local\bin`) 이 PATH 에 있는지 본다.
@@ -127,7 +144,7 @@ baenggipyo naver search airports 오사카   # 실제 조회 한 번
 
 Windows 는 UTF-8 출력 설정(`setx PYTHONUTF8 1`)을 처음 한 번 챙긴다 ([README 의 Windows 에서 쓸 때](../README.md#windows-에서-쓸-때)). macOS·Linux 는 따로 할 것이 없다.
 
-## 4. 업데이트 · 삭제
+## 5. 업데이트 · 삭제
 
 | 설치 방법 | 업데이트 | 삭제 |
 |---|---|---|
@@ -138,9 +155,13 @@ Windows 는 UTF-8 출력 설정(`setx PYTHONUTF8 1`)을 처음 한 번 챙긴다
 
 GitHub 주소로 설치했다면 uv·pipx 의 `upgrade` 는 그 주소에서 그대로 받고, pip 은 `pip install -U --force-reinstall git+https://github.com/Rukkakka/baenggipyo` 로 받는다.
 
-요청 제한 상태 파일과 네이버 판매처 이름표(하루 동안 두고 다시 쓴다)는 삭제해도 남으니 완전히 지우려면 그 디렉터리도 삭제한다. `BAENGGIPYO_STATE_DIR` 로 위치를 바꿨다면 그 디렉터리다 ([설정](../README.md#설정)).
+업데이트한 뒤에는 `baenggipyo install-browser` 를 한 번 실행한다 ([3. 브라우저 설치](#3-브라우저chromium-설치)).
+
+요청 제한 상태 파일, 네이버 판매처 이름표(하루 동안 두고 다시 쓴다), 브라우저 쿠키·기록(`browser` 폴더)은 삭제해도 남으니 완전히 지우려면 그 디렉터리도 삭제한다. `BAENGGIPYO_STATE_DIR` 로 위치를 바꿨다면 그 디렉터리다 ([설정](../README.md#설정)).
 
 | 운영체제 | 상태 파일 위치 | 삭제 |
 |---|---|---|
 | macOS·Linux | `~/.cache/baenggipyo` (`XDG_CACHE_HOME` 을 절대 경로로 설정했으면 `$XDG_CACHE_HOME/baenggipyo`) | `rm -rf ~/.cache/baenggipyo` |
 | Windows | `C:\Users\<이름>\.cache\baenggipyo` | `Remove-Item -Recurse -Force $HOME\.cache\baenggipyo` |
+
+`baenggipyo install-browser` 가 받은 Chromium 도 baenggipyo 를 지워도 남는다. 위치는 `install-browser` 출력의 `executable` 이 가리키는 `ms-playwright` 폴더 안의 `chromium-<번호>` 폴더다 (기본은 macOS `~/Library/Caches/ms-playwright`, Linux `~/.cache/ms-playwright`, Windows `C:\Users\<이름>\AppData\Local\ms-playwright`). 그 폴더에는 다른 도구가 받은 브라우저도 있을 수 있으니 `chromium-<번호>` 폴더만 지운다.

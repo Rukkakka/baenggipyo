@@ -5,6 +5,27 @@ baenggipyo 의 버전별 변경 기록. 사용자(에이전트 포함)에게 보
 
 ## Unreleased
 
+### ⚠️ 호환 깨짐
+
+- 모든 조회 명령이 Chromium 이 있어야 돈다. 업데이트한 뒤 `baenggipyo install-browser` 를 한 번 실행한다. 안 하면 `BROWSER_UNAVAILABLE` 에러가 난다
+- `SSL_CERT_FILE`·`SSL_CERT_DIR` 을 더는 따르지 않는다. 회사망·보안 프로그램의 인증서는 OS 인증서 저장소에 설치한다. 안 하면 `NETWORK_ERROR` 가 난다
+- 프록시 환경 변수(`HTTPS_PROXY`·`ALL_PROXY`)가 없으면 바로 연결하지 않고 OS 프록시 설정(VPN·회사 PAC 포함)을 쓴다. 바로 연결하려면 `NO_PROXY=*` 로 실행한다
+- 파이썬에서 `NaverClient`·`SkyscannerClient` 의 메서드가 `CorsBlockedError`·`CertificateError`·`BrowserUnavailableError`·`EntryPageError` 를 낼 수 있고, 첫 요청 때 첫 화면 차단으로 `RateLimitedError(reason='blocked')` 도 낸다. `should_retry_idempotent` 는 시간 초과·네트워크 오류·응답 중 끊김만 재시도해 `ProxyError`·`UnsupportedProtocol`·`LocalProtocolError` 는 더는 재시도하지 않고, 네이버 `url_schema='http'` 는 브라우저가 막는다. 쓰는 쪽에서 이 예외를 잡는다
+- 파이썬에서 `NaverClient`·`SkyscannerClient` 에 넘기던 `user_agent` 인자와 `DEFAULT_USER_AGENT` 상수를 지웠다. User-Agent 는 브라우저가 붙이며, `user_agent=` 를 넘기면 검증 에러가 난다
+
+### 추가
+
+- `baenggipyo install-browser` 명령: 요청에 쓰는 Chromium 을 받고 뜨는지 확인한다
+- 에러 code `BROWSER_UNAVAILABLE`(Chromium 이 없거나 띄우지 못함)·`BROWSER_INSTALL_FAILED`(`install-browser` 가 받지 못함)
+- 사이트 첫 화면이 막혔을 때 `UPSTREAM_ERROR` 에 `blocked: true`(스카이스캐너는 봇 차단처럼 쿨다운을 걸고 `RATE_LIMITED`), 프록시·인증서 오류에는 `NETWORK_ERROR` 와 설정 안내 `hint`
+- 첫 화면 문서의 HTTP 상태 코드 때문에 낸 에러에 `entry_page: true` 와 `status` (API 응답의 HTTP 에러와 구별한다), Chromium 이 제시간에 뜨지 않은 `BROWSER_UNAVAILABLE` 에 `reason: "LAUNCH_TIMEOUT"`
+
+### 변경
+
+- 네이버·스카이스캐너 요청을 사이트 첫 화면을 연 브라우저로 보낸다. 스카이스캐너 봇 차단을 덜 받으려는 것이고, 명령마다 몇 초 더 걸린다
+- 네이버는 브라우저가 보내는 CORS 사전 요청과 첫 화면이 스스로 보내는 요청도 요청 제한에 센다. 명령을 몰아 부르면 분당 상한에 더 빨리 닿는다
+- 스카이스캐너 봇 차단(`RATE_LIMITED`, `reason: blocked`)의 `hint` 를 "그동안 다른 소스를 쓰세요" 로 줄였다
+
 ## 0.8.0 — 2026-11-08
 
 ### 추가

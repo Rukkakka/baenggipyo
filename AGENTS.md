@@ -10,14 +10,15 @@ README 로고 `docs/logo.svg` 는 `scripts/logo/build_logo.py` 로 만든다. �
 매일 새벽 두 소스의 모든 CLI 명령을 실제로 불러 보는 감시는 `scripts/monitor/` 와 `.github/workflows/api-monitor.yml` 이다 ([매일 API 감시](docs/development/README.md#매일-api-감시)).
 
 **지금 상태: 두 소스 모두 구현.** 네이버·스카이스캐너 모두 `search airports`·`search flights`·`flight`·`calendar`·`explore` 가 실제 API 로
-동작한다. 스카이스캐너는 봇 차단이 있어 검증 요청도 아껴 쓴다 ([개발 가이드](docs/development/providers/skyscanner.md#봇-차단)).
+동작한다.
 
 ## 구조
 
 | 경로 | 내용 |
 | --- | --- |
-| `cli/` | Typer 명령 (`limits`, `guide`, `naver`/`skyscanner` 하위 명령), JSON·에러 출력 (`output.py`), 공용 옵션 별칭과 옵션 값 영어 별칭 (`options.py`) |
-| `core/http.py` | `BaseHTTPClient` — httpx 클라이언트 수명주기, 재시도 술어, `raise_for_status` |
+| `cli/` | Typer 명령 (`limits`, `guide`, `install-browser`, `naver`/`skyscanner` 하위 명령), JSON·에러 출력 (`output.py`), 공용 옵션 별칭과 옵션 값 영어 별칭 (`options.py`) |
+| `core/http.py` | `BaseHTTPClient` — httpx 클라이언트 수명주기, 소스별 브라우저 설정(`browser_*` 클래스 변수)과 transport 만들기(`browser_transport()`), 재시도 술어(`RETRYABLE_TRANSPORT_ERRORS`), `raise_for_status` |
+| `core/browser.py` | `BrowserTransport` — httpx 요청을 사이트 첫 화면을 연 Chromium(scrapling) 안의 fetch 로 보낸다. 첫 화면 열기·준비 쿠키, 쿠키 남기기·브라우저 기록 폴더 이어 쓰기, 첫 화면 요청 세기, `install-browser`(`install_chromium`), 브라우저 전송 오류(`CorsBlockedError`·`CertificateError`·`BrowserUnavailableError`) |
 | `core/ratelimit.py` | 프로세스 간 공유 요청 제한 (`RateLimiter`, `RateLimitedError`), 상태 디렉터리(`state_dir`)와 그 안의 JSON 쓰기(`write_json_atomic`) |
 | `core/flight.py` | 항공권 검색 조건 베이스(`FlightConditions`), 공통 출력 모델(`Airport`, `SearchLeg`, `Segment`, `Journey`, `Itinerary`, `Offer`, `CalendarDay`, `Destination`)과 해당 없는 키·요약(`--brief`)에서 뺄 키 빼기(`FlightModel`), 판매처 운임 묶음 펴기(`shown_offers`), 달력 싼 날 고르기(`cheapest_days`), 날짜·시각 변환, 입력 공항 해석 묶기(`resolve_inputs`·`resolve_route`)·후보 고르기(`pick_place`) |
 | `core/errors.py` | `BaenggipyoError` 계열 — CLI 가 `{"error": {...}}` 로 내보내는 에러. 다시 찾은 검색에 없는 항공권의 에러 고르기(`fare_missing_error`: 매진 또는 검색 미완료) |
@@ -44,13 +45,13 @@ CLI 직접 조회나 원본 응답으로 확인한다.
 - **로그인 없는 기능만.** 계정·쿠키·API 키를 받지 않고, 로그인이 필요한 API(회원가·찜·가격 알림 등)나 사용자 대신 보내는 기능(예약·결제·문의)은 넣지 않는다. 승객 정보도 받지 않는다. 새 엔드포인트는 로그인 없이 호출되는지 먼저 확인한다. ([README 원칙](README.md#원칙-로그인-없는-기능만))
 - **금액은 전부 원 정수.** 필드 이름에 단위를 붙인다 (`total_price_krw`). 총액과 1인 요금을 이름으로 구분하고, 한쪽만 오면 다른 쪽을 계산해 만들지 않는다. 다른 통화로 오면 환율을 추측하지 않는다.
 - **시각은 각 공항 현지 시각** `YYYY-MM-DDTHH:MM`, 소요 시간은 분(`duration_minutes`). 시간대를 환산하지 않는다.
-- **조회 결과는 stdout JSON, 에러는 stderr JSON.** 도움말·자동완성·`guide`·`--version` 은 CLI 텍스트이며 `--verbose` 진행 로그는 stderr 로 나간다. 새 에러는 `BaenggipyoError` 로 코드·힌트를 붙여 던진다.
+- **조회 결과는 stdout JSON, 에러는 stderr JSON.** 도움말·자동완성·`guide`·`--version` 은 CLI 텍스트이며 `--verbose` 진행 로그는 stderr 로 나간다. 새 에러는 `BaenggipyoError` 로 코드·힌트를 붙여 던진다. 예외는 브라우저 안의 전송 오류(`CorsBlockedError`·`ProxyError`·`CertificateError`)와 첫 화면 단계 에러(`EntryConnectError`·`EntryStatusError`)로, 재시도 술어와 `handle_errors` 가 원래 httpx 종류대로 다루도록 httpx 예외(`EntryStatusError` 는 `HTTPStatusError`)로 두고 `handle_errors` 가 코드·힌트를 붙인다 ([출력 규약](docs/development/output-contract.md#에러)).
 - **값이 없을 때:** 해당 없음 → 키 삭제, 모름 → `null`, 비어 있음 → `[]`.
 - **매진·만료 운임은 내보내지 않는다.** 목록에서는 거르고, 상세에서는 `FareUnavailableError`. 가격을 캐시하지 않는다.
 - **사이트가 보여 주는 사실과 어긋나지 않게 한다.** baenggipyo 는 사이트를 대체하는 도구가 아니라 사이트가 로그인 없이 보여 주는 것을 JSON 으로 그대로 받게 하는 창이라, 결과의 항공권·가격·순서·수는 그 사이트 웹에서도 같은 조건으로 볼 수 있는 것이어야 한다. 기능을 고치거나 새로 짤 때 그 화면이 쓰는 API·변수·기본값·정렬·계산을 먼저 확인하고, 웹에 없는 결과를 만들지 않는다 (다른 API 로 대신 찾기, 사용자가 고르지 않은 기준으로 받은 결과를 거르거나 합치기, 웹에서 고를 수 없는 기준으로 다시 줄 세우기, 후보 중 임의로 고르기, 웹에서 고를 수 없는 기본값·계산식). 웹도 받은 결과를 브라우저에서 정렬·거르므로, 웹 화면에서 고를 수 있는 정렬·필터와 같은 기준이면 받은 결과를 정렬·걸러도 된다. 가격은 계속 바뀌므로 웹과는 같은 때 본 결과끼리 비교한다. 웹에 있는데 baenggipyo 에 없는 기능은 괜찮다. 같은 API 로 더 편하게 다듬는 것(한 번에 더 받기, 사용자가 옵션으로 고른 조건으로 좁히기(웹에 없는 조건이어도 된다), 웹 UI 에 없지만 서버가 받는 조합)은 되지만, 웹과 다른 점은 그 소스 개발 가이드의 "웹과 다른 점" 절(없으면 만든다)에 무엇이 다르고 왜 사실이 어긋나지 않는지 적는다. 아래 "서버가 거른 결과를 다시 거르지 않는다" 는 이 원칙의 하위 규칙이다. ([README 원칙](README.md#원칙-사이트가-보여-주는-대로) · [웹 화면과의 대응](docs/development/provider-conventions.md#웹-화면과의-대응))
 - **서버가 거른 결과를 같은 조건으로 다시 거르지 않는다.** 소스의 분류(코드셰어 항공사 등)를 다른 기준으로 다시 판정하지 않는다. 직접 거르는 건 서버가 받지 않는 조건과 서버 필터 없는 대체 조회뿐이고, 확인할 수 없어 뺀 항공권은 사유를 `notes`로 알린다. ([서버 필터와 클라이언트 후처리](docs/development/provider-conventions.md#서버-필터와-클라이언트-후처리))
 - **원본 응답 통째·세션 토큰·쿠키·추적 ID 는 출력하지 않는다.** 예약은 `url` 의 원 사이트에서. 판매처 예약 링크는 원 사이트가 준 그대로 내며, 그 안의 검색 ID 는 예외다 ([내보내지 않는 정보](docs/development/output-contract.md#내보내지-않는-정보)).
-- **모든 HTTP 요청은 요청 제한 훅을 거친다.** 새 클라이언트도 `rate_limit_hooks()` 를 `event_hooks` 로 넘긴다. 폴링으로 다시 묻는 요청도 마찬가지다.
+- **모든 HTTP 요청은 브라우저로 보내고 요청 제한 훅을 거친다.** 새 클라이언트도 `transport=self.browser_transport()` 와 `rate_limit_hooks()` 를 `event_hooks` 로 넘기고(async 는 `async_browser_transport()`·`async_rate_limit_hooks()`), `base_header` 에 UA·Origin·Referer·Accept-Language 를 넣지 않는다. 브라우저가 붙이기 때문이다. 헤더는 사이트 웹이 그 API 에 실제로 붙이는 것만 실측해 넣는다. 폴링으로 다시 묻는 요청도 마찬가지다. 첫 화면이 스스로 부르는 요청은 훅을 거치지 않아 transport 가 `RateLimiter.record` 로 센다 (소스마다 끌 수 있다). ([브라우저 요청](docs/development/architecture.md#브라우저-요청))
 - **명령을 추가·삭제하면 매일 API 감시 목록도 고친다.** `scripts/monitor/api_check.py` 의 `GROUPS` 에 넣고, 국제선·국내선이 다르게 동작하면 둘 다 넣는다. 빠뜨리면 `test_every_source_command_is_in_api_monitor` 가 실패한다. ([매일 API 감시](docs/development/README.md#매일-api-감시))
 - **검증은 실제 API 로, 테스트는 최소로.** 코드를 바꾸면 CLI 직접 조회 같은 실제 API 호출로 확인한다 (요청은 최소로). 테스트는 아주 드문 엣지케이스나 틀어지면 안 되는 핵심 동작일 때만 추가한다. 전체 `pytest` 는 먼저 묻고, 평소에는 바꾼 부분 테스트 몇 개만 이름으로 골라 한 번 돌린다. ([검증과 테스트](docs/development/README.md#검증과-테스트))
 
@@ -59,7 +60,7 @@ CLI 직접 조회나 원본 응답으로 확인한다.
 공통 개발 규약 (`docs/development/`)
 
 - [README.md](docs/development/README.md) — 개발 환경 설치, 검증과 테스트 원칙, 매일 API 감시
-- [architecture.md](docs/development/architecture.md) — 계층 구조, 요청 흐름, 요청 제한
+- [architecture.md](docs/development/architecture.md) — 계층 구조, 요청 흐름, 브라우저 요청, 요청 제한
 - [provider-conventions.md](docs/development/provider-conventions.md) — provider 모듈 작성 규칙 (action id 명명, 재시도, 폴링, 모델 배치, 웹 화면과의 대응, 서버 필터와 클라이언트 후처리)
 - [output-contract.md](docs/development/output-contract.md) — CLI 출력·에러·exit code 규약, 공통 항공권 필드 규칙
 - [code-style.md](docs/development/code-style.md) — 문자열, import 순서, pydantic 선언, 타입 힌트, docstring, 테스트 코드 형식

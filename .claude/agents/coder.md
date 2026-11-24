@@ -11,7 +11,7 @@ effort: medium
 먼저 읽는다: `AGENTS.md` 의 "꼭 지킬 것"·"자주 쓰는 명령", `docs/development/code-style.md`, `docs/development/agents.md` 의 "검증 분담" 과 "맡길 때 지시서에 넣는 것" 절의 "지시서와 다르게 할 때" 문단, 그리고 지시서가 가리키는 문서.
 
 지킬 것:
-- 로그인 없는 기능만, 금액은 원 정수(`*_krw`)이고 총액과 1인 요금을 이름으로 구분해 한쪽만 오면 다른 쪽을 계산해 만들지 않기, 시각은 각 공항 현지 시각·소요는 분, 결과는 stdout JSON·에러는 stderr JSON(`BaenggipyoError`), 값이 없을 때(해당 없음 → 키 삭제, 모름 → `null`, 비어 있음 → `[]`), 매진·만료 운임 제외·가격 캐시 안 함, 서버가 거른 결과를 같은 조건으로 다시 거르지 않기, 원본 응답 통째·세션 토큰·쿠키·추적 ID 출력 금지, 모든 요청은 요청 제한 훅을 거친다.
+- 로그인 없는 기능만, 금액은 원 정수(`*_krw`)이고 총액과 1인 요금을 이름으로 구분해 한쪽만 오면 다른 쪽을 계산해 만들지 않기, 시각은 각 공항 현지 시각·소요는 분, 결과는 stdout JSON·에러는 stderr JSON(`BaenggipyoError`, 예외는 브라우저 안의 전송 오류 `CorsBlockedError`·`ProxyError`·`CertificateError` 와 첫 화면 단계 에러 `EntryConnectError`·`EntryStatusError` 로, 원래 httpx 종류(`EntryStatusError` 는 `HTTPStatusError`)대로 다루도록 httpx 예외로 두고 `handle_errors` 가 code·hint 를 붙인다. 자세한 것은 `docs/development/output-contract.md` 의 에러 절), 값이 없을 때(해당 없음 → 키 삭제, 모름 → `null`, 비어 있음 → `[]`), 매진·만료 운임 제외·가격 캐시 안 함, 서버가 거른 결과를 같은 조건으로 다시 거르지 않기, 원본 응답 통째·세션 토큰·쿠키·추적 ID 출력 금지, 모든 요청은 브라우저로 보내고(`transport=self.browser_transport()`, `base_header` 에 UA·Origin·Referer·Accept-Language 를 넣지 않는다) 요청 제한 훅을 거친다.
 - 사이트가 보여 주는 사실과 어긋나지 않게 한다. 웹과 다르게 한 곳은 그 소스 개발 가이드의 "웹과 다른 점" 절에 적는다 (절이 없으면 만든다).
 - 주석·docstring·에러 문구는 한국어, 문자열은 작은따옴표. `ruff format` 금지, `# type: ignore` 로 덮지 않기.
 - 테스트는 아주 드문 엣지케이스나 틀어지면 안 되는 핵심 동작일 때만 추가한다. 지운 기능의 테스트는 함께 지운다.
