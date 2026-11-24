@@ -18,6 +18,8 @@
 | `calendar` | 한 달의 날짜별 최저가 (추정가) | 출발·도착과 달 | 3 | `search flights` |
 | `explore` | 어디든지: 목적지별 최저가 (추정가) | 출발지와 달 | 2 | `calendar`, `search flights` |
 
+표의 요청 수는 명령이 보내는 API 요청 수다. `limits` 에는 CORS 사전 요청 때문에 대개 두 배가, 첫 화면을 새로 열 때(30분마다)는 몇 건이 더 쌓인다 (예: `search airports` 가 2, 첫 화면을 새로 열면 5). 자세한 것은 [요청 제한](common.md#요청-제한과-limits)에 있다.
+
 ### 보통 이렇게 이어서 쓴다
 
 ```

@@ -26,6 +26,7 @@
 - 목적지 미정(어디든지, 추정가): `<소스> explore <출발> --month YYYY-MM`
 - 공항 후보: `<소스> search airports <이름>` (후보를 사용자에게 보여 줄 때만)
 - 요청 제한 상태: `baenggipyo limits` (요청 없음)
+- 처음 한 번(업데이트한 뒤에도 한 번): `baenggipyo install-browser`. 요청에 쓰는 Chromium 을 받는다 (수백 MB). 안 했으면 조회가 `BROWSER_UNAVAILABLE` 로 멈춘다. 조회 명령은 브라우저를 띄우느라 몇 초 더 걸린다
 
 날짜가 미정이면 `calendar`, 목적지가 미정이면 `explore` 로 고른 뒤 `search flights` → `flight <id>` 로 간다. `calendar`·`explore` 가격은 최근 검색에서 모은 추정가라 `search flights` 로 실제 가격을 확인한다. 이 가격(`min_price_per_adult_krw`)은 성인 1명 기준이고 왕복이면 왕복 합계다. 가장 싼 좌석 하나의 값이라 여러 명이면 같은 가격 좌석이 모자라 성인 수를 곱한 값보다 비쌀 수 있다. 곱한 값은 어림값이라고만 말하고, 실제 총액은 `search flights --adults N`(소아·유아도 넣어)으로 확인한다.
 
@@ -49,11 +50,13 @@
 | `ROUTE_NOT_SUPPORTED` | `hint` 의 다른 소스로 찾는다 |
 | `NOT_FOUND`, `FARE_UNAVAILABLE` | ID 를 그대로 복사했는지 본다. 매진·만료면 후보에서 빼고 `search flights` 로 다시 찾는다 |
 | `RATE_LIMITED` | 바로 다시 부르지 않는다. `retry_after_seconds` 만큼 기다리거나 다른 소스를 쓴다 |
-| `NETWORK_ERROR` | 잠시 뒤 한 번만 다시 부른다 |
-| `UPSTREAM_ERROR`, `PARSE_ERROR` | 다른 소스를 쓰고 업데이트(`uv tool upgrade baenggipyo`)를 권한다. `reason: SEARCH_INCOMPLETE` 는 잠시 뒤 한 번 다시 부른다 |
+| `NETWORK_ERROR` | 잠시 뒤 한 번만 다시 부른다. `hint` 가 프록시 설정·인증서 설치를 가리키면 다시 불러도 같으니 사용자에게 알린다 |
+| `UPSTREAM_ERROR`, `PARSE_ERROR` | 다른 소스를 쓰고 업데이트(`uv tool upgrade baenggipyo`)를 권한다. 단 `blocked: true`(사이트가 이 접속을 막음)는 업데이트로 풀리지 않으니 다른 소스만 쓴다. 첫 화면 5xx(사이트 장애)는 잠시 뒤 한 번만 다시 부르고 같으면 다른 소스를 쓴다. `reason: SEARCH_INCOMPLETE` 는 잠시 뒤 한 번 다시 부른다 |
+| `BROWSER_UNAVAILABLE` | `hint` 를 따른다. 보통 `baenggipyo install-browser` 를 실행하고(셸을 쓸 수 있으면 직접, 수백 MB 라 시간이 걸린다. 아니면 사용자에게 실행하게 한다) 같은 명령을 한 번 다시 부른다 |
+| `BROWSER_INSTALL_FAILED` | 에러의 `output`·`hint` 에 있는 원인(네트워크·권한)을 사용자에게 알린다 |
 | `INTERNAL_ERROR`, `CLI_ERROR` | 에러 JSON 을 `baenggipyo --version` 과 함께 사용자에게 보여 준다. `hint` 가 `PYTHONUTF8=1` 이면 붙여 한 번 다시 부른다. `BAENGGIPYO_STATE_DIR` 이면 다른 소스도 같이 실패하니, 쓸 수 있는 절대 경로를 붙여 한 번 다시 부른다 |
 
-더 자세한 설명: [공통 규칙](https://github.com/Rukkakka/baenggipyo/blob/main/docs/common.md) · [네이버](https://github.com/Rukkakka/baenggipyo/blob/main/docs/naver.md) · [스카이스캐너](https://github.com/Rukkakka/baenggipyo/blob/main/docs/skyscanner.md)
+더 자세한 설명: [설치](https://github.com/Rukkakka/baenggipyo/blob/main/docs/install.md) · [공통 규칙](https://github.com/Rukkakka/baenggipyo/blob/main/docs/common.md) · [네이버](https://github.com/Rukkakka/baenggipyo/blob/main/docs/naver.md) · [스카이스캐너](https://github.com/Rukkakka/baenggipyo/blob/main/docs/skyscanner.md)
 
 ## 네이버
 
@@ -73,7 +76,7 @@
 
 `baenggipyo guide skyscanner` 가 이 절을 출력한다.
 
-- **봇 차단으로 몇 시간씩 막힐 수 있다.** 막히면 `RATE_LIMITED`(`reason: blocked`·`cooldown`), 시간당 30회 상한에 닿아도 `RATE_LIMITED`(`reason: budget`)다. 어느 쪽이든 기다리지 말고 네이버로 같은 조회를 한다. 네이버로 안 되는 것(국내선 다구간, 국내·국제가 섞인 노선)이나 비교가 꼭 필요할 때만 부른다. 검색 한 번에 4~7회 든다.
+- **봇 차단으로 몇 시간씩 막힐 수 있다.** 막히면 `RATE_LIMITED`(`reason: blocked`·`cooldown`), 시간당 30회 상한에 닿아도 `RATE_LIMITED`(`reason: budget`)다. 어느 쪽이든 기다리지 말고 네이버로 같은 조회를 한다. 사이트 첫 화면 자체가 막혀도 같은 `RATE_LIMITED`(`reason: blocked`)다. 네이버로 안 되는 것(국내선 다구간, 국내·국제가 섞인 노선)이나 비교가 꼭 필요할 때만 부른다. 검색 한 번에 4~7회 들고, 첫 화면 준비에 명령마다 몇 초(이어 쓸 때 실측 6~7초) 들고, 사이트가 느리면 1분 남짓 든다.
 - 가격은 **모든 승객 합계**뿐이라 성인이 2명 이상이면 `price_per_adult_krw` 가 null 이다. 나눠서 1인 요금이라고 말하지 않는다.
 - 직항·항공사 조건과 정렬은 받은 결과에서 baenggipyo 가 한다. 국내선 왕복은 결과가 수천 건이라 느리다.
 - `flight <id>` 는 같은 조건으로 다시 검색해 찾는다 (가격이 바뀌었을 수 있다).

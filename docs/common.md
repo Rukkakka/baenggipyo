@@ -28,7 +28,7 @@
 | exit code | 뜻 | 출력 |
 |---|---|---|
 | 0 | 성공 (`--help`, 인자 없이 실행 포함) | stdout 에 결과 JSON (도움말·`baenggipyo guide`·`baenggipyo --version` 은 텍스트) |
-| 1 | 실행 중 에러 (`AIRPORT_NOT_FOUND`, `AIRPORT_AMBIGUOUS`, `ROUTE_NOT_SUPPORTED`, `FARE_UNAVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`, `UPSTREAM_ERROR`, `NETWORK_ERROR`, `PARSE_ERROR`, `INTERNAL_ERROR`, `CLI_ERROR`) | stderr 에 에러 JSON |
+| 1 | 실행 중 에러 (`AIRPORT_NOT_FOUND`, `AIRPORT_AMBIGUOUS`, `ROUTE_NOT_SUPPORTED`, `FARE_UNAVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`, `UPSTREAM_ERROR`, `NETWORK_ERROR`, `PARSE_ERROR`, `BROWSER_UNAVAILABLE`, `BROWSER_INSTALL_FAILED`, `INTERNAL_ERROR`, `CLI_ERROR`) | stderr 에 에러 JSON |
 | 2 | 입력 오류 (`INVALID_ARGUMENT`) | stderr 에 에러 JSON |
 | 130 | 인터럽트로 중단 (`INTERRUPTED`, Ctrl+C·SIGINT) | stderr 에 에러 JSON |
 
@@ -82,9 +82,23 @@
 뺀 링크는 모름(`null`)이 아니라 키가 없고, 그 판매처는 상세 맨 위 `url`(원 사이트의 그 항공권이나 검색 결과)에서 고르게 안내한다. 링크 하나가
 수백~천 자라, 2026-10-20 네이버 상세(판매처 운임 10개)가 링크를 모두 붙이면 12,145자, 기본(링크 1개)은 3,813자였다.
 
+## 브라우저 (첫 실행과 속도)
+
+baenggipyo 는 모든 요청을 사이트 첫 화면을 연 Chromium 브라우저 안에서 보낸다. Chromium 은 설치할 때 함께 오지 않으니 `baenggipyo install-browser` 를 **처음 한 번, 업데이트한 뒤에도 한 번** 실행한다 ([설치 문서](install.md#3-브라우저chromium-설치)). 안 하면 조회 명령이 `BROWSER_UNAVAILABLE` 로 멈춘다. `install-browser` 는 Chromium 이 이미 있으면 받지 않고 `{"browser", "version", "executable"}` JSON 을 stdout 에 낸다.
+
+브라우저를 띄우느라 조회 명령은 몇 초 더 걸린다. 스카이스캐너는 첫 화면의 봇 검사 쿠키를 기다리느라 첫 화면 준비에 명령마다 몇 초가 든다 (기록 폴더를 이어 쓸 때 실측 6~7초). 사이트가 느리면 문서 기다림 최대 40초(넘으면 `NETWORK_ERROR`), load 최대 10초, 쿠키 최대 15초, 마무리 3초가 더해져 1분 남짓 걸릴 수 있다. `limits`·`guide`·`--help` 는 브라우저를 쓰지 않는다.
+
+### 프록시와 인증서
+
+- 프록시 주소는 환경 변수 `HTTPS_PROXY`, 없으면 `ALL_PROXY` 에서 읽는다 (소문자도 된다). 사이트가 모두 https 라 `HTTP_PROXY` 는 쓰지 않는다.
+- 받는 스킴은 http·https·socks4·socks5 다. `socks5h`·`socks4a` 는 socks5·socks4 로 바꿔 쓴다. SOCKS 프록시에 아이디·비밀번호를 넣으면 `NETWORK_ERROR` 다 (Chromium 이 지원하지 않는다).
+- 프록시 환경 변수가 없으면 Chromium 이 OS 프록시 설정(VPN·회사 PAC 포함)을 쓴다.
+- `NO_PROXY` 의 호스트 목록(쉼표, `example.com` 은 하위 도메인까지 덮는다)은 `HTTPS_PROXY`·`ALL_PROXY` 가 있을 때만 프록시를 건너뛸 호스트로 쓴다. 둘 다 없으면 호스트 목록은 무시되고 Chromium 이 OS 프록시 설정을 쓴다. 이때도 `NO_PROXY=*` 면 OS 프록시까지 건너뛰고 바로 연결한다.
+- `SSL_CERT_FILE`·`SSL_CERT_DIR` 은 쓰지 않는다. 회사망·보안 프로그램이 HTTPS 를 검사하면 그 인증서를 OS 저장소에 설치해야 한다 (Windows 인증서 저장소, macOS 키체인, Linux 는 `~/.pki/nssdb`). 안 하면 `NETWORK_ERROR` 다.
+
 ## 에러 대응
 
-에러의 `code`와 `source`, `hint`를 읽는다.
+에러의 `code`와 `source`, `hint`를 읽는다. 첫 화면 오류에는 `status` 와 `entry_page: true`(첫 화면 문서의 상태 코드로 낸 에러라는 표시, API 응답의 HTTP 에러와 구별), 사이트가 막았다고 본 경우(첫 화면이 401·403·451)에는 `blocked: true` 도 붙는다 (스카이스캐너는 `blocked: true` 대신 차단 쿨다운을 걸고 `RATE_LIMITED`·`reason: blocked` 로 낸다). 코드별 정의는 개발 문서의 [출력 계약](development/output-contract.md)에 있다.
 
 | 코드 | 발생 조건 | 대응 |
 | --- | --- | --- |
@@ -95,8 +109,10 @@
 | `NOT_FOUND` | 조회 대상 없음 | 이전 검색 결과의 ID와 코드 확인 |
 | `FARE_UNAVAILABLE` | 매진·판매 중지, 검색 결과 만료 | 해당 항공권 제외 후 다시 검색 |
 | `RATE_LIMITED` | 로컬 요청 예산 초과 또는 429 이후 쿨다운 | `retry_after_seconds`가 있으면 해당 시간만큼 대기. 없으면 `hint`와 `baenggipyo limits` 확인 |
-| `NETWORK_ERROR` | 연결·타임아웃 등 전송 실패 | 네트워크 상태 확인 후 재시도 |
-| `UPSTREAM_ERROR`, `PARSE_ERROR` | API 거절·응답 구조 변경·봇 차단 페이지·파싱 실패 | 힌트 확인, 다른 소스 사용 또는 버전 갱신 |
+| `NETWORK_ERROR` | 연결·타임아웃 등 전송 실패, 브라우저가 첫 화면을 시간 안에 열지 못함, 프록시·인증서 오류 | 네트워크 상태 확인 후 재시도. 프록시·인증서 오류는 다시 불러도 같으니 `hint` 의 프록시 설정·OS 인증서 안내를 따른다 |
+| `UPSTREAM_ERROR`, `PARSE_ERROR` | API 거절·응답 구조 변경·봇 차단 페이지·파싱 실패, 사이트가 CORS 로 응답을 막음, 사이트 첫 화면이 막히거나(`blocked: true`) 5xx 를 줌 | 힌트 확인, 다른 소스 사용 또는 버전 갱신. 단 `blocked: true` 는 업데이트로 풀리지 않으니 다른 소스를 쓴다. 첫 화면 5xx 는 사이트 장애라 잠시 뒤 한 번만 다시 부르고 같으면 다른 소스를 쓴다 |
+| `BROWSER_UNAVAILABLE` | Chromium 이 없거나 띄우지 못함 (시스템 라이브러리 부족·드라이버 실행 실패·제시간에 안 뜸·그 밖의 실행 실패). 모든 소스가 같이 실패한다 | `hint` 를 따른다. 보통 `baenggipyo install-browser` 를 실행하면 된다 (업데이트한 뒤에도 한 번). Linux 는 `hint` 의 `install-deps` 명령을 먼저 실행한다. 드라이버 오류면 baenggipyo 를 다시 설치하고, 제시간에 안 뜨면 잠시 뒤 한 번 다시 실행한다 |
+| `BROWSER_INSTALL_FAILED` | `install-browser` 가 Chromium 을 내려받지 못함 | 에러의 `output`·`hint` 의 원인을 확인한다. 네트워크·프록시면 고치고 다시 실행하고, 권한 오류면 baenggipyo 를 다시 설치한다 |
 | `INTERNAL_ERROR` | 처리하지 못한 실행 오류. 출력 인코딩이 UTF-8 이 아니라 결과를 쓰지 못한 경우(Windows), 요청 제한 상태 디렉터리에 쓰지 못한 경우도 | 에러 내용을 보존해 원인 확인. 출력 인코딩 오류면 hint 대로 `PYTHONUTF8=1` 을, 상태 디렉터리 오류면 쓸 수 있는 절대 경로를 `BAENGGIPYO_STATE_DIR` 로 설정하고 다시 실행 (상태 디렉터리 오류는 다른 소스도 같이 실패한다) |
 | `CLI_ERROR` | 사용법 오류가 아닌 CLI 처리 오류 (지금 명령에서는 나오지 않음) | 에러 내용을 보존해 원인 확인 |
 | `INTERRUPTED` | Ctrl+C 등 호출 중단 | 필요하면 같은 명령을 다시 실행 |
@@ -112,12 +128,13 @@
 
 네이버는 한계를 재지 않은 값이다. 스카이스캐너는 봇 차단이 몇 시간씩 이어지기도 해 시간당 상한을 두었지만 **막히지 않는다는 보장은 아니다.**
 `search flights` 한 번이 자동완성·검색·폴링으로 보통 4~7회(큰 검색은 10회까지), `flight` 가 2~5회 든다.
+네이버는 브라우저가 보내는 CORS 사전 요청(`OPTIONS`)과 첫 화면이 스스로 보내는 API 요청도 센다. 그래서 명령을 몰아 부르면 분당 상한에 더 빨리 닿는다. 스카이스캐너 첫 화면이 스스로 보내는 요청은 세지 않는다.
 
 - 슬롯이 날 때까지 기다리되, 60초 넘게 기다려야 하면 기다리지 않고 `RATE_LIMITED` (`reason: budget`) 를 낸다. 시간당 상한에 닿으면 대개 이 경우다.
   스카이스캐너 검색이 결과를 다시 묻는 도중에 걸리면 에러 대신 받은 데까지 돌려주고 `notes` 로 알린다 (`flight` 는 그 항공권을 아직 못 받았을 때만 `RATE_LIMITED`)
 - 429 를 받으면 쿨다운 동안 그 소스로 요청을 아예 보내지 않고 `RATE_LIMITED` (`reason: cooldown`, `retry_after_seconds`) 를 낸다. `Retry-After` 가 더 길면 그 값을 따른다 (4시간까지)
-- 스카이스캐너의 봇 차단(403 캡차)도 같은 쿨다운을 걸고 `RATE_LIMITED` (`reason: blocked`) 를 낸다. 쿨다운이 끝나고 4시간 안에 다시 막히면 쿨다운을
-  두 배로 늘린다 (차단 중에 쿨다운마다 다시 확인하는 요청을 줄인다). baenggipyo 는 차단을 우회하지 않는다
+- 스카이스캐너의 봇 차단(403 캡차, 첫 화면 자체가 401·403·451 로 막힌 것 포함)도 같은 쿨다운을 걸고 `RATE_LIMITED` (`reason: blocked`) 를 낸다. 첫 화면이 막힌 쪽은 message 가 "첫 화면 응답(HTTP <상태>)이 접속을 막았습니다" 이고 `status`·`entry_page: true` 가 붙는다. 쿨다운이 끝나고 4시간 안에 다시 막히면 쿨다운을
+  두 배로 늘린다 (차단 중에 쿨다운마다 다시 확인하는 요청을 줄인다)
 - 스카이스캐너 명령은 이번 1시간에 남은 요청이 10회(큰 검색 한 번 분량) 밑이면 결과 `notes` 로 남은 수를 알린다. 모자라면 같은 조회를 네이버로 한다
 - `baenggipyo limits` 로 상태를 보고, `baenggipyo limits --reset naver` 로 초기화한다
 
