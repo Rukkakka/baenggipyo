@@ -2,14 +2,61 @@
 
 [README](../README.md) · [공통 사용 규칙](common.md) · [LLM 가이드](llm.md)
 
-> 한 줄 설치와 첫 조회는 [README 의 빠른 시작](../README.md#빠른-시작)에 있다. 이 문서는 준비물, 설치 방법 세 가지,
-> 브라우저(Chromium) 설치, PATH 문제, 업데이트·삭제까지 자세히 적는다.
+> 첫 조회는 [README 의 빠른 시작](../README.md#빠른-시작)에 있다. 이 문서는 한 줄 설치(설치 스크립트)와, 직접 설치할 때의
+> 준비물·설치 방법 세 가지, 브라우저(Chromium) 설치, PATH 문제, 업데이트·삭제까지 자세히 적는다.
 
 macOS·Linux·Windows 에서 쓸 수 있다. 운영체제마다 명령이 다른 곳은 나눠 적었다. Windows 명령은 PowerShell 기준이고 (명령 프롬프트 cmd 는 아님), WSL 안에서 쓴다면 Linux 를 따른다.
 
+## 한 줄 설치
+
+처음 설치하는 사람은 이것만 하면 된다. 아래 1~3 절은 직접 설치하려는 사람용이고, 4·5 절(설치 확인, 업데이트·삭제)은 스크립트로 설치했어도 본다.
+
+**Windows**
+
+1. 시작 메뉴에서 `PowerShell` 을 검색해 **Windows PowerShell** 을 연다. 명령 프롬프트(cmd)가 아니다. 줄 앞에 `PS C:\Users\<이름>>` 이 보이면 맞다
+2. 아래 줄을 붙여 넣고 Enter 를 누른다
+
+   ```powershell
+   irm https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/scripts/install/install.ps1 | iex
+   ```
+
+3. 마지막에 버전과 `설치를 마쳤다` 가 나오면 끝이다. **그 창에서 바로** `baenggipyo` 를 쓸 수 있다
+
+설치 전에 열려 있던 다른 창은 PATH 가 예전 그대로라 `baenggipyo` 를 못 찾는다. 그 창은 닫고 새로 연다.
+
+**macOS·Linux**
+
+1. 터미널을 연다 (macOS 는 Spotlight 에서 `터미널` 을 찾는다)
+2. 아래 줄을 붙여 넣고 Enter 를 누른다
+
+   ```bash
+   curl -LsSf https://raw.githubusercontent.com/Rukkakka/baenggipyo/main/scripts/install/install.sh | sh
+   ```
+
+3. 버전과 `설치를 마쳤다` 가 나오면 끝이다. 새로 연 터미널부터 `baenggipyo` 가 잡힌다. 그 창에서 바로 쓰려면 스크립트가 마지막에 보여 주는 `export PATH=…` 줄을 실행한다
+
+**스크립트가 하는 일.** 몇 번을 다시 실행해도 되고, 다시 실행하면 baenggipyo 를 최신 버전으로 올린다.
+
+| 단계 | 하는 일 |
+|---|---|
+| uv | 없으면 설치한다. Python 이 없어도 uv 가 알아서 받는다 |
+| baenggipyo | `uv tool install --upgrade --python '>=3.11,<3.15' baenggipyo`. 보장 범위(3.11~3.14)의 Python 이 있으면 그것을 쓰고, 없으면 uv 가 그 범위에서 받는다 |
+| PATH | baenggipyo 가 든 폴더(`~/.local/bin`, Windows 는 `C:\Users\<이름>\.local\bin`)를 사용자 PATH 에 넣는다. Windows 는 지금 창에도 넣는다 |
+| 한글 출력 | Windows 만. 사용자 환경 변수 `PYTHONUTF8=1` 을 설정한다 ([왜 필요한가](../README.md#windows-에서-쓸-때)) |
+| 브라우저 | `baenggipyo install-browser` 로 Chromium(수백 MB)을 받고 한 번 띄워 본다. 이미 있으면 건너뛴다. `install-browser` 가 없는 PyPI 판(0.8.0 이하)이면 건너뛴다. 리눅스에서 시스템 라이브러리가 없다고 멈추면 안내된 `sudo … install-deps chromium` 을 실행하고 스크립트를 다시 실행한다 |
+| 에이전트 지침 | Codex(`~/.codex/AGENTS.md`, `CODEX_HOME` 이 있으면 그 폴더)·Claude Code(`~/.claude/CLAUDE.md`) 설정 폴더가 있으면 [baenggipyo 사용 규칙 한 줄](../README.md#llm-에이전트에-연결하기)을 덧붙인다. 이미 있으면 건너뛴다. 둘 다 없으면 그 한 줄을 화면에 보여 준다 |
+
+브라우저를 받지 못하면 에이전트 지침 단계 전에 멈춘다. 고친 뒤 스크립트를 다시 실행한다 (`install-browser` 만 다시 하면 지침 단계가 빠진다).
+
+**설치 뒤 에이전트에서 쓸 때**
+
+- 에이전트는 baenggipyo 를 설치한 **뒤에 연 창**에서 켠다. 예전 창에서 켠 에이전트는 예전 PATH 를 물려받아 `baenggipyo` 를 못 찾는다
+- 지침 한 줄이 없는 에이전트에 "baenggipyo 쓸 수 있어?" 라고만 물으면, 연결된 도구(MCP) 목록만 보고 없다고 답한다. baenggipyo 는 셸 명령이니 "셸에서 `baenggipyo guide` 를 실행해 읽고 …" 처럼 시킨다
+- Codex 는 기본 샌드박스가 인터넷과 작업 폴더 밖 접근을 막아, baenggipyo 를 못 찾거나 조회가 막힐 수 있다. Codex 안에서 `/permissions` 로 Full Access 를 고른다. 매번 고르지 않으려면 `~/.codex/config.toml` 에 `sandbox_mode = "danger-full-access"` 를 넣는다
+
 ## 1. 준비물
 
-- **Python 3.11 이상** — 아래 A(uv)로 설치하면 없어도 된다. uv 가 알아서 받아 쓴다
+- **Python 3.11~3.14** — baenggipyo 가 현재 보장하는 범위다 (CI 가 세 운영체제에서 확인한 버전, 3.15 는 확인 전). 아래 A(uv)로 설치하면 없어도 된다. uv 가 받아 쓰는데, Python 이 없으면 가장 새 버전을 받으니 `--python 3.14` 를 붙여 범위 안에서 고른다 (한 줄 설치 스크립트는 알아서 고른다)
 - **git** — PyPI 로 설치하면 필요 없다. 아직 릴리스하지 않은 최신 수정을 GitHub 에서 받을 때만 쓴다
 - 로그인·API 키는 필요 없다
 
@@ -47,7 +94,7 @@ uv tool install baenggipyo
 uv tool update-shell     # ~/.local/bin 을 PATH 에 추가 (처음 한 번). 새 터미널을 연다
 ```
 
-uv 는 Python 3.11 이 없으면 알아서 받아 쓴다. 설치하지 않고 한 번 써 보려면 `uvx baenggipyo --help` 처럼 `uvx` 로 부른다. 조회까지 해 보려면 `uvx baenggipyo install-browser` 를 먼저 한 번 실행한다 ([3. 브라우저 설치](#3-브라우저chromium-설치)).
+uv 는 Python 3.11 이상이 없으면 알아서 받아 쓴다. 이때 가장 새 버전(보장 범위 밖일 수 있다)을 받으니 `uv tool install --python 3.14 baenggipyo` 처럼 고른다. 설치하지 않고 한 번 써 보려면 `uvx baenggipyo --help` 처럼 `uvx` 로 부른다. 조회까지 해 보려면 `uvx baenggipyo install-browser` 를 먼저 한 번 실행한다 ([3. 브라우저 설치](#3-브라우저chromium-설치)).
 
 **B. pipx**
 
@@ -105,7 +152,7 @@ Windows 는 링크를 만들려면 관리자 권한이 필요하다. `baenggipyo
 
 ## 3. 브라우저(Chromium) 설치
 
-baenggipyo 는 사이트에 요청을 보낼 때 Chromium 브라우저를 띄워 쓴다. Chromium 은 위 설치 명령으로 함께 오지 않으니 **설치한 뒤 한 번 실행한다.** 안 하면 조회 명령이 `BROWSER_UNAVAILABLE` 에러로 멈춘다. 조회 명령이 도중에 알아서 받지는 않는다 (받는 동안 에이전트가 기다리다 시간 초과되지 않게).
+baenggipyo 는 사이트에 요청을 보낼 때 Chromium 브라우저를 띄워 쓴다. Chromium 은 위 설치 명령으로 함께 오지 않으니 **설치한 뒤 한 번 실행한다** (한 줄 설치 스크립트로 설치했으면 스크립트가 대신 했다). 안 하면 조회 명령이 `BROWSER_UNAVAILABLE` 에러로 멈춘다. 조회 명령이 도중에 알아서 받지는 않는다 (받는 동안 에이전트가 기다리다 시간 초과되지 않게).
 
 ```bash
 baenggipyo install-browser
@@ -148,6 +195,7 @@ Windows 는 UTF-8 출력 설정(`setx PYTHONUTF8 1`)을 처음 한 번 챙긴다
 
 | 설치 방법 | 업데이트 | 삭제 |
 |---|---|---|
+| 설치 스크립트 | 스크립트를 다시 실행하거나 `uv tool upgrade baenggipyo` | `uv tool uninstall baenggipyo` |
 | uv | `uv tool upgrade baenggipyo` | `uv tool uninstall baenggipyo` |
 | pipx | `pipx upgrade baenggipyo` | `pipx uninstall baenggipyo` |
 | pip (macOS·Linux) | `~/.venvs/baenggipyo/bin/pip install -U baenggipyo` | `rm -rf ~/.venvs/baenggipyo ~/.local/bin/baenggipyo` |
@@ -155,7 +203,9 @@ Windows 는 UTF-8 출력 설정(`setx PYTHONUTF8 1`)을 처음 한 번 챙긴다
 
 GitHub 주소로 설치했다면 uv·pipx 의 `upgrade` 는 그 주소에서 그대로 받고, pip 은 `pip install -U --force-reinstall git+https://github.com/Rukkakka/baenggipyo` 로 받는다.
 
-업데이트한 뒤에는 `baenggipyo install-browser` 를 한 번 실행한다 ([3. 브라우저 설치](#3-브라우저chromium-설치)).
+업데이트한 뒤에는 `baenggipyo install-browser` 를 한 번 실행한다 (설치 스크립트로 올렸으면 스크립트가 한다. [3. 브라우저 설치](#3-브라우저chromium-설치) 참고).
+
+설치 스크립트가 넣은 PATH 항목, `PYTHONUTF8`, 에이전트 지침 파일의 baenggipyo 한 줄은 삭제해도 남는다. 쓰지 않으면 직접 지운다. uv 를 지우려면 [uv 삭제 안내](https://docs.astral.sh/uv/getting-started/installation/#uninstallation)를 따른다.
 
 요청 제한 상태 파일, 네이버 판매처 이름표(하루 동안 두고 다시 쓴다), 브라우저 쿠키·기록(`browser` 폴더)은 삭제해도 남으니 완전히 지우려면 그 디렉터리도 삭제한다. `BAENGGIPYO_STATE_DIR` 로 위치를 바꿨다면 그 디렉터리다 ([설정](../README.md#설정)).
 
