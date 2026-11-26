@@ -46,9 +46,9 @@ jobs:
           # 문서로 보는 파일: docs/ 아래 전부, 맨 위 .md(README·CHANGELOG·AGENTS 등), LICENSE, .claude/(에이전트·스킬 정의),
           # 이슈·PR 템플릿
           DOC_PATTERN: '^(docs/|[^/]+\.md$|LICENSE$|\.claude/|\.github/ISSUE_TEMPLATE/|\.github/PULL_REQUEST_TEMPLATE\.md$)'
-          # 브라우저 확인을 돌릴 파일: 브라우저·http·요청 제한 계층(core/), install-browser 명령(cli/app.py), 설치 스크립트, 확인 스크립트,
-          # 의존성(patchright·scrapling 버전), 이 워크플로
-          BROWSER_PATTERN: '^(src/baenggipyo/core/(browser|http|ratelimit)\.py$|src/baenggipyo/cli/app\.py$|scripts/install/|scripts/ci/|pyproject\.toml$|\.github/workflows/ci\.yml$)'
+          # 브라우저 확인을 돌릴 파일: core/ 전체(브라우저·http·요청 제한 계층과 확인 스크립트가 함께 쓰는 errors.py 등), install-browser
+          # 명령(cli/app.py), 설치 스크립트, 확인 스크립트, 의존성(patchright·scrapling 버전), 이 워크플로
+          BROWSER_PATTERN: '^(src/baenggipyo/core/|src/baenggipyo/cli/app\.py$|scripts/install/|scripts/ci/|pyproject\.toml$|\.github/workflows/ci\.yml$)'
         run: |
           # PR 이 아닌 실행(release.yml 이 부름, 매주, 수동)이나 합친 커밋이 아니면 모두 검사한다
           if [ "$GITHUB_EVENT_NAME" != pull_request ] || ! git rev-parse -q --verify HEAD^2 > /dev/null; then
@@ -107,7 +107,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         # 지원하는 모든 버전을 OS 마다 돌린다. pydantic-core·curl_cffi·msgspec·greenlet·lxml·orjson 은 OS·버전마다 따로 빌드된 파일로 설치돼
-        # 어느 조합만 설치가 깨질 수 있어서다 (2026-11-24 결정, jibsa 와 같게). 공개 저장소라 실행 시간은 무료이고 잡이 동시에 돌아 기다림은
+        # 어느 조합만 설치가 깨질 수 있어서다 (2026-11-24 결정). 공개 저장소라 실행 시간은 무료이고 잡이 동시에 돌아 기다림은
         # 가장 느린 잡(Windows 약 1분) 정도다. 새 Python 을 지원하면 여기에 더한다
         python: ['3.11', '3.12', '3.13', '3.14']
     env:
@@ -175,7 +175,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # 리눅스 러너에는 Chromium 이 쓰는 시스템 라이브러리가 있어 install-deps 단계를 두지 않는다 (리뷰 오탐 2026-11-24:
-      # 같은 scrapling·patchright 를 쓰는 집사 CI 가 이 단계 없이 ubuntu-latest 에서 통과)
+      # 이 잡의 브라우저 확인이 이 단계 없이 ubuntu-latest 에서 통과)
       - name: 설치 스크립트 실행 (macOS·Linux)
         if: runner.os != 'Windows'
         run: sh scripts/install/install.sh
