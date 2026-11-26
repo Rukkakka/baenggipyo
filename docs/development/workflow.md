@@ -84,9 +84,10 @@ PR 템플릿의 `변경 종류` 도 같은 다섯 이름을 쓴다. PR 이 닫�
 PR 을 열면 [CI](../../.github/workflows/ci.yml) 가 `ruff check`·`mypy`·전체 `pytest`(Ubuntu·macOS·Windows ×
 Python 3.11·3.12·3.13·3.14)·설치본 확인(`baenggipyo --version`, `baenggipyo guide`·`guide naver`·`guide skyscanner` 를 이은 것과 `docs/llm.md` 비교)·`docs/llm.md` 200줄 검사를 돌린다.
 문서만 바꾼 PR(`docs/` 아래, 맨 위 `.md`, `LICENSE`, `.claude/`, 이슈·PR 템플릿)은 `pytest` 를 건너뛴다. 린트·설치본 확인은 늘 돈다 (테스트는 문서를 읽지 않는다).
+다만 `.claude/workflows/` 두 파일의 args 풀기 블록이 같은지 보는 테스트는 린트에서 늘 돈다.
 머지 조건(main 보호 규칙의 필수 검사)은 마지막 `CI 결과` 검사 하나다. 앞 검사(바뀐 파일 분류·린트·pytest·설치본 확인·브라우저 확인) 중 실패·취소가 있으면 실패하고, 통과·건너뜀뿐이면 통과한다.
 PR 을 연 뒤 `main` 이 바뀌면 "Update branch" 로 최신 `main` 을 합쳐 CI 를 다시 통과해야 머지할 수 있다. 머지 뒤 `main` 에서는 CI 를 다시 돌리지 않는다.
-브라우저·설치에 관련된 파일(`core/browser.py`·`core/http.py`·`core/ratelimit.py`, `cli/app.py`, `scripts/install/`, `scripts/ci/`, `pyproject.toml`, `ci.yml`)을 바꾼 PR 에서는
+브라우저·설치에 관련된 파일(`core/`, `cli/app.py`, `scripts/install/`, `scripts/ci/`, `pyproject.toml`, `ci.yml`)을 바꾼 PR 에서는
 `브라우저 확인 (ubuntu-latest·macos-latest·windows-latest)` 잡도 돈다. 세 운영체제에서 한 줄 설치 스크립트로 PR 의 코드를 설치하고 가짜 사이트로 브라우저 요청을 확인하며,
 돌면 통과해야 머지한다 (`CI 결과` 가 본다). 한국 시간 매주 월요일 03:23 과 릴리스 직전에도, Actions 탭에서 수동으로 돌려도 모든 검사가 돈다
 (코드가 그대로여도 Chromium·의존성·러너 이미지가 바뀌어 깨질 수 있어서, 실패하면 GitHub 이 메일로 알린다). 감시 파일(`scripts/monitor/`, [api-monitor.yml](../../.github/workflows/api-monitor.yml))을 고친 PR 에서는 실제 API 를
