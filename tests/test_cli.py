@@ -220,6 +220,23 @@ def test_brief_keeps_airports_where_a_connection_changes_airport() -> None:
     assert (brief[0]['arrival_airport'], brief[1]['departure_airport']) == ('PKX', 'PEK')
 
 
+# --- 에이전트 워크플로 ---
+
+def test_workflow_args_parsing_blocks_match() -> None:
+    # 워크플로(.claude/workflows/)는 다른 파일을 불러올 수 없어 args 풀기 블록(빈 글자 처리 ~ 'bad-args' 응답)도 두 파일에 복사해 둔다.
+    # 한 파일만 고치면 워크플로마다 잘못된 args 에 다르게 답한다. 같은 소스 동시 실행 상한(SAME_SOURCE_MAX)은 맞추지 않는다:
+    # 웹 대조는 실제 사이트를 열어 1명, 구현 묶음은 3개로 일부러 다르게 둔다 (CLAUDE.md, docs/development/agents.md "동시에 띄울 때")
+    root = Path(__file__).resolve().parents[1] / '.claude' / 'workflows'
+    blocks: dict[str, str] = {}
+    for name in ('web-parity-panel', 'implement-bundles'):
+        lines = (root / f'{name}.js').read_text(encoding='utf-8').splitlines()
+        start = next(i for i, line in enumerate(lines) if line.startswith("if (typeof a === 'string' && !a.trim())"))
+        reason = next(i for i, line in enumerate(lines) if i > start and "reason: 'bad-args'" in line)
+        end = next(i for i, line in enumerate(lines) if i > reason and line == '  }')
+        blocks[name] = '\n'.join(line for line in lines[start:end + 1] if not line.lstrip().startswith('//'))
+    assert len(set(blocks.values())) == 1, blocks
+
+
 # --- 매일 API 감시 ---
 
 def test_every_source_command_is_in_api_monitor() -> None:

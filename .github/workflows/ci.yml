@@ -3,9 +3,10 @@
 # 올린다. 매주 월요일 새벽에도 모든 검사를 돌린다. 우리 코드가 그대로여도 Chromium·의존성 새 버전과 GitHub 러너 이미지가
 # 바뀌어 깨질 수 있어서다 (실패하면 GitHub 이 메일로 알린다). main 보호 규칙의 필수 검사는 마지막 'CI 결과' 잡 하나다. 다른 잡 이름이나 pytest 매트릭스를 바꿔도
 # 보호 규칙은 그대로 둔다. 잡을 더하면 'CI 결과' 의 needs 에 넣는다.
-# 문서만 바뀐 PR 은 pytest 를 건너뛴다 ('바뀐 파일 분류'). 테스트는 문서를 읽지 않고 (2026-11-24 확인: tests/ 에 docs/·.claude/·
-# 맨 위 .md 를 읽는 테스트가 없다), 문서는 린트(docs/llm.md 200줄)와 설치본 확인(guide 사본·README 렌더링)이 본다. 문서를 읽는
-# 테스트를 더하면 그 테스트를 린트 잡에서 이름으로 돌린다. 건너뛴 매트릭스 잡은 OS·버전별 이름으로 결과를 남기지 않아, 그 이름들을 필수
+# 문서만 바뀐 PR 은 pytest 를 건너뛴다 ('바뀐 파일 분류'). 테스트는 문서를 읽지 않고, 문서는 린트(docs/llm.md 200줄)와
+# 설치본 확인(guide 사본·README 렌더링)이 본다. 문서로 보는 .claude/workflows/ 를 읽는 테스트(args 풀기 블록 일치)만은
+# 워크플로만 고친 PR 에서도 돌도록 매 PR 도는 린트 잡에서 따로 돌린다. 문서를 읽는 테스트를 더하면 그 테스트도 린트 잡에서
+# 이름으로 돌린다. 건너뛴 매트릭스 잡은 OS·버전별 이름으로 결과를 남기지 않아, 그 이름들을 필수
 # 검사로 두면 머지가 막힌다. 그래서 필수 검사를 'CI 결과' 하나로 둔다.
 # main push 에는 돌리지 않는다. main 보호 규칙이 PR 을 최신 main 으로 맞춰야 머지하게 해(required_status_checks.strict)
 # PR 에서 검사한 코드가 곧 main 에 들어가는 코드라서다. 그 규칙을 끄면 머지 뒤 검사가 없으니 이 트리거를 다시 넣는다.
@@ -46,9 +47,9 @@ jobs:
           # 문서로 보는 파일: docs/ 아래 전부, 맨 위 .md(README·CHANGELOG·AGENTS 등), LICENSE, .claude/(에이전트·스킬 정의),
           # 이슈·PR 템플릿
           DOC_PATTERN: '^(docs/|[^/]+\.md$|LICENSE$|\.claude/|\.github/ISSUE_TEMPLATE/|\.github/PULL_REQUEST_TEMPLATE\.md$)'
-          # 브라우저 확인을 돌릴 파일: 브라우저·http·요청 제한 계층(core/), install-browser 명령(cli/app.py), 설치 스크립트, 확인 스크립트,
-          # 의존성(patchright·scrapling 버전), 이 워크플로
-          BROWSER_PATTERN: '^(src/baenggipyo/core/(browser|http|ratelimit)\.py$|src/baenggipyo/cli/app\.py$|scripts/install/|scripts/ci/|pyproject\.toml$|\.github/workflows/ci\.yml$)'
+          # 브라우저 확인을 돌릴 파일: core/ 전체(브라우저·http·요청 제한 계층과 확인 스크립트가 함께 쓰는 errors.py 등), install-browser
+          # 명령(cli/app.py), 설치 스크립트, 확인 스크립트, 의존성(patchright·scrapling 버전), 이 워크플로
+          BROWSER_PATTERN: '^(src/baenggipyo/core/|src/baenggipyo/cli/app\.py$|scripts/install/|scripts/ci/|pyproject\.toml$|\.github/workflows/ci\.yml$)'
         run: |
           # PR 이 아닌 실행(release.yml 이 부름, 매주, 수동)이나 합친 커밋이 아니면 모두 검사한다
           if [ "$GITHUB_EVENT_NAME" != pull_request ] || ! git rev-parse -q --verify HEAD^2 > /dev/null; then
@@ -96,6 +97,10 @@ jobs:
             echo "::error file=docs/llm.md::${lines}줄입니다. 200줄 이하로 줄이세요 (AGENTS.md '문서 갱신')"
             exit 1
           fi
+      # .claude/workflows/ 는 문서로 분류돼 그것만 고친 PR 은 pytest 잡을 건너뛴다. 한 워크플로만 args 풀기 블록을
+      # 고친 PR 을 그 PR 에서 막는다. 워크플로끼리 맞춰야 하는 테스트를 더하면 여기에도 더한다
+      - name: 워크플로 args 풀기 블록 일치
+        run: pytest tests/test_cli.py::test_workflow_args_parsing_blocks_match
 
   test:
     name: pytest (${{ matrix.os }}, Python ${{ matrix.python }})
@@ -107,7 +112,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         # 지원하는 모든 버전을 OS 마다 돌린다. pydantic-core·curl_cffi·msgspec·greenlet·lxml·orjson 은 OS·버전마다 따로 빌드된 파일로 설치돼
-        # 어느 조합만 설치가 깨질 수 있어서다 (2026-11-24 결정, jibsa 와 같게). 공개 저장소라 실행 시간은 무료이고 잡이 동시에 돌아 기다림은
+        # 어느 조합만 설치가 깨질 수 있어서다 (2026-11-24 결정). 공개 저장소라 실행 시간은 무료이고 잡이 동시에 돌아 기다림은
         # 가장 느린 잡(Windows 약 1분) 정도다. 새 Python 을 지원하면 여기에 더한다
         python: ['3.11', '3.12', '3.13', '3.14']
     env:
@@ -175,7 +180,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # 리눅스 러너에는 Chromium 이 쓰는 시스템 라이브러리가 있어 install-deps 단계를 두지 않는다 (리뷰 오탐 2026-11-24:
-      # 같은 scrapling·patchright 를 쓰는 집사 CI 가 이 단계 없이 ubuntu-latest 에서 통과)
+      # 이 잡의 브라우저 확인이 이 단계 없이 ubuntu-latest 에서 통과)
       - name: 설치 스크립트 실행 (macOS·Linux)
         if: runner.os != 'Windows'
         run: sh scripts/install/install.sh
